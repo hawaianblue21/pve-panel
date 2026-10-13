@@ -2,6 +2,7 @@ import { icon } from '/shared/icons.js';
 import { renderSecurity } from '/shared/twofa.js';
 import { renderPasskeys } from '/shared/passkeys.js';
 import { applyScheme } from '/shared/icons.js';
+import { createInfra } from '/infra.js';
 
 // Administration area: assign servers, manage customers, read the activity log.
 // Receives the shared helpers from app.js so it behaves like the rest of the panel.
@@ -86,6 +87,27 @@ const ACTION_LABELS = {
   tailscale_disconnected: 'Disconnected from Tailscale',
   vpn_device_remove: 'Removed VPN device',
   admin_vpn_device_remove: 'Removed VPN device',
+  admin_role_create: 'Created an administrator role',
+  admin_role_update: 'Changed an administrator role',
+  admin_role_delete: 'Deleted an administrator role',
+  admin_role_assign: 'Changed the role of an administrator',
+  admin_datacenter_create: 'Added a datacenter',
+  admin_datacenter_update: 'Changed a datacenter',
+  admin_datacenter_delete: 'Deleted a datacenter',
+  admin_pool_create: 'Created a resource pool',
+  admin_pool_update: 'Changed a resource pool',
+  admin_pool_delete: 'Deleted a resource pool',
+  admin_pool_member_add: 'Added a customer to a resource pool',
+  admin_pool_member_remove: 'Removed a customer from a resource pool',
+  admin_s3_settings: 'Changed object storage settings',
+  s3_bucket_create: 'Created a bucket',
+  s3_bucket_delete: 'Deleted a bucket',
+  s3_key_issued: 'Issued an object storage access key',
+  admin_gpu_profile_create: 'Added a GPU profile',
+  admin_gpu_profile_update: 'Changed a GPU profile',
+  admin_gpu_profile_delete: 'Deleted a GPU profile',
+  admin_gpu_attach: 'Attached a GPU',
+  admin_gpu_detach: 'Detached a GPU',
 };
 
 export function generatePassword(length = 16) {
@@ -98,8 +120,17 @@ export function generatePassword(length = 16) {
 export function createAdmin({ root, api, toast, fail, confirmAction, promptText, esc, getMe, onAbout }) {
   const st = {
     tab: 'servers', users: [], vms: [], audit: [], filter: '', newUser: null,
-    templates: [], storages: {}, vpn: null,
+    templates: [], storages: {}, vpn: null, perms: null,
   };
+  // Access control, resource pools, object storage and GPUs (own module)
+  const infra = createInfra({ root, api, toast, fail, confirmAction, esc });
+  // Which permission a tab needs (the server checks every request as well)
+  const TAB_PERMISSION = {
+    servers: 'servers.read', users: 'customers.read', templates: 'servers.read', vpn: 'network.read',
+    activity: 'audit.read', settings: 'settings.read', account: null, about: null,
+  };
+  const allowedTab = (id) => (infra.handles(id) ? infra.tabs().some(([t]) => t === id)
+    : !TAB_PERMISSION[id] || !st.perms || st.perms.has(TAB_PERMISSION[id]));
   const gb = (mb) => `${+(mb / 1024).toFixed(1)} GB`;
 
   const utc = (s) => new Date(`${s.replace(' ', 'T')}Z`);
@@ -109,7 +140,9 @@ export function createAdmin({ root, api, toast, fail, confirmAction, promptText,
     const body = root.querySelector('#admin-body');
     if (!quiet) body.innerHTML = '<p class="muted">Loading…</p>';
     try {
-      if (st.tab === 'servers') {
+      if (infra.handles(st.tab)) {
+        await infra.load(st.tab);
+      } else if (st.tab === 'servers') {
         [st.vms, st.users] = await Promise.all([api('/api/admin/vms'), api('/api/admin/users')]);
       } else if (st.tab === 'users') {
         [st.users, st.email] = await Promise.all([api('/api/admin/users'), api('/api/admin/settings/email')]);
@@ -141,7 +174,9 @@ export function createAdmin({ root, api, toast, fail, confirmAction, promptText,
 
   // ---- shell ------------------------------------------------------------
   function render() {
-    const tabs = [['servers', 'Servers'], ['users', 'Customers'], ['templates', 'Templates'], ['vpn', 'VPN'], ['activity', 'Activity'], ['account', 'Your account'], ['settings', 'Settings'], ['about', 'About']];
+    const tabs = [['servers', 'Servers'], ['users', 'Customers'], ['templates', 'Templates'], ['vpn', 'VPN'],
+      ...infra.tabs(), ['activity', 'Activity'], ['account', 'Your account'], ['settings', 'Settings'], ['about', 'About']]
+      .filter(([id]) => allowedTab(id));
     root.innerHTML = `
       <div class="admin-inner">
         <h1>Administration</h1>
@@ -154,6 +189,7 @@ export function createAdmin({ root, api, toast, fail, confirmAction, promptText,
   }
 
   function renderTab() {
+    if (infra.handles(st.tab)) infra.render(st.tab);
     if (st.tab === 'servers') renderServers();
     if (st.tab === 'users') renderUsers();
     if (st.tab === 'templates') renderTemplates();
@@ -375,10 +411,10 @@ export function createAdmin({ root, api, toast, fail, confirmAction, promptText,
           </span>
         </label>
         <button class="btn primary">Add customer</button>
-        <label class="check">
+        ${st.perms?.has('rbac.write') ? `<label class="check">
           <input type="checkbox" name="isAdmin">
-          <span>Administrator <span class="muted">Can open this area and manage all customers and servers.</span></span>
-        </label>
+          <span>Administrator <span class="muted">Can open this area. Starts with the Operator role; change it in the Access tab.</span></span>
+        </label>` : ''}
         <label class="check">
           <input type="checkbox" name="invite" ${st.email?.configured ? '' : 'disabled'}>
           <span>Send an invitation email
@@ -578,7 +614,7 @@ export function createAdmin({ root, api, toast, fail, confirmAction, promptText,
     const email = form.email.value.trim();
     const invite = form.invite.checked;
     const password = invite ? undefined : form.password.value;
-    const isAdmin = form.isAdmin.checked;
+    const isAdmin = !!form.isAdmin?.checked;
     const requireTotp = form.requireTotp.checked;
     const generated = !invite && form.dataset.generated === password;
     const button = form.querySelector('.btn.primary');
@@ -1170,6 +1206,7 @@ export function createAdmin({ root, api, toast, fail, confirmAction, promptText,
   root.addEventListener('click', async (e) => {
     const t = e.target.closest('button');
     if (!t) return;
+    if (infra.handles(st.tab) && !t.dataset.adminTab && await infra.onClick(e, st.tab)) return;
 
     if (t.dataset.adminTab) {
       st.tab = t.dataset.adminTab;
@@ -1402,14 +1439,36 @@ export function createAdmin({ root, api, toast, fail, confirmAction, promptText,
     }
   });
 
+  root.addEventListener('change', (e) => {
+    if (infra.handles(st.tab)) infra.onChange(e, st.tab);
+  });
+
   root.addEventListener('submit', (e) => {
+    if (infra.handles(st.tab)) {
+      e.preventDefault();
+      infra.onSubmit(e, st.tab);
+      return;
+    }
     if (e.target.id !== 'user-form') return;
     e.preventDefault();
     createUser(e.target);
   });
 
+  /** Role and permissions decide which tabs show; the first allowed tab opens. */
+  async function loadPermissions() {
+    try {
+      const me = await api('/api/admin/me');
+      st.perms = new Set(me.permissions);
+      infra.setPermissions(me.permissions);
+    } catch (err) {
+      fail(err);
+    }
+    if (!allowedTab(st.tab)) st.tab = ['servers', 'users', 'resources', 'gpu', 'storage', 'account'].find(allowedTab);
+  }
+
   return {
-    open() {
+    async open() {
+      await loadPermissions();
       render();
       load();
     },

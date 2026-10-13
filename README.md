@@ -136,6 +136,10 @@ PVE Panel was built with substantial help from an AI assistant (**Claude by Anth
 - See the running version and whether an update is available
 - Configure email (SMTP) in the admin portal and invite users by email
 - Give single customers or servers an expiry date: reminders, automatic stop, grace period, deletion
+- Role-based access for administrators (owner, operator, resource manager, read-only support, custom roles)
+- Datacenters and resource allocation pools: shared caps on vCPU, memory, disk, public IPs, GPUs and object storage
+- GPU compute: PCI passthrough and NVIDIA vGPU (mdev) on Proxmox resource mappings
+- Object storage on SeaweedFS (S3): per-customer IAM users, buckets, policies and one-time access keys
 
 ### Provisioning
 
@@ -162,6 +166,84 @@ PVE Panel supports automated provisioning for both Linux and Windows workloads.
 - DHCP cleanup and validation
 - Windows setup-state detection
 - Automatic reboot and readiness checks
+
+---
+
+## 🧩 Access control, resource pools, object storage & GPUs
+
+### Role-based access (admin portal)
+
+Every administrator has a **role**; a role is a set of permissions, and the server checks the permission of
+every admin API request (`src/rbac.js`). Routes that aren't mapped need `rbac.write`, so a forgotten mapping
+fails closed.
+
+| Built-in role | Can |
+| --- | --- |
+| **Owner** | Everything, including administrators and roles |
+| **Operator** | Customers, servers, templates, network; reads everything else |
+| **Resource manager** | Resource pools, datacenters, object storage, GPUs; reads everything else |
+| **Support (read-only)** | Sees everything, changes nothing |
+
+Custom roles are made in **Access**. Administrators created at first start or on the command line are owners;
+administrators made in the panel start as **Operator**. The last owner can't be demoted, removed or deleted.
+
+### Datacenters and resource allocation pools
+
+A **datacenter** is a named set of Proxmox nodes (one node belongs to one datacenter) with an optional target
+storage. New servers are cloned onto a node of the chosen datacenter (`target` of the full clone).
+
+A **resource pool** is a shared envelope for several customers (a tenant organisation, a department, a reseller).
+It caps the **total** of its members, on top of each customer's own limits:
+
+| Pool limit | Empty | 0 | Above 0 |
+| --- | --- | --- | --- |
+| vCPU, memory, disk | no cap at pool level | none allowed | total cap |
+| Public IPv4 | stored, counted once IPAM ships | | |
+| GPUs | **not included** | not included | up to N GPUs |
+| S3 buckets / S3 GB | **not included** / no GB cap | not included | up to N |
+
+Pools also list the datacenters and GPU profiles their members may use (none ticked = all).
+Checked on create and resize; `GET /api/account` tells customers which datacenters and GPUs they can choose.
+
+### GPU compute (passthrough and vGPU)
+
+GPUs build on Proxmox **PCI resource mappings** (Datacenter → Resource Mappings → PCI Devices, Proxmox VE 8+).
+A GPU profile points at one mapping:
+
+- **Passthrough**: a whole device of the mapping → `hostpciN: mapping=<id>[,pcie=1]`
+- **vGPU / mediated device**: a slice of the mapping's device (enable *Use with Mediated Devices* on the
+  mapping) → `hostpciN: mapping=<id>,mdev=<type>` (e.g. `nvidia-660`)
+
+`pcie=1` is only added when the guest already uses the q35 machine type; the panel never changes a guest's
+machine type. GPUs are attached to stopped servers, counted against the owner's pool, kept across a reinstall,
+and free capacity comes from the mapping (passthrough) or Proxmox's mdev availability (vGPU).
+
+Extra Proxmox permissions for the panel's token:
+
+```
+pveum role add PanelGpu --privs "Mapping.Audit Mapping.Use Sys.Audit VM.Config.HWType"
+pveum acl modify /mapping/pci --users panel@pve --roles PanelGpu
+pveum acl modify /nodes --users panel@pve --roles PanelGpu
+```
+
+### Object storage on SeaweedFS (S3)
+
+Configured in **Object storage**: the S3 endpoint (`weed s3` / `weed server -s3`, port 8333; the IAM API is
+embedded there), an admin access key and secret (encrypted at rest, never shown again), a public endpoint for
+customers and a bucket prefix. The panel signs requests with AWS Signature V4 and:
+
+- creates one IAM user per customer (`<prefix>u<id>`) and buckets named `<prefix><id>-<name>`,
+- keeps an inline policy on that user allowing exactly their buckets,
+- issues access keys whose secret is shown **once** (rotating a key revokes the old one),
+- reads bucket usage, and counts bucket quotas against the pool.
+
+Hard quotas are enforced by SeaweedFS: the panel shows `s3.bucket.quota -name <bucket> -sizeMB <n>` per bucket;
+run `s3.bucket.quota.enforce -apply` in `weed shell` on a schedule so buckets over quota become read-only.
+Deleting a customer removes their IAM user and key; their buckets stay (without owner) so no data is lost
+unless an administrator deletes them.
+
+Customer API: `GET /api/storage`, `POST /api/storage/buckets`, `DELETE /api/storage/buckets/:name`,
+`POST /api/storage/keys`.
 
 ---
 

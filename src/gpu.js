@@ -167,6 +167,10 @@ export async function profileCapacity(profile, mappings = null) {
 /** Everything the GPU tab shows. */
 export async function gpuInventory() {
   const mappings = await pciMappings().catch((err) => { throw new GpuError(502, `Proxmox resource mappings: ${err.message}`); });
+  // Mediated device types offered by the first device of each mdev mapping
+  await Promise.all(mappings.filter((m) => m.mdev && m.devices.length).map(async (m) => {
+    m.mdevTypes = await mdevTypes(m.devices[0].node, m.devices[0].path).catch(() => []);
+  }));
   const nodes = [...new Set(mappings.flatMap((m) => m.devices.map((d) => d.node)))];
   const devices = {};
   await Promise.all(nodes.map(async (node) => {

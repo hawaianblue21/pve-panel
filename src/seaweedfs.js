@@ -3,8 +3,9 @@
 // encrypted at rest (secrets.js) and never sent back to the browser.
 //
 // SeaweedFS side (see docs): run the S3 gateway with an admin identity
-// (`weed s3 -config=s3.json` or `weed server -s3 -s3.config=...`) and the IAM
-// API (`weed iam`, default port 8111, or `weed server -s3 -s3.iam`). The panel
+// (`weed s3 -filer=... -config=s3.json` or `weed server -s3 -s3.config=...`).
+// The IAM API is embedded in the S3 server and on by default (same port, 8333);
+// the old standalone `weed iam` (port 8111) also works via "IAM endpoint". The panel
 //   - creates one IAM user per customer ("<prefix>u<id>"),
 //   - creates buckets named "<prefix><id>-<name>" with the admin identity,
 //   - keeps a policy on the customer's IAM user that allows exactly their buckets,
@@ -44,7 +45,7 @@ export function s3Settings() {
     configured: !!(s?.enabled && s?.endpoint && s?.accessKey && s?.secretKey),
     enabled: !!s?.enabled,
     endpoint: s?.endpoint ?? '',             // S3 gateway, e.g. http://seaweedfs:8333
-    iamEndpoint: s?.iamEndpoint ?? '',       // IAM API, e.g. http://seaweedfs:8111
+    iamEndpoint: s?.iamEndpoint ?? '',       // IAM API; defaults to the S3 endpoint (embedded IAM)
     publicEndpoint: s?.publicEndpoint ?? '', // shown to customers, e.g. https://s3.example.com
     region: s?.region ?? 'us-east-1',
     accessKey: s?.accessKey ?? '',
@@ -269,7 +270,9 @@ export async function bucketUsage(name) {
 }
 
 export function quotaCommand(bucket, quotaGb) {
-  return quotaGb ? `s3.bucket.quota -name=${bucket} -op=set -sizeMB=${quotaGb * 1024}` : null;
+  // weed shell; `s3.bucket.quota.enforce -apply` (run it on a schedule) then makes
+  // buckets over their quota read-only. See the SeaweedFS wiki, S3 Bucket Quota.
+  return quotaGb ? `s3.bucket.quota -name ${bucket} -sizeMB ${quotaGb * 1024}` : null;
 }
 
 export function listBuckets({ userId = null } = {}) {
