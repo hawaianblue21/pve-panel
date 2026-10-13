@@ -1,3 +1,6 @@
+import { poolOfUser, datacentersFor } from '../pools.js';
+import { profilesForUser, gpusOfServer } from '../gpu.js';
+import { s3Enabled } from '../seaweedfs.js';
 import { db, audit } from '../db.js';
 import { config } from '../config.js';
 import {
@@ -162,10 +165,15 @@ export default async function vmRoutes(app) {
     // Version number only; commit, build date and update status stay admin-only.
     const panelVersion = config.showVersionToCustomers ? versionInfo.version : null;
     if (!a.can_create) return { canCreate: false, network, vpn, tailscale, panelVersion };
+    const pool = poolOfUser(a.id);
     return {
       canCreate: true,
       limits: limitsOf(a),
       usage: await usageOf(a.id),
+      // Where servers can go and which GPUs can be added (from the resource pool)
+      datacenters: datacentersFor(a.id).map(({ id, name, location }) => ({ id, name, location })),
+      gpuProfiles: profilesForUser(a.id).map(({ id, name, mode, vramGb }) => ({ id, name, mode, vramGb })),
+      pool: pool ? { name: pool.name, objectStorage: pool.maxS3Buckets > 0 && s3Enabled() } : null,
       network,
       networksEnabled: config.network.enabled,
       vpn,
@@ -195,6 +203,8 @@ export default async function vmRoutes(app) {
           username: { type: 'string', pattern: '^[a-z_][a-z0-9_-]{0,31}$' },
           password: { type: 'string', minLength: 12, maxLength: 200 },
           sshKeys: { type: 'string', maxLength: 16000 },
+          datacenterId: { type: 'integer', minimum: 1 },
+          gpuProfileId: { type: 'integer', minimum: 1 },
         },
       },
     },
@@ -369,6 +379,7 @@ export default async function vmRoutes(app) {
       ips,
       pendingSize,
       resizable: !!row.created_by_customer,
+      gpus: gpusOfServer(row.vmid).map(({ slot, name, mode, vramGb }) => ({ slot, name, mode, vramGb })),
       netin: status.netin ?? 0,
       netout: status.netout ?? 0,
     };

@@ -213,6 +213,107 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS winupdates_vm ON winupdates(vmid);
 `);
 
+// ---- Role-based access for the administration interface ----------------------
+// A role is a named set of permissions (see rbac.js). Administrators without a
+// role (created by the first-start bootstrap or the command line) are owners.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS admin_roles (
+    id          INTEGER PRIMARY KEY,
+    key         TEXT UNIQUE NOT NULL,
+    name        TEXT NOT NULL,
+    description TEXT,
+    builtin     INTEGER NOT NULL DEFAULT 0,
+    permissions TEXT NOT NULL DEFAULT '[]',   -- JSON array of permission keys
+    created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+`);
+// Not a foreign key with ON DELETE SET NULL: "no role" means owner, so deleting a
+// role must never silently promote its members. rbac.js refuses deleting a role in use.
+addColumn('users', 'admin_role_id', 'INTEGER');
+
+// ---- Datacenters and resource allocation pools --------------------------------
+// A datacenter is a named location made of Proxmox nodes. A resource pool is a
+// shared envelope (vCPU, memory, disk, public IPs, GPUs, object storage and the
+// datacenters it may use) that several customers draw from, e.g. one tenant
+// organisation or reseller. Compute limits: NULL = no pool-level cap, 0 = none.
+// GPUs and object storage are opt-in: NULL or 0 = not included (pools.js).
+db.exec(`
+  CREATE TABLE IF NOT EXISTS datacenters (
+    id         INTEGER PRIMARY KEY,
+    key        TEXT UNIQUE NOT NULL,
+    name       TEXT NOT NULL,
+    location   TEXT,
+    nodes      TEXT NOT NULL DEFAULT '[]',     -- JSON array of Proxmox node names
+    storage    TEXT,                           -- target storage for new servers here
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+
+  CREATE TABLE IF NOT EXISTS resource_pools (
+    id             INTEGER PRIMARY KEY,
+    name           TEXT UNIQUE NOT NULL,
+    description    TEXT,
+    max_cores      INTEGER,
+    max_memory_mb  INTEGER,
+    max_disk_gb    INTEGER,
+    max_public_ips INTEGER,
+    max_gpus       INTEGER,
+    max_s3_buckets INTEGER,
+    max_s3_gb      INTEGER,
+    datacenters    TEXT NOT NULL DEFAULT '[]', -- JSON array of datacenter ids; [] = all
+    gpu_profiles   TEXT NOT NULL DEFAULT '[]', -- JSON array of GPU profile ids; [] = all
+    created_at     TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+`);
+addColumn('users', 'resource_pool_id', 'INTEGER REFERENCES resource_pools(id) ON DELETE SET NULL');
+addColumn('vms', 'datacenter_id', 'INTEGER');
+
+// ---- GPUs ------------------------------------------------------------------------
+// A GPU profile points at a Proxmox PCI resource mapping (Datacenter > Resource
+// Mappings), either as a whole device (passthrough) or as a mediated device type
+// (NVIDIA vGPU / mdev). Assignments record which server holds which GPU slot.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS gpu_profiles (
+    id          INTEGER PRIMARY KEY,
+    key         TEXT UNIQUE NOT NULL,
+    name        TEXT NOT NULL,
+    mode        TEXT NOT NULL CHECK (mode IN ('passthrough', 'mdev')),
+    mapping     TEXT NOT NULL,               -- Proxmox PCI resource mapping id
+    mdev_type   TEXT,                        -- e.g. nvidia-660 (mdev mode only)
+    vram_gb     INTEGER,
+    description TEXT,
+    created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+
+  CREATE TABLE IF NOT EXISTS gpu_assignments (
+    vmid       INTEGER NOT NULL REFERENCES vms(vmid) ON DELETE CASCADE,
+    slot       INTEGER NOT NULL,             -- hostpci<slot> in the VM config
+    profile_id INTEGER NOT NULL REFERENCES gpu_profiles(id),
+    user_id    INTEGER,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    PRIMARY KEY (vmid, slot)
+  );
+`);
+
+// ---- Object storage (SeaweedFS, S3 API) ----------------------------------------
+// One SeaweedFS IAM identity per customer; only the access key id is stored,
+// the secret key is shown once. Buckets survive a customer's deletion (owner
+// NULL) so no data is destroyed without an administrator deciding it.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS s3_accounts (
+    user_id       INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    iam_user      TEXT UNIQUE NOT NULL,
+    access_key_id TEXT,
+    created_at    TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+
+  CREATE TABLE IF NOT EXISTS s3_buckets (
+    name       TEXT PRIMARY KEY,
+    user_id    INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    quota_gb   INTEGER NOT NULL DEFAULT 0,   -- 0 = no quota of its own
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+`);
+
 // Background jobs don't survive a restart; don't leave servers stuck forever.
 db.exec(`
   UPDATE vms SET state = 'failed', error = 'Setup was interrupted because the panel restarted'

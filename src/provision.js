@@ -9,6 +9,8 @@ import { setupWindows, windowsPasswordProblem } from './windows.js';
 import { agentExec } from './agent.js';
 import { expiryForNewServer } from './expiry.js';
 import { activeRun } from './winupdate.js';
+import { checkPoolCapacity, placement, datacenterById } from './pools.js';
+import { profilesForUser, profileCapacity, applyRecordedGpus } from './gpu.js';
 
 const MB = 1024 ** 2;
 const GB = 1024 ** 3;
@@ -168,6 +170,21 @@ export async function createServer(req, spec) {
     if (usage.diskGb + spec.diskGb > limits.diskGb) over.push(`disk (${limits.diskGb - usage.diskGb} GB left)`);
     if (over.length) throw new ProvisionError(409, `This exceeds your plan: ${over.join(', ')}`);
 
+    // GPU (only through a resource pool that offers the profile)
+    let gpu = null;
+    if (spec.gpuProfileId) {
+      gpu = profilesForUser(account.id).find((p) => p.id === spec.gpuProfileId);
+      if (!gpu) throw new ProvisionError(403, 'That GPU is not available for your account');
+      const cap = await profileCapacity(gpu);
+      if (cap.free < 1) throw new ProvisionError(409, `No ${gpu.name} is free right now. Try again later or choose another GPU.`);
+    }
+
+    // Resource pool (shared by several customers) and the datacenter it may use
+    await checkPoolCapacity(account.id, {
+      cores: spec.cores, memoryMb: spec.memoryMb, diskGb: spec.diskGb, gpus: gpu ? 1 : 0,
+    });
+    const place = placement(account.id, spec.datacenterId ?? null, tpl.node);
+
     // The customer's private network (created with their first server)
     const net = config.network.enabled ? await ensureNetwork(account.id) : null;
 
@@ -191,24 +208,30 @@ export async function createServer(req, spec) {
         newid: id,
         name: spec.hostname,
         full: 1,
-        storage: tplRow.storage || undefined,
+        // Another node of the datacenter: Proxmox clones there (full clone)
+        target: place && place.node !== tpl.node ? place.node : undefined,
+        storage: place?.storage || tplRow.storage || undefined,
         pool: config.pve.pool,
       });
       return { vmid: id, upid: task };
     });
 
     db.prepare(`
-      INSERT INTO vms (vmid, user_id, type, label, state, created_by_customer, spec, progress, expires_at, expiry_set_at)
-      VALUES (?, ?, 'qemu', NULL, 'creating', 1, ?, 'Copying the image', ?, ?)
+      INSERT INTO vms (vmid, user_id, type, label, state, created_by_customer, spec, progress, expires_at, expiry_set_at, datacenter_id)
+      VALUES (?, ?, 'qemu', NULL, 'creating', 1, ?, 'Copying the image', ?, ?, ?)
     `).run(vmid, account.id, JSON.stringify({
       cores: spec.cores, memoryMb: spec.memoryMb, diskGb: spec.diskGb, template: tpl.vmid,
-      hostname: spec.hostname,
-    }), expiryForNewServer(account.id), new Date().toISOString());
+      hostname: spec.hostname, gpu: gpu?.key ?? undefined,
+    }), expiryForNewServer(account.id), new Date().toISOString(), place?.datacenter.id ?? null);
+    // The GPU is reserved now (slot -1) and written into the config before first start
+    if (gpu) {
+      db.prepare('INSERT INTO gpu_assignments (vmid, slot, profile_id, user_id) VALUES (?, -1, ?, ?)').run(vmid, gpu.id, account.id);
+    }
     audit(req, vmid, 'server_create_started', { template: tpl.vmid, hostname: spec.hostname });
 
     background = true;
     const actor = { account: { id: account.id }, ip: req.ip };
-    finishCreate(actor, tpl.node, vmid, upid, spec, tplRow, net)
+    finishCreate(actor, place?.node ?? tpl.node, vmid, upid, spec, tplRow, net)
       .finally(() => creatingFor.delete(account.id));
 
     return vmid;
@@ -226,7 +249,8 @@ async function finishCreate(actor, node, vmid, cloneUpid, spec, tplRow, net, {
   const progress = (text) => setProgress.run(text, vmid);
   const windows = spec.setup === 'windows';
   try {
-    await waitTask(node, cloneUpid);
+    // The clone task runs on the template's node, which may differ from `node`
+    await waitTask(null, cloneUpid);
 
     progress('Configuring');
     const cfg = await pve.get(`${path}/config`);
@@ -247,6 +271,8 @@ async function finishCreate(actor, node, vmid, cloneUpid, spec, tplRow, net, {
     }
     await pve.put(`${path}/config`, params);
     if (net) await isolateGuest(path, net);
+    // GPUs reserved at creation, or recorded before a reinstall
+    await applyRecordedGpus(path, vmid);
 
     const disk = bootDiskKey(cfg);
     if (disk && spec.diskGb > diskSizeGb(cfg[disk])) {
@@ -357,14 +383,17 @@ export async function reinstallServer(req, row, input) {
           invalidateGuestCache();
         }
         setProgress.run('Copying the image', vmid);
+        // Stay on the same node (and so in the same datacenter) as before
+        const node = guest?.node ?? tpl.node;
         const upid = await serial(() => pve.post(`/nodes/${encodeURIComponent(tpl.node)}/qemu/${tpl.vmid}/clone`, {
           newid: vmid,
           name: spec.hostname,
           full: 1,
-          storage: tplRow.storage || undefined,
+          target: node !== tpl.node ? node : undefined,
+          storage: (row.datacenter_id && datacenterById(row.datacenter_id)?.storage) || tplRow.storage || undefined,
           pool: config.pve.pool,
         }));
-        await finishCreate(actor, tpl.node, vmid, upid, spec, tplRow, net, {
+        await finishCreate(actor, node, vmid, upid, spec, tplRow, net, {
           mac, done: 'server_reinstalled', failed: 'server_reinstall_failed',
         });
       } catch (err) {
@@ -444,6 +473,9 @@ export async function resizeServer(req, row, { cores, memoryMb, diskGb, restart 
     }
     if (others.diskGb + next.diskGb > limits.diskGb) over.push(`disk (at most ${limits.diskGb - others.diskGb} GB for this server)`);
     if (over.length) throw new ProvisionError(409, `This exceeds your plan: ${over.join(', ')}`);
+    await checkPoolCapacity(account.id, {
+      cores: next.cores - cur.cores, memoryMb: next.memoryMb - cur.memoryMb, diskGb: next.diskGb - cur.diskGb,
+    });
 
     const running = guest.status === 'running';
     if (cpuMemChanged) {
