@@ -14,6 +14,7 @@ import { createAssistant } from '/assistant.js';
 import { createBilling } from '/billing.js';
 import { createStorage } from '/storage.js';
 import { createPublicIps } from '/publicips.js';
+import { renderTokens } from '/shared/tokens.js';
 import { planFieldset, updatePlanChoice, planBody, openUpgrade } from '/plans.js';
 
 const brandReady = applyBrand();
@@ -1757,6 +1758,7 @@ function openAccount() {
       <div id="passkeys" class="account-section"></div>
       <div id="identities" class="account-section"></div>
       <div id="appearance" class="account-section"></div>
+      <div id="api-tokens" class="account-section"></div>
       ${state.account.panelVersion ? `
         <section class="security-card about-panel">
           <div>
@@ -1769,6 +1771,7 @@ function openAccount() {
   renderPasskeys($('#passkeys'));
   renderIdentities($('#identities'));
   renderAppearance($('#appearance'));
+  renderTokens($('#api-tokens'), { portal: 'customer' });
 }
 $('#nav-account').addEventListener('click', openAccount);
 

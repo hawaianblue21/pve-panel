@@ -33,7 +33,7 @@ Status: ✅ implemented · 🟡 partly (what is missing is listed) · ⬜ design
 | Ticket desk (Zammad) | `Admin-Support.dc.html` | ✅ queues, notes, customer context, KB suggestions, optional Zammad sync (AI triage missing) |
 | Knowledge base editor | `Admin-KB.dc.html` | ✅ drafts from tickets, visibility, searches without results (AI drafts missing) |
 | AI assistant | `Admin-AI.dc.html` | ✅ provider settings, usage, conversations with tool calls (behaviour presets and knowledge-gap view missing) |
-| API tokens & integrations (owner only) | `Admin-Integrations.dc.html` | 🟡 Zammad, AI provider, Xendit and Midtrans (in Settings); API tokens missing |
+| API tokens & integrations (owner only) | `Admin-Integrations.dc.html` | ✅ API tokens (customer and admin, scopes, read-only, expiry, last use; owners see all), Zammad, AI provider, Xendit and Midtrans in Settings (webhooks out missing) |
 | Settings & white label (owner only) | `Admin-Settings.dc.html` | 🟡 branding, single sign-on, appearance, updates, email, expiry; Proxmox clusters, Proxmox Backup Server missing |
 | Patch management | `Admin-Updates.dc.html` | 🟡 Windows/Linux switches, per-server runs and log; fleet view and rollout rings missing |
 | Server lifecycle (expiry) | `Admin-Lifecycle.dc.html` | 🟡 rules, reminders, stop, grace, deletion, pause; queue view missing |

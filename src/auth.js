@@ -9,6 +9,7 @@ import * as sso from './sso.js';
 import { userAppearance, setUserAppearance, MODES } from './appearance.js';
 import { checkInvitation, acceptInvitation } from './invite.js';
 import * as passkeys from './passkeys.js';
+import { checkToken } from './tokens.js';
 
 const SESSION_HOURS = 8;
 // Adding a way to sign in (passkey, linked provider) needs a sign-in this recent.
@@ -43,8 +44,19 @@ async function authPlugin(app, { scope }) {
   });
 
   app.decorateRequest('account', null);
+  app.decorateRequest('apiToken', null);
 
   app.decorate('authenticate', async (req, reply) => {
+    // API token (scripts, integrations): checked instead of the session cookie
+    if (/^Bearer\s+pv[ca]_/.test(req.headers.authorization ?? '')) {
+      const r = checkToken(req, scope);
+      if (r.status) return reply.code(r.status).send({ error: r.message });
+      const owner = findById.get(r.token.user_id);
+      if (!owner || owner.deleting || (adminOnly && !owner.is_admin)) return reply.code(401).send({ error: 'Invalid API token' });
+      req.account = owner;
+      req.apiToken = { id: r.token.id, name: r.token.name };
+      return;
+    }
     try {
       await req.jwtVerify();
     } catch {
