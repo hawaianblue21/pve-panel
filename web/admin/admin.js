@@ -7,6 +7,7 @@ import { applyScheme } from '/shared/icons.js';
 import { createInfra } from '/infra.js';
 import { createDesk } from '/desk.js';
 import { createBilling } from '/billing.js';
+import { createVolumes } from '/volumes.js';
 import { createPlans } from '/plans.js';
 
 // Administration area: assign servers, manage customers, read the activity log.
@@ -175,6 +176,8 @@ export function createAdmin({ root, api, toast, fail, confirmAction, promptText,
   const desk = createDesk({ root, api, toast, fail, confirmAction, esc, getMe });
   // Invoices, payments and wallets (own module)
   const billing = createBilling({ root, api, toast, fail, confirmAction, esc });
+  // Block storage tiers and volumes (own module)
+  const volumes = createVolumes({ root, api, toast, fail, esc });
   // Plans: sizes with a price (own module)
   const plans = createPlans({ root, api, toast, fail, confirmAction, esc });
   // Which permission a tab needs (the server checks every request as well)
@@ -185,6 +188,7 @@ export function createAdmin({ root, api, toast, fail, confirmAction, promptText,
   const allowedTab = (id) => (infra.handles(id) ? infra.tabs().some(([t]) => t === id)
     : desk.handles(id) ? desk.tabs().some(([t]) => t === id)
     : billing.handles(id) ? billing.tabs().some(([t]) => t === id)
+    : volumes.handles(id) ? volumes.tabs().some(([t]) => t === id)
     : plans.handles(id) ? plans.tabs().some(([t]) => t === id)
     : !TAB_PERMISSION[id] || !st.perms || st.perms.has(TAB_PERMISSION[id]));
   const gb = (mb) => `${+(mb / 1024).toFixed(1)} GB`;
@@ -202,6 +206,8 @@ export function createAdmin({ root, api, toast, fail, confirmAction, promptText,
         await desk.load(st.tab);
       } else if (billing.handles(st.tab)) {
         await billing.load(st.tab);
+      } else if (volumes.handles(st.tab)) {
+        await volumes.load(st.tab);
       } else if (plans.handles(st.tab)) {
         await plans.load(st.tab);
       } else if (st.tab === 'servers') {
@@ -239,7 +245,7 @@ export function createAdmin({ root, api, toast, fail, confirmAction, promptText,
   // ---- shell ------------------------------------------------------------
   function render() {
     const tabs = [['servers', 'Servers'], ['users', 'Customers'], ...desk.tabs(), ...billing.tabs(), ...plans.tabs(), ['templates', 'Templates'], ['vpn', 'VPN'],
-      ...infra.tabs(), ['activity', 'Activity'], ['account', 'Your account'], ['settings', 'Settings'], ['about', 'About']]
+      ...infra.tabs(), ...volumes.tabs(), ['activity', 'Activity'], ['account', 'Your account'], ['settings', 'Settings'], ['about', 'About']]
       .filter(([id]) => allowedTab(id));
     root.innerHTML = `
       <div class="admin-inner">
@@ -256,6 +262,7 @@ export function createAdmin({ root, api, toast, fail, confirmAction, promptText,
     if (infra.handles(st.tab)) infra.render(st.tab);
     if (desk.handles(st.tab)) desk.render(st.tab);
     if (billing.handles(st.tab)) billing.render(st.tab);
+    if (volumes.handles(st.tab)) volumes.render(st.tab);
     if (plans.handles(st.tab)) plans.render(st.tab);
     if (st.tab === 'servers') renderServers();
     if (st.tab === 'users') renderUsers();
@@ -1585,6 +1592,7 @@ export function createAdmin({ root, api, toast, fail, confirmAction, promptText,
     if (infra.handles(st.tab) && !t.dataset.adminTab && await infra.onClick(e, st.tab)) return;
     if (desk.handles(st.tab) && !t.dataset.adminTab && await desk.onClick(e, st.tab)) return;
     if (billing.handles(st.tab) && !t.dataset.adminTab && await billing.onClick(e, st.tab)) return;
+    if (volumes.handles(st.tab) && !t.dataset.adminTab && await volumes.onClick(e, st.tab)) return;
     if (plans.handles(st.tab) && !t.dataset.adminTab && await plans.onClick(e, st.tab)) return;
 
     if (t.hasAttribute('data-ai-test')) {
@@ -1914,6 +1922,11 @@ export function createAdmin({ root, api, toast, fail, confirmAction, promptText,
       billing.onSubmit(e, st.tab);
       return;
     }
+    if (volumes.handles(st.tab)) {
+      e.preventDefault();
+      volumes.onSubmit(e, st.tab);
+      return;
+    }
     if (plans.handles(st.tab)) {
       e.preventDefault();
       plans.onSubmit(e, st.tab);
@@ -1932,6 +1945,7 @@ export function createAdmin({ root, api, toast, fail, confirmAction, promptText,
       infra.setPermissions(me.permissions);
       desk.setPermissions(me.permissions);
       billing.setPermissions(me.permissions);
+      volumes.setPermissions(me.permissions);
       plans.setPermissions(me.permissions);
     } catch (err) {
       fail(err);

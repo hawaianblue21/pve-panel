@@ -17,6 +17,7 @@
 import { db, audit } from './db.js';
 import { config } from './config.js';
 import { seal, open } from './secrets.js';
+import { volumesOfServer } from './volumes.js';
 import { clusterGuests } from './pve.js';
 import { extendServer, setServerExpiry } from './expiry.js';
 import { planRow } from './plans.js';
@@ -163,14 +164,21 @@ export async function renewalQuote(vmid, months, s = stored()) {
   if (!MONTH_OPTIONS.includes(months)) throw fail(400, `Months: ${MONTH_OPTIONS.join(', ')}`);
   const p = await priceOf(vmid, s);
   const size = [p.plan && `plan ${p.plan}`, p.cores && `${p.cores} vCPU`, p.memoryGb && `${p.memoryGb} GB RAM`, p.diskGb && `${p.diskGb} GB disk`].filter(Boolean).join(', ');
-  return { price: p, ...periodLines(`${p.name} (${vmid})${size ? ` · ${size}` : ''}`, p.monthly, months, s) };
+  // block storage volumes the server holds (attached or detached) are renewed with it
+  const vols = volumesOfServer(vmid);
+  const volMonthly = vols.reduce((a, v) => a + v.monthly, 0);
+  const extras = volMonthly > 0 ? [{ description: `Block storage: ${vols.map((v) => `${v.label} ${v.sizeGb} GB ${v.tier}`).join(', ')}`, monthly: volMonthly }] : [];
+  return { price: { ...p, volumesMonthly: volMonthly }, ...periodLines(`${p.name} (${vmid})${size ? ` · ${size}` : ''}`, p.monthly, months, s, extras) };
 }
 
 /** Lines, discount and tax for some months of a monthly price. */
-function periodLines(what, monthly, months, s) {
-  const lines = [{ description: `${what} · ${months} month${months > 1 ? 's' : ''}`, quantity: months, unitPrice: monthly, amount: monthly * months }];
+function periodLines(what, monthly, months, s, extras = []) {
+  const per = `${months} month${months > 1 ? 's' : ''}`;
+  const lines = [{ description: `${what} · ${per}`, quantity: months, unitPrice: monthly, amount: monthly * months },
+    ...extras.map((x) => ({ description: `${x.description} · ${per}`, quantity: months, unitPrice: x.monthly, amount: x.monthly * months }))];
+  const gross = lines.reduce((a, l) => a + l.amount, 0);
   const pct = Number(s.discounts[months] ?? 0);
-  const off = Math.round((monthly * months * pct) / 100);
+  const off = Math.round((gross * pct) / 100);
   if (pct > 0 && off > 0) lines.push({ description: `Discount ${pct}% for ${months} months`, quantity: 1, unitPrice: -off, amount: -off });
   const subtotal = lines.reduce((a, l) => a + l.amount, 0);
   const tax = taxOf(subtotal, s.taxRate);
@@ -582,7 +590,7 @@ export async function customerOverview(userId) {
   const servers = [];
   for (const v of vms) {
     let monthly = null;
-    try { monthly = (await priceOf(v.vmid, s)).monthly; } catch { /* size unknown right now */ }
+    try { monthly = (await priceOf(v.vmid, s)).monthly + volumesOfServer(v.vmid).reduce((a, x) => a + x.monthly, 0); } catch { /* size unknown right now */ }
     servers.push({ vmid: v.vmid, name: v.label || `server ${v.vmid}`, expiresAt: v.expires_at, expired: !!v.expired_at, autoRenew: !!v.auto_renew, monthly });
   }
   const invoices = db.prepare('SELECT * FROM invoices WHERE user_id = ? AND status <> \'void\' ORDER BY id DESC LIMIT 50').all(userId).map((i) => pub(i));
