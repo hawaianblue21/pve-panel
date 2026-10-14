@@ -9,6 +9,7 @@
 //   /__tsapprove/<vmid>          approve the Tailscale subnet route
 //   /__tsowner/<vmid>            Tailscale logout refused (Windows profile owner)
 //   /__recovery/<vmid>           a Recovery partition blocks extending C:
+//   /__lu/<vmid>/<scenario>      Linux updates: normal | uptodate | kernel | nopm | lowdisk | error | dnf
 //   /__sdn, /__vms, /__gw        inspect state
 import http from 'node:http';
 import { WebSocketServer } from 'ws';
@@ -101,6 +102,34 @@ export async function startMockPve({ port = 0 } = {}) {
      { kb: 'KB2267602', title: 'Security Intelligence Update for Microsoft Defender Antivirus (KB2267602)', reboot: false }],
     [{ kb: 'KB5044099', title: '2026-10 Servicing Stack Update (KB5044099)', reboot: false }],
   ];
+  // Seconds since the guest was (re)started; 600 for guests the tests didn't start
+  const uptimeOf = (vmid) => (started.has(vmid) ? Math.max(1, Math.floor((Date.now() - started.get(vmid)) / 1000)) : 600);
+
+  // Linux package updates (src/guest/linux-update.sh), simulated per VM: vm.lu
+  const LU_PACKAGES = [
+    { kb: 'openssl', title: '3.0.13-0ubuntu3.3 → 3.0.13-0ubuntu3.4', security: true },
+    { kb: 'libssl3t64', title: '3.0.13-0ubuntu3.3 → 3.0.13-0ubuntu3.4', security: true },
+    { kb: 'linux-image-6.8.0-48-generic', title: '6.8.0-48.48', security: true, kernel: true },
+    { kb: 'nginx', title: '1.24.0-2ubuntu7 → 1.24.0-2ubuntu7.1', security: false },
+  ];
+  const LU_STEP = 300;
+  function luStatus(vm) {
+    const l = vm.lu; const t = Date.now() - l.at;
+    const base = { runId: l.runId, total: 0, current: 0, installed: [], failed: [], rebootRequired: false, manager: l.pm, error: null };
+    if (t < LU_STEP) return JSON.stringify({ ...base, state: 'searching', message: 'Refreshing the package lists' });
+    if (l.scenario === 'error') return JSON.stringify({ ...base, state: 'failed', message: 'Package update failed', error: 'apt-get update failed: Temporary failure resolving archive.ubuntu.com' });
+    const list = l.scenario === 'uptodate' ? [] : LU_PACKAGES.filter((x) => l.scope === 'all' || x.security)
+      .filter((x) => l.scenario === 'kernel' || !x.kernel);
+    if (!list.length) return JSON.stringify({ ...base, state: 'done', message: 'The server is up to date' });
+    const n = Math.min(list.length, Math.floor((t - LU_STEP) / LU_STEP));
+    const items = list.map(({ kb, title }) => ({ kb, title }));
+    if (n < list.length) return JSON.stringify({ ...base, state: 'installing', total: list.length, current: n, message: `Installing ${n} of ${list.length} packages`, installed: items });
+    const reboot = list.some((x) => x.kernel);
+    if (reboot && l.auto && !l.rebooted) { l.rebooted = true; started.set(vm.vmid, Date.now() + 1000); }
+    return JSON.stringify({ ...base, state: 'done', total: list.length, current: list.length, installed: items, rebootRequired: reboot,
+      message: reboot ? (l.auto ? 'Updates installed. Restarting in 1 minute to load the new kernel' : 'Updates installed. Restart the server to finish (new kernel or system libraries)') : 'Updates installed' });
+  }
+
   const WU_STEP = 300;
   function wuStatus(vm, vmid) {
     const w = vm.wu; const now = Date.now();
@@ -140,11 +169,12 @@ export async function startMockPve({ port = 0 } = {}) {
   const srv = http.createServer(async (req, res) => {
     const u = new URL(req.url, 'http://x'); const p = u.pathname.replace('/api2/json','');
     if (req.headers.authorization !== 'PVEAPIToken=panel@pve!panel=x') return send(res, null, 401);
-    if (p === '/cluster/resources') return send(res, [...vms.values()].map(({cfg, ...v}) => ({...v, id:`qemu/${v.vmid}`, cpu:0.05, mem:v.maxmem/4, uptime: v.status==='running'?600:0})));
+    if (p === '/cluster/resources') return send(res, [...vms.values()].map(({cfg, ...v}) => ({...v, id:`qemu/${v.vmid}`, cpu:0.05, mem:v.maxmem/4, uptime: v.status==='running' ? uptimeOf(v.vmid) : 0})));
     if (p === '/__gw') return send(res, Object.fromEntries(gwFiles));
     if (p === '/__sdn') return send(res, { ...sdn, subnets: Object.fromEntries(sdn.subnets) });
     if (p.startsWith('/__tsowner/')) { vms.get(Number(p.split('/')[2])).tsForeign = true; return send(res, 'ok'); }
     if (p.startsWith('/__lose/')) { const [, , v, n, only] = p.split('/'); lose.set(Number(v), Number(n)); loseOnly.set(Number(v), only ? decodeURIComponent(only) : null); return send(res, 'ok'); }
+    if (p.startsWith('/__lu/')) { const [, , v, scen] = p.split('/'); vms.get(Number(v)).luScenario = scen; return send(res, 'ok'); }
     if (p.startsWith('/__wu/')) { const [, , v, scen] = p.split('/'); vms.get(Number(v)).wuScenario = scen; return send(res, 'ok'); }
   if (p.startsWith('/__recovery/')) { vms.get(Number(p.split('/')[2])).recoveryAfterC = true; return send(res, 'ok'); }
     if (p.startsWith('/__flaky/')) { const [, , v, n] = p.split('/'); flaky.set(Number(v), Number(n)); return send(res, 'ok'); }
@@ -224,6 +254,22 @@ export async function startMockPve({ port = 0 } = {}) {
       log('AGENT EXEC', vmid, JSON.stringify(cmd)); const pid = ++pidSeq; const script = cmd.join(' ');
       const encIdx = cmd.indexOf('-EncodedCommand'); const decoded = encIdx >= 0 ? Buffer.from(cmd[encIdx+1], 'base64').toString('utf16le') : '';
       if (decoded) log('AGENT SCRIPT', vmid, decoded.includes('Set-NetIPInterface') ? '[reset network to DHCP]' : decoded.includes('Get-NetIPAddress') ? '[list IPv4]' : decoded.slice(0,60));
+      if (cmd[0] === '/bin/bash' && /PVEPANEL-LU-/.test(cmd[2] ?? '')) {
+        const scen = vm.luScenario ?? 'normal'; const args = cmd.slice(4); let out = '', code = 0, err = '';
+        const pm = scen === 'nopm' ? 'none' : scen === 'dnf' ? 'dnf' : 'apt';
+        if (/PVEPANEL-LU-PRECHECK/.test(cmd[2])) {
+          out = JSON.stringify({ pm, freeMb: scen === 'lowdisk' ? 600 : 20480, running: false, os: pm === 'dnf' ? 'Rocky Linux 9.4' : 'Ubuntu 24.04.1 LTS' }) + '\n';
+        } else if (/PVEPANEL-LU-SETUP/.test(cmd[2])) {
+          if (!/apt-get/.test(stdin ?? '') || !/dnf/.test(stdin ?? '') || cmd[3] !== 'pvepanel') { code = 1; err = 'bad script'; }
+          else {
+            vm.lu = { runId: args[0], scope: args[1], auto: args[2] === '1', scenario: scen, pm, at: Date.now() };
+            log('LU started', vmid, JSON.stringify(vm.lu)); out = 'started\n';
+          }
+        } else if (/PVEPANEL-LU-STATUS/.test(cmd[2])) {
+          out = vm.lu ? luStatus(vm) + '\n' : '{}\n';
+        } else { code = 1; err = 'unknown command'; }
+        const pid = ++pidSeq; execs.set(String(pid), { out, at: Date.now(), code, err }); return send(res, { pid });
+      }
       if (cmd[0] === '/bin/bash' && vmid !== 150) {
         const t = tailscaleExec(vm, vmid, cmd[2], stdin) ?? { out: '', code: 1, err: 'unknown command' };
         const pid = ++pidSeq; execs.set(String(pid), { out: t.out, at: Date.now(), code: t.code, err: t.err, script: cmd[2] }); return send(res, { pid });

@@ -1,6 +1,8 @@
 import { icon } from '/shared/icons.js';
 import { renderSecurity } from '/shared/twofa.js';
 import { renderPasskeys } from '/shared/passkeys.js';
+import { renderIdentities } from '/shared/identities.js';
+import { renderAppearance } from '/shared/appearance.js';
 import { applyScheme } from '/shared/icons.js';
 import { createInfra } from '/infra.js';
 
@@ -60,6 +62,9 @@ const ACTION_LABELS = {
   winupdate_started: 'Started Windows updates',
   winupdate_finished: 'Windows updates finished',
   winupdate_failed: 'Windows updates failed',
+  linuxupdate_started: 'Started Linux updates',
+  linuxupdate_finished: 'Linux updates finished',
+  linuxupdate_failed: 'Linux updates failed',
   server_reinstalled: 'Reinstalled server',
   server_reinstall_failed: 'Reinstalling server failed',
   invite_accepted: 'Accepted invitation, password set',
@@ -79,6 +84,9 @@ const ACTION_LABELS = {
   sso_login_failed: 'Failed single sign-on',
   admin_sso_login_failed: 'Failed single sign-on (administration)',
   sso_account_linked: 'Linked account to single sign-on',
+  sso_identity_linked: 'Linked a sign-in provider',
+  sso_identity_unlinked: 'Unlinked a sign-in provider',
+  admin_sso_provider: 'Changed single sign-on provider',
   sso_account_created: 'Account created by single sign-on',
   admin_sso_unlink: 'Unlinked account from single sign-on',
   tailscale_connect_started: 'Started connecting to Tailscale',
@@ -148,9 +156,9 @@ export function createAdmin({ root, api, toast, fail, confirmAction, promptText,
         [st.users, st.email] = await Promise.all([api('/api/admin/users'), api('/api/admin/settings/email')]);
         if (!quiet) setTimeout(watchDeletions);
       } else if (st.tab === 'settings') {
-        [st.email, st.expiry, st.appearance, st.winupdates] = await Promise.all([
+        [st.email, st.expiry, st.appearance, st.winupdates, st.sso, st.branding] = await Promise.all([
           api('/api/admin/settings/email'), api('/api/admin/settings/expiry'), api('/api/admin/settings/appearance'),
-          api('/api/admin/settings/winupdates'),
+          api('/api/admin/settings/winupdates'), api('/api/admin/settings/sso'), api('/api/admin/settings/branding'),
         ]);
       } else if (st.tab === 'about') {
         st.about = await api(`/api/admin/about${st.refreshAbout ? '?refresh=1' : ''}`);
@@ -163,7 +171,7 @@ export function createAdmin({ root, api, toast, fail, confirmAction, promptText,
       } else if (st.tab === 'templates') {
         ({ templates: st.templates, storages: st.storages } = await api('/api/admin/templates'));
       } else {
-        st.audit = await api('/api/admin/audit?limit=200');
+        await loadActivity();
       }
       renderTab();
     } catch (err) {
@@ -197,9 +205,11 @@ export function createAdmin({ root, api, toast, fail, confirmAction, promptText,
     if (st.tab === 'activity') renderActivity();
     if (st.tab === 'account') {
       const body = root.querySelector('#admin-body');
-      body.innerHTML = '<div id="admin-2fa"></div><div id="admin-passkeys" class="account-section"></div>';
+      body.innerHTML = '<div id="admin-2fa"></div><div id="admin-passkeys" class="account-section"></div><div id="admin-identities" class="account-section"></div><div id="admin-appearance" class="account-section"></div>';
       renderSecurity(body.querySelector('#admin-2fa'), { email: getMe().email });
       renderPasskeys(body.querySelector('#admin-passkeys'));
+      renderIdentities(body.querySelector('#admin-identities'));
+      renderAppearance(body.querySelector('#admin-appearance'));
     }
     if (st.tab === 'about') renderAbout();
     if (st.tab === 'settings') renderSettings();
@@ -439,7 +449,7 @@ export function createAdmin({ root, api, toast, fail, confirmAction, promptText,
               const self = u.id === me.id;
               return `
               <tr data-user="${u.id}">
-                <td>${esc(u.email)}${self ? ' <span class="muted">(you)</span>' : ''}${u.ssoLinked ? ' <span class="tag" title="Linked to single sign-on">SSO</span>' : ''}${u.passkeyCount ? ` <span class="tag" title="${u.passkeyCount} passkey${u.passkeyCount > 1 ? 's' : ''}">Passkey</span>` : ''}${u.expiryMode ? ` <span class="tag" title="${esc(expiryRuleText(u))}">${icon('clock', { size: 12 })} Expiry</span>` : ''}${
+                <td>${esc(u.email)}${self ? ' <span class="muted">(you)</span>' : ''}${u.ssoLinked ? ` <span class="tag" title="Linked to single sign-on${u.ssoProviders ? `: ${esc(u.ssoProviders)}` : ''}">SSO</span>` : ''}${u.passkeyCount ? ` <span class="tag" title="${u.passkeyCount} passkey${u.passkeyCount > 1 ? 's' : ''}">Passkey</span>` : ''}${u.expiryMode ? ` <span class="tag" title="${esc(expiryRuleText(u))}">${icon('clock', { size: 12 })} Expiry</span>` : ''}${
                   u.invite?.status === 'pending' ? ` <span class="tag" title="Link valid until ${esc(new Date(u.invite.expires).toLocaleString())}">Invitation pending</span>`
                   : u.invite?.status === 'expired' ? ' <span class="tag warn">Invitation expired</span>'
                   : u.invite?.status === 'sent' ? ' <span class="tag">Invited</span>' : ''}</td>
@@ -700,9 +710,12 @@ export function createAdmin({ root, api, toast, fail, confirmAction, promptText,
         </div>`;
       return;
     }
+    const canEdit = !st.perms || st.perms.has('templates.write');
     body.innerHTML = `
       <p class="muted" style="margin-top:0">Customers who may create servers can choose from the templates offered here.
         Linux templates are set up with cloud-init, Windows templates through the QEMU guest agent.</p>
+      ${canEdit ? '' : '<p class="notice"><span>Read-only: only owners (or a role with “Offer, set up and withdraw OS templates”) can change templates.</span></p>'}
+      <fieldset class="plain-fieldset" ${canEdit ? '' : 'disabled'}>
       <div class="table-wrap">
         <table class="table">
           <thead><tr>
@@ -740,7 +753,8 @@ export function createAdmin({ root, api, toast, fail, confirmAction, promptText,
         <strong>Cloud-init:</strong> the customer chooses the user name (User is only the suggestion); Network is the
         <span class="mono">ipconfig0</span> value, e.g. <span class="mono">ip=dhcp</span>.
         <strong>Guest agent (Windows):</strong> the template must be sysprep'd with the QEMU guest agent installed and enabled;
-        the panel sets the password of User (default Administrator) and the computer name.</p>`;
+        the panel sets the password of User (default Administrator) and the computer name.</p>
+      </fieldset>`;
   }
 
   async function saveTemplate(row) {
@@ -902,12 +916,87 @@ export function createAdmin({ root, api, toast, fail, confirmAction, promptText,
   }
 
   // ---- settings: email ----------------------------------------------------
+  /** Settings card: sign-in with Google, Microsoft and GitHub. */
+  function ssoCard() {
+    const s = st.sso;
+    if (!s) return '';
+    const noUrl = !s.publicUrls.customer && !s.publicUrls.admin;
+    return `
+      <section class="security-card settings-card">
+        <div class="settings-head">
+          <h2 class="twofa-title">Single sign-on</h2>
+          <p class="muted">Let people sign in with Google, Microsoft (work or school accounts, Microsoft 365) or GitHub.
+            Create an app at the provider, enter the redirect address shown below there, and paste the client ID and secret here.
+            Existing accounts are never linked by email alone: users link a provider themselves under Account.</p>
+          ${noUrl ? '<p class="small warn-text">Set PANEL_PUBLIC_URL (and ADMIN_PUBLIC_URL for the admin portal) in the environment first: the providers need the callback address.</p>' : ''}
+        </div>
+        ${s.providers.map((p) => `
+          <form class="email-form sso-form" data-sso="${esc(p.id)}" novalidate>
+            <h3 class="h3">${esc(p.name)} <span class="pill ${p.enabled ? 'pill-running' : ''}">${p.enabled ? 'On' : 'Off'}</span>
+              ${p.linkedAccounts ? `<span class="muted small">${p.linkedAccounts} linked account${p.linkedAccounts === 1 ? '' : 's'}</span>` : ''}</h3>
+            <p class="muted small">${esc(p.hint)}</p>
+            <div class="grid-2">
+              <label>Client ID <input name="clientId" value="${esc(p.clientId)}" autocomplete="off" spellcheck="false"></label>
+              <label>Client secret
+                <input name="clientSecret" type="password" autocomplete="new-password" placeholder="${p.hasSecret ? 'Stored; leave empty to keep it' : ''}"></label>
+            </div>
+            ${p.id === 'microsoft' ? `
+              <label>Tenant <input name="tenant" value="${esc(p.tenant)}" spellcheck="false">
+                <span class="hint"><span class="mono">organizations</span>: any work or school account;
+                  your tenant ID or domain: only your organisation (its email addresses are trusted for new sign-ups).</span></label>` : ''}
+            <label>Allowed email domains (optional)
+              <input name="allowedDomains" value="${esc(p.allowedDomains.join(', '))}" placeholder="example.com, example.org" spellcheck="false"></label>
+            <fieldset class="inline-fieldset"><legend class="small">Show on</legend>
+              <label class="inline-check"><input type="checkbox" name="portalCustomer" ${p.portals.includes('customer') ? 'checked' : ''}> Customer portal</label>
+              <label class="inline-check"><input type="checkbox" name="portalAdmin" ${p.portals.includes('admin') ? 'checked' : ''}> Admin portal</label>
+            </fieldset>
+            <label class="check"><input type="checkbox" name="allowSignup" ${p.allowSignup ? 'checked' : ''}>
+              <span>New customers can create an account with it <span class="muted">(verified email only; without this, only existing users who linked it can sign in)</span></span></label>
+            ${Object.entries(p.redirectUris).map(([portal, uri]) => `
+              <p class="small">Redirect address (${esc(portal)}): <span class="mono">${esc(uri)}</span></p>`).join('')}
+            <div class="row">
+              <label class="inline-check"><input type="checkbox" name="enabled" ${p.enabled ? 'checked' : ''}> Switched on</label>
+              <button class="btn primary">Save ${esc(p.name)}</button>
+            </div>
+          </form>`).join('')}
+      </section>`;
+  }
+
   function renderSettings() {
     const e = st.email;
     const me = getMe();
     const ap = st.appearance;
+    const br = st.branding;
     root.querySelector('#admin-body').innerHTML = `
       <div class="settings">
+        ${br ? `
+        <section class="security-card settings-card">
+          <div class="settings-head">
+            <h2 class="twofa-title">Branding</h2>
+            <p class="muted">Your product name, logo and support link on both portals, the sign-in pages and in emails.</p>
+          </div>
+          <form id="branding-form" class="email-form" novalidate>
+            <div class="grid-2">
+              <label>Product name <input name="name" maxlength="40" value="${esc(br.customName)}" placeholder="${esc(br.defaultName)}">
+                <span class="hint">Empty: ${esc(br.defaultName)} (PANEL_NAME).</span></label>
+              <label>Support link <input name="supportUrl" value="${esc(br.supportUrl)}" placeholder="https://support.example.com or mailto:help@example.com" spellcheck="false">
+                <span class="hint">Shown under the sign-in form.</span></label>
+            </div>
+            <div class="row"><button class="btn primary">Save</button></div>
+          </form>
+          ${[['logo', 'Logo', 'SVG, PNG or WebP, up to 512 KB; shown about 30 px high in the sidebar and on the sign-in page.'],
+             ['favicon', 'Browser tab icon', 'Square PNG, SVG or WebP, up to 128 KB.']].map(([kind, label, hint]) => `
+            <div class="branding-asset">
+              <h3 class="h3">${label}</h3>
+              <div class="branding-preview">${br[kind] ? `<img src="${esc(br[kind])}" alt="Current ${label.toLowerCase()}">` : '<span class="muted small">Built-in</span>'}</div>
+              <p class="muted small">${hint}</p>
+              <div class="row">
+                <label class="btn">Upload…<input type="file" accept="image/svg+xml,image/png,image/webp" data-brand-upload="${kind}" class="sr-only"></label>
+                ${br[kind] ? `<button type="button" class="btn ghost" data-brand-remove="${kind}">Use the built-in one</button>` : ''}
+              </div>
+            </div>`).join('')}
+        </section>` : ''}
+
         <section class="security-card settings-card">
           <div class="settings-head">
             <h2 class="twofa-title">Appearance</h2>
@@ -932,6 +1021,8 @@ export function createAdmin({ root, api, toast, fail, confirmAction, promptText,
             <button type="button" class="btn ghost" data-scheme-cancel hidden>Cancel preview</button>
             <span class="muted small" id="scheme-note"></span>
           </div>
+          <label class="check"><input type="checkbox" data-allow-personal ${ap.allowPersonal ? 'checked' : ''}>
+            <span>Users may choose their own scheme and light/dark mode <span class="muted">(Account → Appearance; only for themselves)</span></span></label>
         </section>
 
         <section class="security-card settings-card">
@@ -976,15 +1067,20 @@ export function createAdmin({ root, api, toast, fail, confirmAction, promptText,
           </form>
         </section>
 
+        ${ssoCard()}
+
         <section class="security-card settings-card">
           <div class="settings-head">
-            <h2 class="twofa-title">Windows updates</h2>
-            <p class="muted">Customers can install Windows updates on their Windows servers from the server page
-              (Updates tab): security or all quality updates, optionally with a snapshot first and automatic restarts.
-              Feature upgrades and previews are never installed.</p>
+            <h2 class="twofa-title">Operating system updates</h2>
+            <p class="muted">Customers can install updates on their virtual machines from the server page (Updates tab),
+              through the QEMU guest agent: security or all updates, optionally with a snapshot first and automatic restarts.
+              Windows feature upgrades, previews and Linux release upgrades are never installed; on Linux, held packages
+              and changed configuration files are left alone.</p>
           </div>
-          <label class="check"><input type="checkbox" data-winupdates ${st.winupdates?.enabled ? 'checked' : ''}>
+          <label class="check"><input type="checkbox" data-winupdates="windows" ${st.winupdates?.enabled ? 'checked' : ''}>
             <span>Allow customers to install Windows updates</span></label>
+          <label class="check"><input type="checkbox" data-winupdates="linux" ${st.winupdates?.linux ? 'checked' : ''}>
+            <span>Allow customers to install Linux package updates <span class="muted">(apt or dnf)</span></span></label>
         </section>
 
         <section class="security-card settings-card">
@@ -1054,7 +1150,55 @@ export function createAdmin({ root, api, toast, fail, confirmAction, promptText,
     warnPlain();
   });
 
+  // Activity: open an event's details (click or Enter)
+  root.addEventListener('click', (e) => {
+    const row = e.target.closest('tr[data-activity]');
+    if (row && !e.target.closest('a, button')) toggleActivity(row);
+  });
+  root.addEventListener('keydown', (e) => {
+    const row = e.target.closest?.('tr[data-activity]');
+    if (row && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); toggleActivity(row); }
+  });
+
   root.addEventListener('submit', async (ev) => {
+    if (ev.target.id === 'activity-filter') {
+      ev.preventDefault();
+      const el = ev.target.elements;
+      st.activityFilter = { actor: el.actor.value, category: el.category.value, q: el.q.value.trim() };
+      load();
+      return;
+    }
+    if (ev.target.id === 'branding-form') {
+      ev.preventDefault();
+      const el = ev.target.elements;
+      try {
+        st.branding = await api('/api/admin/settings/branding', { method: 'PUT', body: { name: el.name.value, supportUrl: el.supportUrl.value } });
+        toast('Branding saved. Reload the page to see the new name everywhere.');
+        renderSettings();
+      } catch (err) { fail(err); }
+      return;
+    }
+    if (ev.target.matches?.('form[data-sso]')) {
+      ev.preventDefault();
+      const f = ev.target;
+      const el = f.elements;
+      const body = {
+        enabled: el.enabled.checked,
+        clientId: el.clientId.value.trim(),
+        portals: [el.portalCustomer.checked && 'customer', el.portalAdmin.checked && 'admin'].filter(Boolean),
+        allowSignup: el.allowSignup.checked,
+        allowedDomains: el.allowedDomains.value.split(/[\s,]+/).filter(Boolean),
+      };
+      if (el.clientSecret.value) body.clientSecret = el.clientSecret.value;
+      if (el.tenant) body.tenant = el.tenant.value.trim();
+      try {
+        const saved = await api(`/api/admin/settings/sso/${encodeURIComponent(f.dataset.sso)}`, { method: 'PUT', body });
+        st.sso.providers = st.sso.providers.map((p) => (p.id === saved.id ? saved : p));
+        toast(`${saved.name} sign-in saved${saved.enabled ? ' and switched on' : ''}`);
+        renderSettings();
+      } catch (err) { fail(err); }
+      return;
+    }
     if (ev.target.id === 'email-form') {
       ev.preventDefault();
       const f = ev.target;
@@ -1167,39 +1311,87 @@ export function createAdmin({ root, api, toast, fail, confirmAction, promptText,
   }
 
   // ---- activity ---------------------------------------------------------
+  // ---- activity ----------------------------------------------------------
+  const ACTORS = [['', 'Everyone'], ['customer', 'Customers'], ['admin', 'Administrators'], ['system', 'Panel (automatic)'], ['anonymous', 'Unknown sign-ins']];
+  const CATEGORIES = [['', 'Any action'], ['create', 'Created / started'], ['change', 'Changed'], ['delete', 'Deleted / removed'], ['power', 'Power / expiry'], ['security', 'Sign-in & security']];
+  const ACTOR_TAG = { customer: 'Customer', admin: 'Admin', system: 'Panel', anonymous: 'Unknown' };
+
+  async function loadActivity({ more = false } = {}) {
+    const f = st.activityFilter ??= { actor: '', category: '', q: '' };
+    const params = new URLSearchParams({ limit: '100' });
+    for (const k of ['actor', 'category', 'q']) if (f[k]) params.set(k, f[k]);
+    if (more && st.activityNext) params.set('before', String(st.activityNext));
+    const r = await api(`/api/admin/activity?${params}`);
+    st.audit = more ? [...st.audit, ...r.events] : r.events;
+    st.activityNext = r.nextBefore;
+  }
+
+  function activityDetail(a) {
+    let d = null;
+    try { d = a.detail ? JSON.parse(a.detail) : null; } catch { return ''; }
+    if (!d) return '';
+    let short = '';
+    if (d.email && (a.action.startsWith('admin_') || a.action.endsWith('login_failed'))) short = d.email;
+    if (d.hostname) short = d.hostname;
+    if (d.label && a.action.startsWith('admin_template')) short = d.label;
+    if (d.error) short = d.error;
+    if (d.reason && a.action.includes('sso')) short = d.reason;
+    if (d.provider && a.action.includes('sso')) short = [d.provider, d.reason].filter(Boolean).join(': ');
+    if (d.passkey) short = d.reason ? `passkey: ${d.reason}` : 'with a passkey';
+    return short;
+  }
+
   function renderActivity() {
+    const f = st.activityFilter ??= { actor: '', category: '', q: '' };
     root.querySelector('#admin-body').innerHTML = `
-      <div class="section-head">
-        <p class="muted" style="margin:0">The last ${st.audit.length} events, newest first.</p>
-        <button class="btn" data-refresh-audit>Refresh</button>
-      </div>
+      <form id="activity-filter" class="activity-filter" role="search">
+        <label class="grow"><span class="sr-only">Search</span>
+          <input type="search" name="q" value="${esc(f.q)}" placeholder="Search customer email, server ID, IP, action…"></label>
+        <label><span class="sr-only">Who</span><select name="actor">${ACTORS.map(([k, l]) => `<option value="${k}" ${f.actor === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+        <label><span class="sr-only">Action</span><select name="category">${CATEGORIES.map(([k, l]) => `<option value="${k}" ${f.category === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+        <button class="btn">Filter</button>
+        <button type="button" class="btn ghost" data-refresh-audit>Refresh</button>
+      </form>
+      <p class="muted small">${st.audit.length} event${st.audit.length === 1 ? '' : 's'}${st.activityNext ? ' shown, more available' : ''}, newest first. Click an event for its details.</p>
       <div class="table-wrap">
         <table class="table">
           <thead><tr><th>Time</th><th>Who</th><th>What</th><th>Server</th><th>IP address</th></tr></thead>
           <tbody>
-            ${st.audit.map((a) => {
-              let detail = '';
-              try {
-                const d = a.detail ? JSON.parse(a.detail) : null;
-                if (d?.email && (a.action.startsWith('admin_') || a.action.endsWith('login_failed'))) detail = d.email;
-                if (d?.hostname) detail = d.hostname;
-                if (d?.label && a.action.startsWith('admin_template')) detail = d.label;
-                if (d?.error) detail = d.error;
-                if (d?.reason && a.action.includes('sso')) detail = d.reason;
-                if (d?.passkey) detail = d.reason ? `passkey: ${d.reason}` : 'with a passkey';
-              } catch { /* ignore */ }
+            ${st.audit.length ? st.audit.map((a, i) => {
+              const detail = activityDetail(a);
               return `
-              <tr class="${a.action.endsWith('login_failed') || a.action.endsWith('_failed') ? 'row-warn' : ''}">
+              <tr class="${a.action.endsWith('_failed') ? 'row-warn' : ''} activity-row" data-activity="${i}" tabindex="0" aria-expanded="false">
                 <td class="nowrap">${utc(a.createdAt).toLocaleString()}</td>
-                <td>${esc(a.email ?? '–')}</td>
+                <td><span class="tag">${ACTOR_TAG[a.actor] ?? ''}</span> ${esc(a.email ?? '–')}</td>
                 <td>${esc(ACTION_LABELS[a.action] ?? a.action)}${detail ? ` <span class="muted">${esc(detail)}</span>` : ''}</td>
                 <td class="mono">${a.vmid ?? ''}</td>
                 <td class="mono muted">${esc(a.ip ?? '')}</td>
               </tr>`;
-            }).join('')}
+            }).join('') : '<tr><td colspan="5" class="muted">No events match.</td></tr>'}
           </tbody>
         </table>
-      </div>`;
+      </div>
+      ${st.activityNext ? '<div class="row"><button class="btn" data-more-activity>Load more</button></div>' : ''}`;
+  }
+
+  /** Shows the full record of an event under its row. */
+  function toggleActivity(row) {
+    const next = row.nextElementSibling;
+    if (next?.classList.contains('activity-more')) { next.remove(); row.setAttribute('aria-expanded', 'false'); return; }
+    const a = st.audit[Number(row.dataset.activity)];
+    let pretty = a.detail ?? '';
+    try { pretty = JSON.stringify(JSON.parse(a.detail), null, 2); } catch { /* as stored */ }
+    if (pretty === 'null') pretty = '';
+    row.insertAdjacentHTML('afterend', `
+      <tr class="activity-more"><td colspan="5">
+        <dl class="activity-dl">
+          <dt>Event</dt><dd class="mono">#${a.id} · ${esc(a.action)} · ${esc(a.category)}</dd>
+          <dt>Account</dt><dd>${esc(a.email ?? '–')}${a.userId ? ` <span class="muted">(ID ${a.userId})</span>` : ''}</dd>
+          <dt>Time (UTC)</dt><dd class="mono">${esc(a.createdAt)}</dd>
+          ${pretty ? `<dt>Details</dt><dd><pre class="activity-json">${esc(pretty)}</pre></dd>` : ''}
+        </dl>
+      </td></tr>`);
+    row.setAttribute('aria-expanded', 'true');
   }
 
   // ---- events (bound once) ----------------------------------------------
@@ -1207,6 +1399,15 @@ export function createAdmin({ root, api, toast, fail, confirmAction, promptText,
     const t = e.target.closest('button');
     if (!t) return;
     if (infra.handles(st.tab) && !t.dataset.adminTab && await infra.onClick(e, st.tab)) return;
+
+    if (t.dataset.brandRemove) {
+      try {
+        st.branding = await api(`/api/admin/settings/branding/${t.dataset.brandRemove}`, { method: 'DELETE' });
+        toast('Using the built-in image again');
+        renderSettings();
+      } catch (err) { fail(err); }
+      return;
+    }
 
     if (t.dataset.adminTab) {
       st.tab = t.dataset.adminTab;
@@ -1260,6 +1461,11 @@ export function createAdmin({ root, api, toast, fail, confirmAction, promptText,
 
     if (t.hasAttribute('data-refresh-audit')) {
       load();
+      return;
+    }
+    if (t.hasAttribute('data-more-activity')) {
+      t.disabled = true;
+      try { await loadActivity({ more: true }); renderActivity(); } catch (err) { fail(err); t.disabled = false; }
       return;
     }
 
@@ -1408,11 +1614,39 @@ export function createAdmin({ root, api, toast, fail, confirmAction, promptText,
   });
 
   root.addEventListener('change', async (e) => {
+    if (e.target.matches?.('[data-brand-upload]')) {
+      const input = e.target;
+      const file = input.files?.[0];
+      if (!file) return;
+      const data = await new Promise((resolve, reject) => {
+        const r = new FileReader();
+        r.onload = () => resolve(String(r.result).split(',')[1] ?? '');
+        r.onerror = () => reject(r.error);
+        r.readAsDataURL(file);
+      }).catch(() => null);
+      if (data === null) return fail(new Error('The file could not be read'));
+      try {
+        st.branding = await api(`/api/admin/settings/branding/${input.dataset.brandUpload}`, { method: 'PUT', body: { type: file.type, data } });
+        toast('Image saved');
+        renderSettings();
+      } catch (err) { fail(err); }
+      return;
+    }
+    if (e.target.matches?.('[data-allow-personal]')) {
+      const box = e.target;
+      try {
+        st.appearance = await api('/api/admin/settings/appearance', { method: 'PUT', body: { allowPersonal: box.checked } });
+        toast(box.checked ? 'Users can choose their own appearance' : 'Everyone sees the panel scheme');
+      } catch (err) { fail(err); box.checked = !box.checked; }
+      return;
+    }
     if (e.target.matches?.('[data-winupdates]')) {
       const box = e.target;
       try {
-        st.winupdates = await api('/api/admin/settings/winupdates', { method: 'PUT', body: { enabled: box.checked } });
-        toast(st.winupdates.enabled ? 'Customers can install Windows updates' : 'Windows updates through the panel are switched off');
+        const linux = box.dataset.winupdates === 'linux';
+        st.winupdates = await api('/api/admin/settings/winupdates', { method: 'PUT', body: linux ? { linux: box.checked } : { enabled: box.checked } });
+        const what = linux ? 'Linux package updates' : 'Windows updates';
+        toast(box.checked ? `Customers can install ${what}` : `${what} through the panel are switched off`);
       } catch (err) { fail(err); box.checked = !box.checked; }
       return;
     }
@@ -1463,6 +1697,9 @@ export function createAdmin({ root, api, toast, fail, confirmAction, promptText,
     } catch (err) {
       fail(err);
     }
+    // Back from linking a sign-in provider: open the account page with the result
+    const q = new URLSearchParams(location.search);
+    if (q.has('sso_linked') || (q.has('sso_error') && location.hash === '#account')) st.tab = 'account';
     if (!allowedTab(st.tab)) st.tab = ['servers', 'users', 'resources', 'gpu', 'storage', 'account'].find(allowedTab);
   }
 

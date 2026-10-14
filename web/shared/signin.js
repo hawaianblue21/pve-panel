@@ -16,6 +16,11 @@ const SSO_ERRORS = {
   expired: "The sign-in couldn't be completed in this browser. Please try again. If it keeps happening, "
     + 'your administrator can see the reason in the activity log.',
   unavailable: 'Single sign-on is unavailable right now. Try again later.',
+  link_required: 'An account with this email already exists. Sign in with your password or passkey, '
+    + 'then link this provider under Account → Sign-in methods.',
+  linked_elsewhere: 'This provider account is already linked to another panel account.',
+  provider_linked: 'Another account of this provider is already linked. Unlink it first.',
+  reauth: 'For your security, sign out and sign in again, then link the provider within 15 minutes.',
   failed: "Single sign-on didn't work. Please try again.",
 };
 
@@ -48,13 +53,16 @@ export async function prepareSignIn(form, { onSignedIn } = {}) {
       btn.disabled = false;
     };
   }
-  if (options.oidc.enabled && !form.querySelector('.sso-btn')) {
+  const providers = options.providers ?? [];
+  if ((options.oidc.enabled || providers.length) && !form.querySelector('.sso-btn')) {
     const anchor = form.querySelector('label');
+    const arrow = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4.5h4.5v15H14"/><path d="M10 8l4 4-4 4M14 12H4.5"/></svg>';
+    const only = !options.password && (options.oidc.enabled ? 1 : 0) + providers.length === 1;
     anchor.insertAdjacentHTML('beforebegin', `
-      <a class="btn sso-btn wide${options.password ? '' : ' primary'}" href="${esc(options.oidc.startUrl ?? '/api/auth/oidc/start')}">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4.5h4.5v15H14"/><path d="M10 8l4 4-4 4M14 12H4.5"/></svg>
-        <span>${esc(options.oidc.label)}</span>
-      </a>
+      ${options.oidc.enabled ? `<a class="btn sso-btn wide${only ? ' primary' : ''}" href="${esc(options.oidc.startUrl ?? '/api/auth/oidc/start')}">
+        ${arrow}<span>${esc(options.oidc.label)}</span></a>` : ''}
+      ${providers.map((p) => `<a class="btn sso-btn wide${only ? ' primary' : ''}" data-provider="${esc(p.id)}" href="${esc(p.startUrl)}">
+        ${arrow}<span>Continue with ${esc(p.name)}</span></a>`).join('')}
       ${options.password ? '<div class="or-divider" role="separator"><span>or with your password</span></div>' : ''}`);
   } else if (options.password && form.querySelector('.passkey-btn') && !form.querySelector('.or-divider')) {
     form.querySelector('label').insertAdjacentHTML('beforebegin',

@@ -16,6 +16,7 @@ import {
 } from '@simplewebauthn/server';
 import { db } from './db.js';
 import { config } from './config.js';
+import { brandName } from './branding.js';
 
 const CHALLENGE_MS = 5 * 60 * 1000;
 const b64u = (buf) => Buffer.from(buf).toString('base64url');
@@ -85,7 +86,7 @@ export async function registrationOptions(scope, req, user) {
   requireUsable(rp);
   const existing = db.prepare('SELECT id, transports FROM passkeys WHERE user_id = ? AND rp_id = ?').all(user.id, rp.rpID);
   const options = await generateRegistrationOptions({
-    rpName: config.brand.name,
+    rpName: brandName(),
     rpID: rp.rpID,
     userName: user.email,
     userDisplayName: user.email,

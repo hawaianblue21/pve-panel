@@ -34,8 +34,12 @@ test('unknown schemes are refused; customers cannot change it', async () => {
 test('every scheme has CSS for light and dark mode', async () => {
   const css = (await stack.customer().get('/shared/styles.css')).text;
   for (const id of ['forest', 'ember', 'orchid', 'graphite']) {
-    assert.equal(css.split(`:root[data-scheme="${id}"]`).length - 1, 2, `${id}: light + dark block`);
+    // light, dark when the device is dark (unless light was chosen), and dark when chosen
+    assert.equal(css.split(`:root[data-scheme="${id}"] {`).length - 1, 1, `${id}: light block`);
+    assert.equal(css.split(`:root[data-scheme="${id}"]:not([data-mode="light"]) {`).length - 1, 1, `${id}: device dark block`);
+    assert.equal(css.split(`:root[data-scheme="${id}"][data-mode="dark"] {`).length - 1, 1, `${id}: chosen dark block`);
   }
+  assert.match(css, /:root\[data-mode="dark"\] \{/, 'default scheme: chosen dark');
 });
 
 test('emails use the scheme colors', async () => {

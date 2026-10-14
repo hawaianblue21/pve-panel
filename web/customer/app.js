@@ -2,11 +2,13 @@ import {
   $, esc, api, toast, fail, confirmAction, promptText, generatePassword,
   bytes, pct, duration, SignedOut, setUnauthorizedHandler,
 } from '/shared/ui.js';
-import { icon, osIcon, brandMark, applyBrand } from '/shared/icons.js';
+import { icon, osIcon, brandMark, applyBrand, applyPersonal } from '/shared/icons.js';
 import { netMap } from '/netmap.js';
 import { signInSecondStep, renderSecurity } from '/shared/twofa.js';
 import { prepareSignIn, resumeSso } from '/shared/signin.js';
 import { renderPasskeys } from '/shared/passkeys.js';
+import { renderIdentities } from '/shared/identities.js';
+import { renderAppearance, loadPersonalAppearance } from '/shared/appearance.js';
 
 const brandReady = applyBrand();
 document.querySelectorAll('[data-brand-mark]').forEach((el) => { el.innerHTML = brandMark(30); });
@@ -101,6 +103,7 @@ $('#login-form').addEventListener('submit', async (e) => {
 
 $('#logout').addEventListener('click', async () => {
   await api('/api/auth/logout', { method: 'POST' }).catch(() => {});
+  applyPersonal(null);
   state.selected = null;
   state.view = 'overview';
   state.mapAnimated = false;
@@ -321,7 +324,8 @@ function renderDetail() {
   ].filter(Boolean).join(', ');
   const tabs = [['overview', 'Overview', 'chart'], ['snapshots', 'Snapshots', 'camera'], ['console', 'Console', 'terminal']];
   if (state.account.tailscale) tabs.push(['remote', 'Remote access', 'link']);
-  if (vm.osFamily === 'windows') tabs.push(['updates', 'Updates', 'download']);
+  // through the QEMU guest agent: virtual machines only, not containers
+  if (vm.type !== 'lxc' && (vm.osFamily === 'windows' || vm.osFamily === 'linux')) tabs.push(['updates', 'Updates', 'download']);
 
   $('#detail').innerHTML = `
     <div class="page">
@@ -917,13 +921,33 @@ function onTemplateChange(form) {
   applyTemplateMode(form, tpl);
 }
 
-// ---------- Windows updates --------------------------------------------------
+// ---------- Operating system updates (Windows and Linux) ---------------------
 const UPDATE_STEPS = {
   starting: 'Starting…', searching: 'Searching for updates…', downloading: 'Downloading updates…',
   installing: 'Installing updates…', restarting: 'Restarting to finish the updates…',
   'restart-required': 'Restart required', done: 'Finished', failed: 'Failed',
 };
 const ACTIVE_UPDATE = ['starting', 'searching', 'downloading', 'installing', 'restarting', 'restart-required'];
+
+// Text that differs between Windows and Linux servers
+const UPDATE_TEXT = {
+  windows: {
+    title: 'Windows updates', what: 'Windows',
+    lede: 'Install the latest updates from Microsoft. Feature upgrades to a new Windows version and preview updates are never installed.',
+    security: ['Security and critical updates', 'Recommended. Includes the monthly cumulative update and Defender updates.'],
+    all: ['All quality updates', 'Also optional updates such as .NET improvements.'],
+    restart: ['Restart automatically when needed', 'Otherwise the panel asks you to restart, and continues afterwards.'],
+    upToDate: 'Windows was already up to date.', failed: 'Windows Update failed.', unit: 'update',
+  },
+  linux: {
+    title: 'Linux updates', what: 'Linux',
+    lede: "Install package updates from your distribution's repositories (apt or dnf). Release upgrades, removing packages and held packages are never touched; your changed configuration files are kept.",
+    security: ['Security updates only', 'Recommended for servers in production.'],
+    all: ['All package updates', 'Every package that has a newer version.'],
+    restart: ['Restart automatically if a new kernel was installed', 'Otherwise the panel shows that a restart is needed.'],
+    upToDate: 'The server was already up to date.', failed: 'The package update failed.', unit: 'package',
+  },
+};
 
 function updateList(items) {
   if (!items?.length) return '';
@@ -940,10 +964,11 @@ async function renderUpdates(body) {
   const r = info.run;
   clearTimeout(state.updTimer);
 
+  const T = UPDATE_TEXT[info.os] ?? UPDATE_TEXT.windows;
   if (!info.available) {
-    body.innerHTML = `<div class="updates"><p class="muted">${info.enabled
-      ? 'Updates through the panel are available for Windows servers.'
-      : 'Installing Windows updates through the panel is switched off by your provider.'}</p></div>`;
+    body.innerHTML = `<div class="updates"><p class="muted">${info.os
+      ? `Installing ${T.what} updates through the panel is switched off by your provider.`
+      : 'Updates through the panel are available for Windows and Linux servers.'}</p></div>`;
     return;
   }
 
@@ -958,7 +983,7 @@ async function renderUpdates(body) {
           <p class="muted small">${esc(r.message ?? '')}</p>` : r.message && r.state !== 'restart-required' ? `<p class="muted small">${esc(r.message)}</p>` : ''}
         ${r.state === 'restart-required' ? `
           <div class="notice warn update-restart">
-            <p>Windows needs a restart to finish installing. The panel continues automatically after the restart.</p>
+            <p>${info.os === 'linux' ? 'A restart is needed to finish.' : 'Windows needs a restart to finish installing. The panel continues automatically after the restart.'}</p>
             <button class="btn" data-power="reboot">${icon('restart')}<span>Restart now</span></button>
           </div>` : `<p class="muted small">This can take 30 minutes or more. You can leave this page; the updates continue${r.autoRestart ? ', and the server restarts by itself when needed' : ''}.</p>`}
         ${r.installed?.length ? `<details class="update-details"><summary>Installed so far (${r.installed.length})</summary>${updateList(r.installed)}</details>` : ''}
@@ -970,30 +995,36 @@ async function renderUpdates(body) {
   const last = r ? `
     <div class="notice ${r.state === 'failed' ? 'warn' : ''} update-last">
       <p><strong>Last run ${esc(new Date(`${(r.finishedAt || r.startedAt).replace(' ', 'T')}Z`).toLocaleString())}:</strong>
-        ${r.state === 'failed' ? esc(r.error || 'Windows Update failed.')
-          : r.installed.length ? `${r.installed.length} update${r.installed.length === 1 ? '' : 's'} installed.` : 'Windows was already up to date.'}
+        ${r.state === 'failed' ? esc(r.error || T.failed)
+          : r.installed.length ? `${r.installed.length} ${T.unit}${r.installed.length === 1 ? '' : 's'} ${info.os === 'linux' ? 'updated' : 'installed'}.` : T.upToDate}
         ${r.failed?.length ? ` ${r.failed.length} could not be installed.` : ''}
         ${r.snapshot ? ` Snapshot before updating: <span class="mono">${esc(r.snapshot)}</span>.` : ''}</p>
       ${r.installed.length || r.failed?.length ? `<details class="update-details"><summary>Details</summary>${updateList(r.installed)}${r.failed?.length ? `<p class="small warn-text">Not installed:</p>${updateList(r.failed)}` : ''}</details>` : ''}
     </div>` : '';
   const running = vm.status === 'running';
+  const reboot = info.rebootPending ? `
+    <div class="notice warn update-restart">
+      <p>Updates were installed that need a restart (new kernel or system libraries). The server keeps running on the old versions until you restart it.</p>
+      <button class="btn" data-power="reboot">${icon('restart')}<span>Restart now</span></button>
+    </div>` : '';
   body.innerHTML = `
     <div class="updates">
-      <h2 class="h2">Windows updates</h2>
-      <p class="muted updates-lede">Install the latest updates from Microsoft. Feature upgrades to a new Windows version and preview updates are never installed.</p>
+      <h2 class="h2">${T.title}</h2>
+      <p class="muted updates-lede">${esc(T.lede)}</p>
+      ${reboot}
       ${last}
       ${running ? '' : '<div class="notice warn"><p>Start the server to install updates.</p></div>'}
       <form id="update-form" class="update-form">
         <div class="choices" role="radiogroup" aria-label="Which updates">
           <label class="choice"><input type="radio" name="scope" value="security" checked>
-            <span><strong>Security and critical updates</strong><span class="muted">Recommended. Includes the monthly cumulative update and Defender updates.</span></span></label>
+            <span><strong>${T.security[0]}</strong><span class="muted">${T.security[1]}</span></span></label>
           <label class="choice"><input type="radio" name="scope" value="all">
-            <span><strong>All quality updates</strong><span class="muted">Also optional updates such as .NET improvements.</span></span></label>
+            <span><strong>${T.all[0]}</strong><span class="muted">${T.all[1]}</span></span></label>
         </div>
         <label class="check"><input type="checkbox" name="snapshot" checked>
           <span>Take a snapshot first <span class="muted">If an update causes problems, roll back to it under Snapshots.</span></span></label>
-        <label class="check"><input type="checkbox" name="autoRestart" checked>
-          <span>Restart automatically when needed <span class="muted">Otherwise the panel asks you to restart, and continues afterwards.</span></span></label>
+        <label class="check"><input type="checkbox" name="autoRestart" ${info.os === 'linux' ? '' : 'checked'}>
+          <span>${T.restart[0]} <span class="muted">${T.restart[1]}</span></span></label>
         <div class="row">
           <button class="btn primary" ${running ? '' : 'disabled'}>${icon('download')}<span>Install updates</span></button>
         </div>
@@ -1012,7 +1043,7 @@ $('#detail').addEventListener('submit', async (e) => {
       method: 'POST',
       body: { scope: f.scope.value, snapshot: f.snapshot.checked, autoRestart: f.autoRestart.checked },
     });
-    toast('Installing Windows updates');
+    toast(state.detail?.osFamily === 'linux' ? 'Installing package updates' : 'Installing Windows updates');
     renderUpdates($('#tab-body'));
   } catch (err) { fail(err); b.disabled = false; }
 });
@@ -1617,6 +1648,8 @@ function openAccount() {
       </header>
       <div id="security"></div>
       <div id="passkeys" class="account-section"></div>
+      <div id="identities" class="account-section"></div>
+      <div id="appearance" class="account-section"></div>
       ${state.account.panelVersion ? `
         <section class="security-card about-panel">
           <div>
@@ -1627,6 +1660,8 @@ function openAccount() {
     </div>`;
   renderSecurity($('#security'), { email: state.me.email });
   renderPasskeys($('#passkeys'));
+  renderIdentities($('#identities'));
+  renderAppearance($('#appearance'));
 }
 $('#nav-account').addEventListener('click', openAccount);
 
@@ -1634,6 +1669,7 @@ $('#nav-account').addEventListener('click', openAccount);
 async function startApp(me) {
   await brandReady; // product name and own OS icons before the first render
   state.me = me;
+  loadPersonalAppearance();
   $('#login-view').hidden = true;
   $('#app-view').hidden = false;
   $('#account-email').textContent = me.email;

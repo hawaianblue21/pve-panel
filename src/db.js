@@ -266,6 +266,30 @@ db.exec(`
 `);
 addColumn('users', 'resource_pool_id', 'INTEGER REFERENCES resource_pools(id) ON DELETE SET NULL');
 addColumn('vms', 'datacenter_id', 'INTEGER');
+// Package updates on Linux servers share the update-run table with Windows
+addColumn('winupdates', 'os', "TEXT NOT NULL DEFAULT 'windows'");
+
+// Personal appearance (Account → Appearance): NULL = the panel's scheme / the device's mode
+addColumn('users', 'ui_scheme', 'TEXT');
+addColumn('users', 'ui_mode', 'TEXT');
+
+// ---- Single sign-on identities (Google, Microsoft, GitHub; see sso.js) ------------
+// One identity per provider per account; found by provider + issuer + subject.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS user_identities (
+    id INTEGER PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    provider TEXT NOT NULL,
+    issuer TEXT NOT NULL,
+    subject TEXT NOT NULL,
+    email TEXT,
+    name TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    last_used_at TEXT,
+    UNIQUE (provider, issuer, subject),
+    UNIQUE (user_id, provider)
+  );
+`);
 
 // ---- GPUs ------------------------------------------------------------------------
 // A GPU profile points at a Proxmox PCI resource mapping (Datacenter > Resource

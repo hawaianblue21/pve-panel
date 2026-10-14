@@ -39,9 +39,11 @@
 
   color-scheme: light dark;
 }
+:root[data-mode="light"] { color-scheme: light; }
+:root[data-mode="dark"] { color-scheme: dark; }
 
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-mode="light"]) {
     --bg: #0f1720;
     --surface: #16212d;
     --surface-2: #1b2836;
@@ -56,6 +58,22 @@
     --side: #0b121a;
     --idle: #5d6d7d;
   }
+}
+/* chosen dark mode (Account → Appearance), whatever the device says */
+:root[data-mode="dark"] {
+  --bg: #0f1720;
+  --surface: #16212d;
+  --surface-2: #1b2836;
+  --ink: #e4eaf1;
+  --muted: #93a2b5;
+  --line: #2a3848;
+  --signal: #7c94ff;
+  --signal-ink: #0f1720;
+  --run: #3ccb8c;
+  --warn: #f0b04d;
+  --danger: #f07171;
+  --side: #0b121a;
+  --idle: #5d6d7d;
 }
 
 /* =========================================================================
@@ -440,7 +458,7 @@ label { display: grid; gap: 6px; font-weight: 600; font-size: 14px; }
 
 .segmented { display: inline-flex; padding: 3px; gap: 2px; border-radius: 10px; background: color-mix(in srgb, var(--line) 60%, transparent); }
 .segmented button { font: 600 13px var(--sans); border: 0; border-radius: 7px; background: transparent; color: var(--muted); padding: 6px 11px; cursor: pointer; }
-.segmented button[aria-pressed="true"] { background: var(--surface); color: var(--ink); box-shadow: 0 1px 2px rgb(15 23 32 / 0.12); }
+.segmented button[aria-pressed="true"], .segmented button[aria-checked="true"] { background: var(--surface); color: var(--ink); box-shadow: 0 1px 2px rgb(15 23 32 / 0.12); }
 
 .pending { max-width: 64ch; margin-top: 24px; }
 .pending p { margin: 0 0 12px; }
@@ -800,7 +818,7 @@ dialog p { margin: 0 0 20px; }
   --signal-soft: #6fd9a8;
 }
 @media (prefers-color-scheme: dark) {
-  :root[data-scheme="forest"] {
+  :root[data-scheme="forest"]:not([data-mode="light"]) {
     --chart-b: #f0b04d;
     --ink: #e3efe8;
     --bg: #0d1713;
@@ -813,6 +831,20 @@ dialog p { margin: 0 0 20px; }
     --side: #09140f;
     --signal-soft: #6fd9a8;
   }
+}
+/* chosen dark mode (Account → Appearance), whatever the device says */
+:root[data-scheme="forest"][data-mode="dark"] {
+  --chart-b: #f0b04d;
+  --ink: #e3efe8;
+  --bg: #0d1713;
+  --surface: #14221c;
+  --surface-2: #192a22;
+  --line: #27392f;
+  --muted: #93ad9f;
+  --signal: #4cc993;
+  --signal-ink: #0c1712;
+  --side: #09140f;
+  --signal-soft: #6fd9a8;
 }
 
 :root[data-scheme="ember"] {
@@ -828,7 +860,7 @@ dialog p { margin: 0 0 20px; }
   --signal-soft: #ffab7d;
 }
 @media (prefers-color-scheme: dark) {
-  :root[data-scheme="ember"] {
+  :root[data-scheme="ember"]:not([data-mode="light"]) {
     --ink: #f3e8e2;
     --bg: #16100c;
     --surface: #201813;
@@ -840,6 +872,19 @@ dialog p { margin: 0 0 20px; }
     --side: #140d09;
     --signal-soft: #ffab7d;
   }
+}
+/* chosen dark mode (Account → Appearance), whatever the device says */
+:root[data-scheme="ember"][data-mode="dark"] {
+  --ink: #f3e8e2;
+  --bg: #16100c;
+  --surface: #201813;
+  --surface-2: #271e18;
+  --line: #3b2e26;
+  --muted: #b8a397;
+  --signal: #ff8f57;
+  --signal-ink: #1a110c;
+  --side: #140d09;
+  --signal-soft: #ffab7d;
 }
 
 :root[data-scheme="orchid"] {
@@ -855,7 +900,7 @@ dialog p { margin: 0 0 20px; }
   --signal-soft: #c4b1ff;
 }
 @media (prefers-color-scheme: dark) {
-  :root[data-scheme="orchid"] {
+  :root[data-scheme="orchid"]:not([data-mode="light"]) {
     --ink: #ece6f6;
     --bg: #130e1c;
     --surface: #1b1528;
@@ -867,6 +912,19 @@ dialog p { margin: 0 0 20px; }
     --side: #0f0a19;
     --signal-soft: #c4b1ff;
   }
+}
+/* chosen dark mode (Account → Appearance), whatever the device says */
+:root[data-scheme="orchid"][data-mode="dark"] {
+  --ink: #ece6f6;
+  --bg: #130e1c;
+  --surface: #1b1528;
+  --surface-2: #221b31;
+  --line: #362c4b;
+  --muted: #aa9dc6;
+  --signal: #b49cff;
+  --signal-ink: #140f20;
+  --side: #0f0a19;
+  --signal-soft: #c4b1ff;
 }
 
 :root[data-scheme="graphite"] {
@@ -883,7 +941,7 @@ dialog p { margin: 0 0 20px; }
   --signal-soft: #5ee6d3;
 }
 @media (prefers-color-scheme: dark) {
-  :root[data-scheme="graphite"] {
+  :root[data-scheme="graphite"]:not([data-mode="light"]) {
     --chart-b: #c4a7ff;
     --ink: #e8ebed;
     --bg: #111315;
@@ -897,6 +955,20 @@ dialog p { margin: 0 0 20px; }
     --signal-soft: #5ee6d3;
   }
 }
+/* chosen dark mode (Account → Appearance), whatever the device says */
+:root[data-scheme="graphite"][data-mode="dark"] {
+  --chart-b: #c4a7ff;
+  --ink: #e8ebed;
+  --bg: #111315;
+  --surface: #181b1d;
+  --surface-2: #1e2225;
+  --line: #2f3438;
+  --muted: #a0a8ad;
+  --signal: #2fd3bd;
+  --signal-ink: #0f1213;
+  --side: #0b0d0e;
+  --signal-soft: #5ee6d3;
+}
 
 /* ---- Administration: access, resource pools, object storage, GPUs ---- */
 .h3 { font-size: 16px; font-weight: 700; margin: 0; }
@@ -906,3 +978,29 @@ dialog p { margin: 0 0 20px; }
 .pool-meters { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px 18px; }
 .pool-meters > div { display: grid; gap: 4px; align-content: start; }
 .pool-form { margin-top: 8px; }
+
+/* Single sign-on providers (Settings) */
+.sso-form { padding-top: 16px; border-top: 1px solid var(--line); }
+.sso-form .h3 { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.inline-fieldset { border: 0; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px 18px; align-items: center; }
+.inline-fieldset legend { float: left; margin-right: 6px; color: var(--muted); }
+.plain-fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
+/* Own logo (Settings → Branding) */
+.brand-logo { display: block; height: 30px; width: auto; max-width: 160px; object-fit: contain; }
+.login-help { text-align: center; margin: 14px 0 0; font-size: 14px; }
+.branding-preview { display: flex; align-items: center; gap: 12px; min-height: 48px; padding: 10px 14px; border: 1px dashed var(--line); border-radius: var(--r-sm); }
+.branding-preview img { max-height: 40px; max-width: 200px; }
+.branding-asset { display: grid; gap: 8px; padding-top: 14px; border-top: 1px solid var(--line); }
+.branding-asset .btn { position: relative; }
+
+/* Activity log (admin) */
+.activity-filter { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 8px; }
+.activity-filter .grow { flex: 1 1 260px; }
+.activity-filter input, .activity-filter select { width: 100%; }
+.activity-row { cursor: pointer; }
+.activity-row:focus-visible { outline: 2px solid var(--signal); outline-offset: -2px; }
+.activity-dl { display: grid; grid-template-columns: max-content 1fr; gap: 4px 16px; margin: 0; }
+.activity-dl dt { color: var(--muted); }
+.activity-dl dd { margin: 0; }
+.activity-json { margin: 0; padding: 10px 12px; border-radius: var(--r-sm); background: var(--surface-2, var(--bg)); font: 12px/1.5 var(--mono); white-space: pre-wrap; word-break: break-word; }
+a.btn { text-decoration: none; }
