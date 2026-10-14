@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Object storage</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500&amp;family=Space+Grotesk:wght@500;600;700&amp;display=swap">
+<style>
+body{margin:0;background:#0A101C;}
+a{color:#8EC2FF;}a:hover{color:#C5E0FF;}
+</style>
+</helmet>
+<div style="min-height: 100vh; background: #0A101C; color: #E6EBF2; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 14px; line-height: 1.5; display: flex; flex-wrap: wrap; align-items: stretch;">
+
+<div style="flex: 1 1 240px; background: #0D1424; border-right: 1px solid #1C2638;">
+<dc-import name="Sidebar" portal="customer" active="object" hint-size="100%,1100px"></dc-import>
+</div>
+
+<main style="flex: 999 1 560px; min-width: 0; box-sizing: border-box; padding: 28px 32px 48px; display: flex; flex-direction: column; gap: 20px;">
+
+<div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px;">
+<div style="display: flex; flex-direction: column; gap: 2px;">
+<h1 style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 28px; font-weight: 600;">Object storage</h1>
+<span style="color: #93A0B4;">S3-compatible buckets for backups, media and datasets. Works with AWS CLI, rclone, restic and SDKs.</span>
+</div>
+<button type="button" style="min-height: 44px; padding: 0 16px; border: 0; border-radius: 10px; background: #4C9AFF; color: #06101F; font: inherit; font-weight: 600;">+ Create bucket</button>
+</div>
+
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px;">
+<sc-for list="{{kpis}}" as="k" hint-placeholder-count="4">
+<div style="display: flex; flex-direction: column; gap: 6px; padding: 14px 16px; background: #101828; border: 1px solid #1F2A3F; border-radius: 12px;">
+<span style="display: flex; justify-content: space-between; font-size: 13px;"><span style="color: #93A0B4;">{{k.label}}</span><span style="font-family: 'JetBrains Mono', monospace;">{{k.value}}</span></span>
+<span style="height: 6px; border-radius: 3px; background: #1C2638; overflow: hidden;"><span style="display: block; height: 6px; width: {{k.pct}}; background: {{k.color}};"></span></span>
+</div>
+</sc-for>
+</div>
+
+<div style="display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-start;">
+
+<section aria-labelledby="bk-h" style="flex: 3 1 520px; min-width: 0; background: #101828; border: 1px solid #1F2A3F; border-radius: 14px; overflow: hidden;">
+<div style="padding: 14px 18px; border-bottom: 1px solid #1C2638;"><h2 id="bk-h" style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 18px; font-weight: 600;">Buckets</h2></div>
+<sc-for list="{{buckets}}" as="b" hint-placeholder-count="2">
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 14px; padding: 14px 18px; border-top: 1px solid #1C2638;">
+<span style="flex: 2 1 200px; display: flex; flex-direction: column;"><span style="font-family: 'JetBrains Mono', monospace; font-weight: 500;">{{b.name}}</span><span style="font-size: 12px; color: #93A0B4;">{{b.objects}} objects · created {{b.created}}</span></span>
+<span style="flex: 2 1 200px; display: flex; flex-direction: column; gap: 4px; font-size: 13px;"><span style="display: flex; justify-content: space-between;"><span style="color: #93A0B4;">Used</span><span style="font-family: 'JetBrains Mono', monospace;">{{b.used}}</span></span><span style="height: 6px; border-radius: 3px; background: #1C2638; overflow: hidden;"><span style="display: block; height: 6px; width: {{b.pct}}; background: {{b.color}};"></span></span></span>
+<span style="flex: 1 1 140px; font-size: 12px; color: {{b.stateColor}};">{{b.state}}</span>
+<button type="button" style="min-height: 40px; padding: 0 12px; border: 1px solid #2A3750; border-radius: 10px; background: transparent; color: #E6EBF2; font: inherit; font-size: 13px;">{{b.action}}</button>
+</div>
+</sc-for>
+</section>
+
+<aside aria-labelledby="ak-h" style="flex: 2 1 340px; min-width: 0; padding: 18px; background: #101828; border: 1px solid #22314C; border-radius: 16px; display: flex; flex-direction: column; gap: 12px;">
+<h2 id="ak-h" style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 18px; font-weight: 600;">Connection details</h2>
+<sc-for list="{{conn}}" as="c" hint-placeholder-count="3">
+<span style="display: flex; flex-direction: column; gap: 2px; font-size: 13px;"><span style="color: #93A0B4;">{{c.k}}</span><span style="font-family: 'JetBrains Mono', monospace; word-break: break-all;">{{c.v}}</span></span>
+</sc-for>
+<sc-if value="{{showSecret}}" hint-placeholder-val="{{false}}">
+<div role="status" style="padding: 12px; border-radius: 10px; background: #221B0C; border: 1px solid #5A4618; display: flex; flex-direction: column; gap: 6px;">
+<span style="font-size: 13px; color: #F5C46B; font-weight: 600;">Copy your secret key now. It won't be shown again.</span>
+<span style="font-family: 'JetBrains Mono', monospace; font-size: 13px; word-break: break-all;">[NEW SECRET KEY]</span>
+<button type="button" onClick="{{hideSecret}}" style="align-self: flex-start; min-height: 36px; padding: 0 12px; border: 1px solid #5A4618; border-radius: 8px; background: transparent; color: #F5C46B; font: inherit; font-size: 13px;">I've copied it</button>
+</div>
+</sc-if>
+<button type="button" onClick="{{rotate}}" style="min-height: 44px; border: 1px solid #2A3750; border-radius: 10px; background: transparent; color: #E6EBF2; font: inherit;">Create new access key</button>
+<span style="font-size: 12px; color: #93A0B4;">A new key replaces the current one; programs using the old key stop working.</span>
+</aside>
+</div>
+
+<section aria-labelledby="sn-h" style="padding: 16px 18px; background: #101828; border: 1px solid #1F2A3F; border-radius: 14px; display: flex; flex-direction: column; gap: 12px;">
+<div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px;">
+<h2 id="sn-h" style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 16px; font-weight: 600;">Get started</h2>
+<div role="tablist" aria-label="Tool" style="display: flex; gap: 6px;">
+<sc-for list="{{tools}}" as="t" hint-placeholder-count="3"><button type="button" role="tab" aria-selected="{{t.on}}" onClick="{{t.pick}}" style="min-height: 34px; padding: 0 12px; border-radius: 999px; border: 1px solid {{t.border}}; background: {{t.bg}}; color: #E6EBF2; font: inherit; font-size: 13px; cursor: pointer;">{{t.label}}</button></sc-for>
+</div>
+</div>
+<pre style="margin: 0; padding: 14px; border-radius: 10px; background: #070C16; font-family: 'JetBrains Mono', monospace; font-size: 12.5px; line-height: 1.6; color: #C3CCDA; white-space: pre-wrap; word-break: break-word;">{{snippet}}</pre>
+</section>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1500}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { tool: 'aws', secret: false }; }
+  renderVals() {
+    const S = {
+      aws: 'aws configure set aws_access_key_id AKSW9F3K2L7Q1X\naws configure set aws_secret_access_key <your secret key>\naws --endpoint-url https://s3.example.com s3 ls s3://pp12-backups/\naws --endpoint-url https://s3.example.com s3 cp ./db.dump s3://pp12-backups/',
+      rclone: '[pvepanel]\ntype = s3\nprovider = SeaweedFS\nendpoint = https://s3.example.com\naccess_key_id = AKSW9F3K2L7Q1X\nsecret_access_key = <your secret key>\n\n# rclone sync /var/backups pvepanel:pp12-backups',
+      restic: 'export AWS_ACCESS_KEY_ID=AKSW9F3K2L7Q1X\nexport AWS_SECRET_ACCESS_KEY=<your secret key>\nrestic -r s3:https://s3.example.com/pp12-backups init\nrestic -r s3:https://s3.example.com/pp12-backups backup /etc /srv'
+    };
+    const tools = [['aws', 'AWS CLI'], ['rclone', 'rclone'], ['restic', 'restic']].map(([id, label]) => ({ label, on: id === this.state.tool, border: id === this.state.tool ? '#4C9AFF' : '#2A3750', bg: id === this.state.tool ? '#17284A' : 'transparent', pick: () => this.setState({ tool: id }) }));
+    return {
+      tools, snippet: S[this.state.tool], showSecret: this.state.secret,
+      rotate: () => this.setState({ secret: true }), hideSecret: () => this.setState({ secret: false }),
+      kpis: [
+        { label: 'Buckets', value: '2 / 5', pct: '40%', color: '#4C9AFF' },
+        { label: 'Quota allocated', value: '150 / 1000 GB', pct: '15%', color: '#4C9AFF' },
+        { label: 'Stored', value: '114.6 GB', pct: '76%', color: '#4C9AFF' },
+        { label: 'Read-only buckets', value: '1', pct: '50%', color: '#F5B94C' }
+      ],
+      buckets: [
+        { name: 'pp12-backups', objects: '18 204', created: '02 Oct 2026', used: '63.2 / 100 GB', pct: '63%', color: '#4C9AFF', state: 'Active', stateColor: '#7EE6B0', action: 'Browse' },
+        { name: 'pp12-media', objects: '4 911', created: '05 Oct 2026', used: '51.4 / 50 GB', pct: '100%', color: '#F5B94C', state: 'Read-only: over quota. Delete files or raise the quota.', stateColor: '#F5C46B', action: 'Raise quota' }
+      ],
+      conn: [
+        { k: 'Endpoint', v: 'https://s3.example.com' },
+        { k: 'Region', v: 'us-east-1 (path-style addressing)' },
+        { k: 'Access key ID', v: 'AKSW9F3K2L7Q1X' }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

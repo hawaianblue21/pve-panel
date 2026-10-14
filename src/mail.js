@@ -6,6 +6,7 @@ import { db } from './db.js';
 import { config } from './config.js';
 import { seal, open } from './secrets.js';
 import { schemeColors } from './appearance.js';
+import { brandName } from './branding.js';
 
 const KEY = 'email';
 const PURPOSE = 'smtp-password';
@@ -25,7 +26,7 @@ export function emailSettings() {
     security: s?.security ?? 'starttls',      // tls | starttls | none
     username: s?.username ?? '',
     hasPassword: !!s?.password,
-    fromName: s?.fromName ?? config.brand.name,
+    fromName: s?.fromName ?? brandName(),
     fromAddress: s?.fromAddress ?? '',
     panelUrl: s?.panelUrl ?? config.oidc.publicUrl.customer ?? '',
     updatedAt: db.prepare('SELECT updated_at FROM settings WHERE key = ?').get(KEY)?.updated_at ?? null,
@@ -93,7 +94,7 @@ function getTransport() {
 
 function sender() {
   const s = read();
-  const name = (s.fromName || config.brand.name).replace(/["\r\n]/g, '');
+  const name = (s.fromName || brandName()).replace(/["\r\n]/g, '');
   return `"${name}" <${s.fromAddress}>`;
 }
 
@@ -114,7 +115,7 @@ export async function sendMail({ to, subject, text, html }) {
 const esc = (t) => String(t ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
 function layout({ title, paragraphs, button, footer }) {
-  const brand = esc(config.brand.name);
+  const brand = esc(brandName());
   const { accent, side } = schemeColors(); // the panel's color scheme
   return `<!doctype html><html><body style="margin:0;background:#eef2f6;font-family:Segoe UI,Helvetica,Arial,sans-serif;color:#172230">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#eef2f6;padding:32px 12px"><tr><td align="center">
@@ -135,7 +136,7 @@ ${footer ? `<p style="margin:22px 0 0;font-size:13px;color:#5a6878">${footer}</p
  */
 export function invitationMessage({ email, link, expiresHours, requireTotp, sso, passwordLogin, isAdmin }) {
   const s = emailSettings();
-  const brand = config.brand.name;
+  const brand = brandName();
   const panel = s.panelUrl;
   const steps = [];
   const text = [];
@@ -179,7 +180,7 @@ export function invitationMessage({ email, link, expiresHours, requireTotp, sso,
 }
 
 export function testMessage(to) {
-  const brand = config.brand.name;
+  const brand = brandName();
   const line = `This is a test from ${brand}. Email sending works.`;
   return {
     subject: `${brand}: test email`,
@@ -201,7 +202,7 @@ function expiryMail(title, lines, { button = true, footer } = {}) {
     html: layout({
       title,
       paragraphs: lines.map(esc),
-      button: button && panel ? { href: panel, label: `Open ${config.brand.name}` } : null,
+      button: button && panel ? { href: panel, label: `Open ${brandName()}` } : null,
       footer: footer ? esc(footer) : null,
     }),
   };
@@ -257,7 +258,7 @@ export function expirySummaryMessage(summary) {
   ];
   const text = lines.join('\n').trim();
   return {
-    subject: `${config.brand.name}: server expiry summary`,
+    subject: `${brandName()}: server expiry summary`,
     text: `${text}\n\nManage expiry in the admin interface (Servers and Customers).`,
     html: layout({
       title: 'Server expiry summary',

@@ -2,7 +2,8 @@ import {
   $, esc, api, toast, fail, confirmAction, promptText, SignedOut, setUnauthorizedHandler,
 } from '/shared/ui.js';
 import { createAdmin } from '/admin.js';
-import { brandMark, applyBrand } from '/shared/icons.js';
+import { brandMark, applyBrand, applyPersonal } from '/shared/icons.js';
+import { loadPersonalAppearance } from '/shared/appearance.js';
 import { signInSecondStep } from '/shared/twofa.js';
 import { prepareSignIn, resumeSso } from '/shared/signin.js';
 
@@ -61,6 +62,7 @@ function start(account) {
   $('#login-view').hidden = true;
   $('#app-view').hidden = false;
   $('#account-email').textContent = me.email;
+  loadPersonalAppearance();
   admin.open();
   api('/api/admin/about').then(showVersion).catch(() => {});
 }
@@ -101,6 +103,7 @@ $('#login-form').addEventListener('submit', async (e) => {
 
 $('#logout').addEventListener('click', async () => {
   await api('/api/auth/logout', { method: 'POST' }).catch(() => {});
+  applyPersonal(null);
   me = null;
   showLogin();
 });

@@ -138,7 +138,9 @@ export async function startStack({ env = {}, mail = false } = {}) {
     INITIAL_ADMIN_PASSWORD: ADMIN.password,
     UPDATE_CHECK: 'false',
     AGENT_UNRESPONSIVE_SECONDS: '15',
-    ...env,
+    // {CUSTOMER_URL} / {ADMIN_URL} in values: the addresses this stack listens on
+    ...Object.fromEntries(Object.entries(env).map(([k, v]) => [k, String(v)
+      .replaceAll('{CUSTOMER_URL}', `http://127.0.0.1:${port}`).replaceAll('{ADMIN_URL}', `http://127.0.0.1:${adminPort}`)])),
   };
   const child = spawn(process.execPath, ['--disable-warning=ExperimentalWarning', 'src/server.js'], {
     cwd: root, env: childEnv, stdio: ['ignore', 'pipe', 'pipe'],

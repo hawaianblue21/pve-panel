@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Admin guests</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500&amp;family=Space+Grotesk:wght@500;600;700&amp;display=swap">
+<style>
+body{margin:0;background:#0A101C;}
+a{color:#8EC2FF;}a:hover{color:#C5E0FF;}
+</style>
+</helmet>
+<div style="min-height: 100vh; background: #0A101C; color: #E6EBF2; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 14px; line-height: 1.5; display: flex; flex-wrap: wrap; align-items: stretch;">
+
+<div style="flex: 1 1 240px; background: #0D1424; border-right: 1px solid #1C2638;">
+<dc-import name="Sidebar" portal="admin" active="guests" hint-size="100%,960px"></dc-import>
+</div>
+
+<main style="flex: 999 1 560px; min-width: 0; box-sizing: border-box; padding: 28px 32px 48px; display: flex; flex-direction: column; gap: 20px;">
+
+<div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px;">
+<div style="display: flex; flex-direction: column; gap: 2px;">
+<h1 style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 28px; font-weight: 600;">Guests</h1>
+<span style="color: #93A0B4;">148 VMs and containers across 3 hosts</span>
+</div>
+<div style="display: flex; flex-wrap: wrap; gap: 10px;">
+<button type="button" style="min-height: 44px; padding: 0 14px; border: 1px solid #2A3750; border-radius: 10px; background: #101828; color: #E6EBF2; font: inherit; font-weight: 500;">Import from host</button>
+<button type="button" style="min-height: 44px; padding: 0 16px; border: 0; border-radius: 10px; background: #4C9AFF; color: #06101F; font: inherit; font-weight: 600;">+ Create guest</button>
+</div>
+</div>
+
+<!-- filters -->
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px;">
+<label style="display: flex; align-items: center; gap: 8px; min-height: 40px; padding: 0 12px; border: 1px solid #2A3750; border-radius: 10px; background: #101828; flex: 1 1 260px; max-width: 360px;">
+<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#93A0B4" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-4-4"></path></svg>
+<span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0);">Filter guests</span>
+<input type="search" placeholder="Name, IP, owner, VMID" style="flex: 1; min-width: 0; background: transparent; border: 0; outline: none; color: #E6EBF2; font: inherit;">
+</label>
+<sc-for list="{{filters}}" as="f" hint-placeholder-count="5">
+<button type="button" style="min-height: 40px; padding: 0 12px; border: 1px solid #2A3750; border-radius: 10px; background: #101828; color: #C3CCDA; font: inherit; font-size: 13px;">{{f}} ▾</button>
+</sc-for>
+</div>
+
+<!-- bulk bar -->
+<sc-if value="{{hasSelection}}" hint-placeholder-val="{{true}}">
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 10px 14px; border: 1px solid #2B4A80; background: #12213D; border-radius: 12px;">
+<span style="font-weight: 600;">{{selectedCount}} selected</span>
+<span style="flex: 1;"></span>
+<button type="button" style="min-height: 36px; padding: 0 12px; border: 1px solid #2B4A80; border-radius: 8px; background: transparent; color: #E6EBF2; font: inherit; font-size: 13px;">Start</button>
+<button type="button" style="min-height: 36px; padding: 0 12px; border: 1px solid #2B4A80; border-radius: 8px; background: transparent; color: #E6EBF2; font: inherit; font-size: 13px;">Reboot</button>
+<button type="button" style="min-height: 36px; padding: 0 12px; border: 1px solid #2B4A80; border-radius: 8px; background: transparent; color: #E6EBF2; font: inherit; font-size: 13px;">Shut down</button>
+<button type="button" style="min-height: 36px; padding: 0 12px; border: 1px solid #2B4A80; border-radius: 8px; background: transparent; color: #E6EBF2; font: inherit; font-size: 13px;">Suspend</button>
+<button type="button" style="min-height: 36px; padding: 0 12px; border: 1px solid #2B4A80; border-radius: 8px; background: transparent; color: #E6EBF2; font: inherit; font-size: 13px;">Change plan</button>
+<button type="button" onClick="{{clear}}" style="min-height: 36px; padding: 0 12px; border: 0; border-radius: 8px; background: transparent; color: #8EC2FF; font: inherit; font-size: 13px;">Clear</button>
+</div>
+</sc-if>
+
+<!-- table -->
+<section aria-label="Guest list" style="background: #101828; border: 1px solid #1F2A3F; border-radius: 14px; overflow: hidden;">
+<div style="overflow-x: auto;">
+<div style="min-width: 1060px;">
+<div style="display: grid; grid-template-columns: 36px 1.5fr 1.2fr 1.1fr 1fr 1.1fr 1.2fr 0.9fr 0.9fr 1fr; gap: 10px; padding: 10px 16px; color: #8492A8; font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 0.04em;">
+<span></span><span>NAME / VMID</span><span>OWNER</span><span>NODE</span><span>OS</span><span>IP</span><span>SIZE</span><span>PLAN</span><span>BILLING</span><span>STATUS</span>
+</div>
+<sc-for list="{{rows}}" as="r" hint-placeholder-count="10">
+<div style="display: grid; grid-template-columns: 36px 1.5fr 1.2fr 1.1fr 1fr 1.1fr 1.2fr 0.9fr 0.9fr 1fr; gap: 10px; align-items: center; padding: 11px 16px; border-top: 1px solid #1C2638; background: {{r.rowBg}};">
+<label style="display: flex; align-items: center; justify-content: center; width: 36px; height: 36px;"><span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0);">Select {{r.name}}</span><input type="checkbox" checked="{{r.checked}}" onChange="{{r.toggle}}" style="width: 16px; height: 16px; accent-color: #4C9AFF;"></label>
+<span style="display: flex; flex-direction: column; line-height: 1.3;"><span style="font-weight: 500;">{{r.name}}</span><span style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #8492A8;">{{r.vmid}} · {{r.kind}}</span></span>
+<span style="color: #C3CCDA;">{{r.owner}}</span>
+<span style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #B8C2D1;">{{r.node}}</span>
+<span style="color: #B8C2D1;">{{r.os}}</span>
+<span style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #B8C2D1;">{{r.ip}}</span>
+<span style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #B8C2D1;">{{r.size}}</span>
+<span style="color: #C3CCDA;">{{r.plan}}</span>
+<span style="justify-self: start; padding: 2px 8px; border-radius: 6px; font-size: 12px; background: {{r.billBg}}; color: {{r.billFg}};">{{r.billing}}</span>
+<span style="color: {{r.statusColor}};">● {{r.status}}</span>
+</div>
+</sc-for>
+</div>
+</div>
+<div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px; padding: 12px 16px; border-top: 1px solid #1C2638; color: #93A0B4; font-size: 13px;">
+<span>Showing 1–10 of 148</span>
+<div style="display: flex; gap: 6px;">
+<button type="button" style="min-height: 36px; min-width: 36px; border: 1px solid #2A3750; border-radius: 8px; background: transparent; color: #C3CCDA; font: inherit;" aria-label="Previous page">‹</button>
+<button type="button" style="min-height: 36px; min-width: 36px; border: 0; border-radius: 8px; background: #17284A; color: #FFFFFF; font: inherit;">1</button>
+<button type="button" style="min-height: 36px; min-width: 36px; border: 1px solid #2A3750; border-radius: 8px; background: transparent; color: #C3CCDA; font: inherit;">2</button>
+<button type="button" style="min-height: 36px; min-width: 36px; border: 1px solid #2A3750; border-radius: 8px; background: transparent; color: #C3CCDA; font: inherit;">3</button>
+<button type="button" style="min-height: 36px; min-width: 36px; border: 1px solid #2A3750; border-radius: 8px; background: transparent; color: #C3CCDA; font: inherit;" aria-label="Next page">›</button>
+</div>
+</div>
+</section>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1500}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { sel: { 2: true, 5: true, 8: true } }; }
+  renderVals() {
+    const sel = this.state.sel || {};
+    const ok = '#3DD68C', warn = '#F5B94C', bad = '#FF8A8A', muted = '#93A0B4';
+    const bill = {
+      Paid: ['#123326', '#7EE6B0'], Due: ['#152645', '#9CC8FF'], Overdue: ['#3A2E10', '#F5C46B'],
+      Trial: ['#262046', '#C7B8FF'], Internal: ['#1C2638', '#B8C2D1']
+    };
+    const data = [
+      ['web-prod-01', '1012', 'VM', 'PT Arunika Digital', 'pve-jkt1-01', 'Ubuntu 24.04', '103.28.14.21', '8 vCPU · 16 GB · 250 GB', 'Business', 'Overdue', 'Running'],
+      ['ad-dc-01', '1013', 'VM', 'PT Arunika Digital', 'pve-jkt1-02', 'Windows Server 2022', '10.100.1.12', '4 vCPU · 12 GB · 120 GB', 'Standard', 'Overdue', 'Running'],
+      ['redis-cache', '2041', 'LXC', 'PT Arunika Digital', 'pve-jkt1-02', 'Debian 12', '10.100.1.20', '2 vCPU · 4 GB · 60 GB', 'Starter', 'Due', 'Provisioning'],
+      ['shop-api-01', '1090', 'VM', 'Toko Sinar Jaya', 'pve-jkt2-01', 'Rocky Linux 9', '103.28.14.48', '4 vCPU · 8 GB · 120 GB', 'Standard', 'Paid', 'Running'],
+      ['shop-db-01', '1091', 'VM', 'Toko Sinar Jaya', 'pve-jkt2-02', 'Debian 12', '10.100.7.11', '8 vCPU · 16 GB · 250 GB', 'Business', 'Paid', 'Running'],
+      ['cdn-edge-04', '1120', 'VM', 'Medialink ID', 'pve-jkt1-03', 'Ubuntu 24.04', '103.28.15.9', '2 vCPU · 4 GB · 60 GB', 'Starter', 'Paid', 'Suspended · traffic'],
+      ['lab-k8s-03', '3002', 'VM', 'Universitas Bina', 'pve-jkt1-03', 'Ubuntu 22.04', '10.100.12.33', '4 vCPU · 8 GB · 120 GB', 'Standard', 'Trial', 'Running'],
+      ['erp-app', '1155', 'VM', 'CV Maju Bersama', 'pve-sby-01', 'Windows Server 2022', '10.100.9.10', '8 vCPU · 16 GB · 250 GB', 'Business', 'Paid', 'Unknown · host offline'],
+      ['mail-relay', '2050', 'LXC', 'Internal', 'pve-jkt2-01', 'Alpine 3.20', '10.10.0.25', '1 vCPU · 1 GB · 10 GB', 'Custom', 'Internal', 'Running'],
+      ['old-crm', '1009', 'VM', 'CV Maju Bersama', 'pve-jkt1-04', 'CentOS 7', '10.100.9.14', '2 vCPU · 4 GB · 80 GB', 'Starter', 'Overdue', 'Stopped']
+    ];
+    const rows = data.map((d, i) => {
+      const s = d[10];
+      const statusColor = s === 'Running' ? ok : (s.indexOf('Suspended') === 0 || s === 'Provisioning' ? warn : (s.indexOf('Unknown') === 0 ? bad : muted));
+      const b = bill[d[9]];
+      return {
+        name: d[0], vmid: d[1], kind: d[2], owner: d[3], node: d[4], os: d[5], ip: d[6], size: d[7], plan: d[8],
+        billing: d[9], billBg: b[0], billFg: b[1], status: s, statusColor,
+        checked: !!sel[i], rowBg: sel[i] ? '#121F38' : 'transparent',
+        toggle: () => { const n = { ...(this.state.sel || {}) }; n[i] = !n[i]; this.setState({ sel: n }); }
+      };
+    });
+    const selectedCount = Object.keys(sel).filter((k) => sel[k]).length;
+    return {
+      rows, selectedCount, hasSelection: selectedCount > 0,
+      clear: () => this.setState({ sel: {} }),
+      filters: ['Host: All', 'Status: Any', 'Type: VM + LXC', 'Plan: Any', 'Billing: Any']
+    };
+  }
+}
+</script>
+</body>
+</html>

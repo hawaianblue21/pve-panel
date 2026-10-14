@@ -55,14 +55,53 @@ export function brandMark(size = 28) {
 }
 
 // Color scheme: apply the last known one immediately (no flash of the default
-// colors), then whatever the server says. Set by an admin for everyone.
+// colors), then whatever the server says. The panel's scheme is set by an admin
+// for everyone; a signed-in user may choose their own scheme and light/dark mode
+// (Account → Appearance), remembered in this browser too.
 const SCHEME_KEY = 'pve-panel.scheme';
+const PERSONAL_KEY = 'pve-panel.personal';
+let personal = null;   // { scheme, mode } of the signed-in user, or null
+let panelScheme = null;
+const html = document.documentElement;
+
+function setMode(mode) {
+  if (mode === 'light' || mode === 'dark') html.dataset.mode = mode;
+  else delete html.dataset.mode;
+}
+
+/** The panel's scheme (for everyone); a personal choice still wins. */
 export function applyScheme(id) {
   if (!id) return;
-  document.documentElement.dataset.scheme = id;
+  panelScheme = id;
+  html.dataset.scheme = personal?.scheme || id;
   try { localStorage.setItem(SCHEME_KEY, id); } catch { /* storage unavailable */ }
 }
-try { const remembered = localStorage.getItem(SCHEME_KEY); if (remembered) document.documentElement.dataset.scheme = remembered; } catch { /* ignore */ }
+
+/** The signed-in user's own choice (from /api/account/appearance); null clears it (sign-out). */
+export function applyPersonal(a) {
+  personal = a && a.allowed ? { scheme: a.scheme ?? null, mode: a.mode ?? 'system' } : null;
+  try {
+    if (personal) localStorage.setItem(PERSONAL_KEY, JSON.stringify(personal)); else localStorage.removeItem(PERSONAL_KEY);
+  } catch { /* storage unavailable */ }
+  if (a?.effective) html.dataset.scheme = a.effective;
+  else if (!a) {
+    let fallback = panelScheme;
+    try { fallback ??= localStorage.getItem(SCHEME_KEY); } catch { /* ignore */ }
+    if (fallback) html.dataset.scheme = fallback; else delete html.dataset.scheme;
+  }
+  setMode(personal?.mode);
+}
+
+try {
+  personal = JSON.parse(localStorage.getItem(PERSONAL_KEY) || 'null');
+  const remembered = personal?.scheme || localStorage.getItem(SCHEME_KEY);
+  if (remembered) html.dataset.scheme = remembered;
+  setMode(personal?.mode);
+} catch { /* ignore */ }
+
+let brandInfo = null;
+/** What /api/brand said (after applyBrand), e.g. the support link. */
+export const brandDetails = () => brandInfo;
 
 /** Fetches the product name and applies it to the page (title + [data-brand]). */
 export async function applyBrand(suffix = '') {
@@ -74,6 +113,21 @@ export async function applyBrand(suffix = '') {
       name = b.name || name;
       customOsIcons = b.osIcons ?? {};
       applyScheme(b.scheme);
+      brandInfo = b;
+      // Own logo (Settings → Branding) instead of the built-in mark
+      if (b.logo) {
+        document.querySelectorAll('[data-brand-mark]').forEach((el) => {
+          el.innerHTML = `<img class="brand-logo" src="${b.logo.replace(/"/g, '')}" alt="">`;
+        });
+      }
+      if (b.favicon) {
+        let link = document.querySelector('link[rel="icon"]');
+        if (!link) { link = document.createElement('link'); link.rel = 'icon'; document.head.append(link); }
+        link.href = b.favicon;
+      }
+      if (b.supportUrl) {
+        document.querySelectorAll('[data-support-link]').forEach((a) => { a.href = b.supportUrl; a.hidden = false; });
+      }
     }
   } catch { /* keep default */ }
   document.querySelectorAll('[data-brand]').forEach((el) => { el.textContent = name; });

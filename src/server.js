@@ -13,6 +13,7 @@ import { bootstrapAdmin } from './bootstrap.js';
 import { versionInfo, updateStatus } from './version.js';
 import { startExpiryScheduler } from './expiry.js';
 import { currentScheme } from './appearance.js';
+import { branding, brandingDir, SERVED_FILE } from './branding.js';
 import { startUpdateTracker } from './winupdate.js';
 import authPlugin from './auth.js';
 import vmRoutes from './routes/vms.js';
@@ -71,27 +72,28 @@ function securityHeaders(app) {
 const webauthnBrowser = path.join(root, 'node_modules', '@simplewebauthn', 'browser', 'esm');
 
 // ---- Own icon files (branding folder) ----------------------------------------
-const brandingDir = path.resolve(config.brand.dir || path.join(path.dirname(path.resolve(config.dbPath)), 'branding'));
-const ICON_FILE = /^os-(windows|linux)\.(svg|png|webp)$/;
 
 /** { windows: '/branding/os-windows.svg', … } for the icon files that exist. */
 function osIcons() {
   const found = {};
   try {
     for (const f of fs.readdirSync(brandingDir)) {
-      const m = ICON_FILE.exec(f);
+      const m = /^os-(windows|linux)\.(svg|png|webp)$/.exec(f);
       if (m && !found[m[1]]) found[m[1]] = `/branding/${f}`;
     }
   } catch { /* no branding folder */ }
   return found;
 }
 
+// Created up front, so a logo uploaded later (Settings → Branding) is served without a restart.
+try { fs.mkdirSync(brandingDir, { recursive: true }); } catch { /* read-only: only existing files */ }
+
 async function brandingFiles(app) {
   await app.register(fastifyStatic, {
     root: brandingDir,
     prefix: '/branding/',
     decorateReply: false,
-    allowedPath: (p) => ICON_FILE.test(p.replace(/^\//, '')),
+    allowedPath: (p) => SERVED_FILE.test(p.replace(/^\//, '')),
     setHeaders: (res) => {
       // Files added by the operator: never allow scripts, even in an SVG opened directly.
       res.setHeader('Content-Security-Policy', "default-src 'none'; style-src 'unsafe-inline'; sandbox");
@@ -111,7 +113,10 @@ async function buildServer(name, setup) {
   await app.register(cookie);
   await app.register(rateLimit, { global: false });
   // Public: the sign-in page shows the product name before anyone is signed in.
-  app.get('/api/brand', async () => ({ name: config.brand.name, osIcons: osIcons(), scheme: currentScheme() }));
+  app.get('/api/brand', async () => {
+    const b = branding();
+    return { name: b.name, logo: b.logo, favicon: b.favicon, supportUrl: b.supportUrl || null, osIcons: osIcons(), scheme: currentScheme() };
+  });
   // Liveness for Docker/monitoring: the process runs and the database answers.
   app.get('/healthz', { logLevel: 'warn' }, async (req, reply) => {
     try {

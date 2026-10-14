@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Admin invoice detail</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500&amp;family=Space+Grotesk:wght@500;600;700&amp;display=swap">
+<style>
+body{margin:0;background:#0A101C;}
+a{color:#8EC2FF;}a:hover{color:#C5E0FF;}
+</style>
+</helmet>
+<div style="min-height: 100vh; background: #0A101C; color: #E6EBF2; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 14px; line-height: 1.5; display: flex; flex-wrap: wrap; align-items: stretch;">
+
+<div style="flex: 1 1 240px; background: #0D1424; border-right: 1px solid #1C2638;">
+<dc-import name="Sidebar" portal="admin" active="invoices" hint-size="100%,960px"></dc-import>
+</div>
+
+<main style="flex: 999 1 560px; min-width: 0; box-sizing: border-box; padding: 28px 32px 48px; display: flex; flex-direction: column; gap: 20px;">
+
+<a href="Admin-Billing.dc.html" style="font-size: 13px; text-decoration: none;">‹ Back to billing</a>
+
+<div style="display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 16px;">
+<div style="display: flex; flex-direction: column; gap: 6px;">
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px;">
+<h1 style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 28px; font-weight: 600;">INV-2026-10-0142</h1>
+<span style="padding: 3px 10px; border-radius: 999px; background: #3A2E10; color: #F5C46B; font-size: 13px; font-weight: 500;">Overdue 2 days</span>
+</div>
+<span style="color: #93A0B4;">PT Arunika Digital · issued 05 Oct 2026 · due 12 Oct 2026 · suspension scheduled 15 Oct 2026</span>
+</div>
+<div style="display: flex; flex-wrap: wrap; gap: 8px;">
+<button type="button" style="min-height: 44px; padding: 0 14px; border: 1px solid #2A3750; border-radius: 10px; background: #101828; color: #E6EBF2; font: inherit;">Download PDF</button>
+<button type="button" style="min-height: 44px; padding: 0 14px; border: 1px solid #2A3750; border-radius: 10px; background: #101828; color: #E6EBF2; font: inherit;">Pause dunning</button>
+<button type="button" style="min-height: 44px; padding: 0 14px; border: 1px solid #2A3750; border-radius: 10px; background: #101828; color: #E6EBF2; font: inherit;">Send reminder</button>
+<button type="button" style="min-height: 44px; padding: 0 16px; border: 0; border-radius: 10px; background: #4C9AFF; color: #06101F; font: inherit; font-weight: 600;">Record payment</button>
+</div>
+</div>
+
+<div style="display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-start;">
+
+<!-- invoice document -->
+<section aria-label="Invoice" style="flex: 3 1 600px; min-width: 0; background: #101828; border: 1px solid #1F2A3F; border-radius: 14px; overflow: hidden;">
+<div style="display: flex; flex-wrap: wrap; justify-content: space-between; gap: 20px; padding: 22px 24px; border-bottom: 1px solid #1C2638;">
+<div style="display: flex; flex-direction: column; gap: 2px; font-size: 13px;">
+<span style="font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 0.06em; color: #8492A8;">FROM</span>
+<span style="font-weight: 600; font-size: 14px;">[YOUR COMPANY NAME]</span>
+<span style="color: #B8C2D1;">[ADDRESS] · NPWP [NUMBER]</span>
+</div>
+<div style="display: flex; flex-direction: column; gap: 2px; font-size: 13px;">
+<span style="font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 0.06em; color: #8492A8;">BILL TO</span>
+<span style="font-weight: 600; font-size: 14px;">PT Arunika Digital</span>
+<span style="color: #B8C2D1;">Attn. Rina Wijaya · billing@arunika.id</span>
+<span style="color: #B8C2D1;">NPWP [CUSTOMER NUMBER]</span>
+</div>
+<div style="display: flex; flex-direction: column; gap: 2px; font-size: 13px;">
+<span style="font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 0.06em; color: #8492A8;">BILLING PERIOD</span>
+<span style="font-weight: 600; font-size: 14px;">1 – 31 Oct 2026</span>
+<span style="color: #B8C2D1;">Monthly · in advance</span>
+</div>
+</div>
+
+<div style="overflow-x: auto;">
+<div style="min-width: 640px;">
+<div style="display: grid; grid-template-columns: 3fr 1.4fr 0.6fr 1.2fr 1.2fr; gap: 10px; padding: 10px 24px; color: #8492A8; font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 0.04em;">
+<span>DESCRIPTION</span><span>PERIOD</span><span style="text-align: right;">QTY</span><span style="text-align: right;">UNIT</span><span style="text-align: right;">AMOUNT</span>
+</div>
+<sc-for list="{{lines}}" as="l" hint-placeholder-count="5">
+<div style="display: grid; grid-template-columns: 3fr 1.4fr 0.6fr 1.2fr 1.2fr; gap: 10px; align-items: start; padding: 12px 24px; border-top: 1px solid #1C2638; font-size: 13px;">
+<span style="display: flex; flex-direction: column;"><span style="font-weight: 500;">{{l.title}}</span><span style="color: #93A0B4; font-size: 12px;">{{l.sub}}</span></span>
+<span style="color: #B8C2D1;">{{l.period}}</span>
+<span style="text-align: right; font-family: 'JetBrains Mono', monospace;">{{l.qty}}</span>
+<span style="text-align: right; font-family: 'JetBrains Mono', monospace; color: #B8C2D1;">{{l.unit}}</span>
+<span style="text-align: right; font-family: 'JetBrains Mono', monospace;">{{l.amount}}</span>
+</div>
+</sc-for>
+</div>
+</div>
+
+<div style="display: flex; justify-content: flex-end; padding: 16px 24px 22px; border-top: 1px solid #1C2638;">
+<div style="width: 100%; max-width: 360px; display: flex; flex-direction: column; gap: 8px; font-size: 14px;">
+<span style="display: flex; justify-content: space-between;"><span style="color: #B8C2D1;">Subtotal</span><span style="font-family: 'JetBrains Mono', monospace;">Rp 1.058.667</span></span>
+<span style="display: flex; justify-content: space-between;"><span style="color: #B8C2D1;">PPN 11%</span><span style="font-family: 'JetBrains Mono', monospace;">Rp 116.453</span></span>
+<span style="display: flex; justify-content: space-between;"><span style="color: #B8C2D1;">Total</span><span style="font-family: 'JetBrains Mono', monospace;">Rp 1.175.120</span></span>
+<span style="display: flex; justify-content: space-between;"><span style="color: #B8C2D1;">Wallet credit applied</span><span style="font-family: 'JetBrains Mono', monospace; color: #7EE6B0;">−Rp 100.000</span></span>
+<span style="display: flex; justify-content: space-between; padding-top: 10px; border-top: 1px solid #2A3750; font-weight: 600; font-size: 16px;"><span>Amount due</span><span style="font-family: 'JetBrains Mono', monospace;">Rp 1.075.120</span></span>
+</div>
+</div>
+</section>
+
+<!-- right column -->
+<div style="flex: 1 1 320px; min-width: 0; display: flex; flex-direction: column; gap: 16px;">
+
+<section aria-labelledby="tl-h" style="background: #101828; border: 1px solid #1F2A3F; border-radius: 14px; padding: 16px 18px; display: flex; flex-direction: column; gap: 4px;">
+<h2 id="tl-h" style="margin: 0 0 8px; font-family: 'Space Grotesk', sans-serif; font-size: 18px; font-weight: 600;">Timeline</h2>
+<sc-for list="{{timeline}}" as="t" hint-placeholder-count="6">
+<div style="display: flex; gap: 12px;">
+<span style="display: flex; flex-direction: column; align-items: center;"><span style="width: 10px; height: 10px; margin-top: 5px; border-radius: 50%; background: {{t.color}};"></span><span style="flex: 1; width: 2px; background: #1F2A3F;"></span></span>
+<span style="display: flex; flex-direction: column; padding-bottom: 12px;"><span style="font-weight: 500;">{{t.title}}</span><span style="font-size: 12px; color: #93A0B4;">{{t.when}}</span></span>
+</div>
+</sc-for>
+</section>
+
+<section aria-labelledby="pay-h" style="background: #101828; border: 1px solid #1F2A3F; border-radius: 14px; padding: 16px 18px; display: flex; flex-direction: column; gap: 10px;">
+<h2 id="pay-h" style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 18px; font-weight: 600;">Payment instructions sent</h2>
+<span style="display: flex; justify-content: space-between; font-size: 13px;"><span style="color: #93A0B4;">Virtual account</span><span style="font-family: 'JetBrains Mono', monospace;">[VA NUMBER]</span></span>
+<span style="display: flex; justify-content: space-between; font-size: 13px;"><span style="color: #93A0B4;">QRIS</span><span>Pay link active until 19 Oct</span></span>
+<span style="display: flex; justify-content: space-between; font-size: 13px;"><span style="color: #93A0B4;">Customer wallet</span><span style="font-family: 'JetBrains Mono', monospace;">Rp 250.000</span></span>
+<span style="font-size: 12px; color: #93A0B4;">Wallet auto-charge skipped: balance below amount due. Partial charge is off in Billing settings.</span>
+</section>
+
+<section aria-labelledby="aff-h" style="background: #101828; border: 1px solid #1F2A3F; border-radius: 14px; padding: 16px 18px; display: flex; flex-direction: column; gap: 10px;">
+<h2 id="aff-h" style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 18px; font-weight: 600;">Affected guests on 15 Oct</h2>
+<span style="display: flex; justify-content: space-between; font-size: 13px;"><span>web-prod-01</span><span style="color: #F5C46B;">Will be suspended</span></span>
+<span style="display: flex; justify-content: space-between; font-size: 13px;"><span>ad-dc-01</span><span style="color: #F5C46B;">Will be suspended</span></span>
+<span style="display: flex; justify-content: space-between; font-size: 13px;"><span>redis-cache</span><span style="color: #93A0B4;">Not on this invoice</span></span>
+<div style="display: flex; gap: 8px; flex-wrap: wrap;">
+<button type="button" style="min-height: 40px; padding: 0 12px; border: 1px solid #2A3750; border-radius: 10px; background: transparent; color: #E6EBF2; font: inherit; font-size: 13px;">Extend 7 days</button>
+<button type="button" style="min-height: 40px; padding: 0 12px; border: 1px solid #2A3750; border-radius: 10px; background: transparent; color: #E6EBF2; font: inherit; font-size: 13px;">Issue credit note</button>
+<button type="button" style="min-height: 40px; padding: 0 12px; border: 1px solid #4A2A2A; border-radius: 10px; background: transparent; color: #FF8A8A; font: inherit; font-size: 13px;">Void</button>
+</div>
+</section>
+</div>
+</div>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1500}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {
+      lines: [
+        { title: 'Business plan', sub: 'web-prod-01 · 8 vCPU · 16 GB · 250 GB · 5 TB', period: '1–31 Oct', qty: '1', unit: 'Rp 550.000', amount: 'Rp 550.000' },
+        { title: 'Standard plan', sub: 'ad-dc-01 · 4 vCPU · 8 GB · 120 GB · 3 TB', period: '1–31 Oct', qty: '1', unit: 'Rp 290.000', amount: 'Rp 290.000' },
+        { title: 'Memory add-on +4 GB (pro-rated)', sub: 'ad-dc-01 · resized 20 Sep · 11 of 30 days', period: '20–30 Sep', qty: '4', unit: 'Rp 40.000 /GB', amount: 'Rp 58.667' },
+        { title: 'Extra public IPv4', sub: 'web-prod-01 · 103.28.14.22, 103.28.14.23', period: '1–31 Oct', qty: '2', unit: 'Rp 50.000', amount: 'Rp 100.000' },
+        { title: 'Traffic overage', sub: 'web-prod-01 · 5,3 TB used of 5 TB included', period: 'Sep 2026', qty: '300 GB', unit: 'Rp 200 /GB', amount: 'Rp 60.000' }
+      ],
+      timeline: [
+        { title: 'Invoice created and emailed', when: '05 Oct, 00:00 · automatic', color: '#4C9AFF' },
+        { title: 'Wallet credit applied: Rp 100.000', when: '05 Oct, 00:00 · coupon WELCOME100', color: '#3DD68C' },
+        { title: 'Viewed by rina@arunika.id', when: '05 Oct, 09:14', color: '#93A0B4' },
+        { title: 'Final reminder sent', when: '11 Oct, 08:00 · email + panel banner', color: '#93A0B4' },
+        { title: 'Marked overdue', when: '12 Oct, 23:59', color: '#F5B94C' },
+        { title: 'Guests suspended (scheduled)', when: '15 Oct, 00:00 · D+3 rule', color: '#FF8A8A' }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

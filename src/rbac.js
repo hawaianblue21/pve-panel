@@ -14,7 +14,7 @@ export const PERMISSIONS = [
   { key: 'servers.read', group: 'Servers', label: 'View servers, templates and tasks' },
   { key: 'servers.manage', group: 'Servers', label: 'Assign, power, expire and unassign servers' },
   { key: 'servers.delete', group: 'Servers', label: 'Delete servers with their disks' },
-  { key: 'templates.write', group: 'Servers', label: 'Offer and withdraw templates' },
+  { key: 'templates.write', group: 'Servers', label: 'Offer, set up and withdraw OS templates' },
   { key: 'network.read', group: 'Network', label: 'View networks, VPN and Tailscale' },
   { key: 'network.write', group: 'Network', label: 'Remove VPN devices, resync the gateway' },
   { key: 'pools.read', group: 'Resources', label: 'View resource pools and datacenters' },
@@ -24,7 +24,7 @@ export const PERMISSIONS = [
   { key: 'gpu.read', group: 'Resources', label: 'View GPU inventory and profiles' },
   { key: 'gpu.write', group: 'Resources', label: 'Manage GPU profiles, attach and detach GPUs' },
   { key: 'settings.read', group: 'Panel', label: 'View panel settings' },
-  { key: 'settings.write', group: 'Panel', label: 'Change panel settings (email, appearance, expiry)' },
+  { key: 'settings.write', group: 'Panel', label: 'Change panel settings (email, sign-in, branding, appearance, updates, expiry)' },
   { key: 'audit.read', group: 'Panel', label: 'Read the activity log' },
   { key: 'rbac.write', group: 'Panel', label: 'Manage administrators and roles' },
 ];
@@ -35,9 +35,11 @@ const READS = ALL.filter((k) => k.endsWith('.read'));
 // can't be edited or deleted; custom roles can be added next to them.
 export const BUILTIN_ROLES = [
   { key: 'owner', name: 'Owner', description: 'Everything, including administrators and roles', permissions: ALL },
+  // OS templates and panel settings stay with owners (the built-in roles below
+  // only read them); give them to a custom role if someone else should change them.
   {
-    key: 'operator', name: 'Operator', description: 'Day-to-day operations: customers, servers, templates, network',
-    permissions: [...READS, 'customers.write', 'servers.manage', 'servers.delete', 'templates.write', 'network.write'],
+    key: 'operator', name: 'Operator', description: 'Day-to-day operations: customers, servers, network',
+    permissions: [...READS, 'customers.write', 'servers.manage', 'servers.delete', 'network.write'],
   },
   {
     key: 'resources', name: 'Resource manager', description: 'Capacity: pools, datacenters, object storage and GPUs',
@@ -83,12 +85,19 @@ const ROUTES = {
   'POST /api/admin/settings/email/test': 'settings.write',
   'GET /api/admin/settings/appearance': 'settings.read',
   'PUT /api/admin/settings/appearance': 'settings.write',
+  'GET /api/admin/settings/branding': 'settings.read',
+  'PUT /api/admin/settings/branding': 'settings.write',
+  'PUT /api/admin/settings/branding/:asset': 'settings.write',
+  'DELETE /api/admin/settings/branding/:asset': 'settings.write',
+  'GET /api/admin/settings/sso': 'settings.read',
+  'PUT /api/admin/settings/sso/:provider': 'settings.write',
   'GET /api/admin/settings/winupdates': 'settings.read',
   'PUT /api/admin/settings/winupdates': 'settings.write',
   'GET /api/admin/settings/expiry': 'settings.read',
   'PUT /api/admin/settings/expiry': 'settings.write',
 
   'GET /api/admin/audit': 'audit.read',
+  'GET /api/admin/activity': 'audit.read',
 
   'GET /api/admin/rbac': 'rbac.write',
   'POST /api/admin/rbac/roles': 'rbac.write',

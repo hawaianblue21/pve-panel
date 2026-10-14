@@ -114,6 +114,9 @@ PVE Panel was built with substantial help from an AI assistant (**Claude by Anth
 - Reinstall self-created servers from a template (same name, size and network address)
 - Resize self-created servers within their plan (CPU, memory, disk)
 - Install Windows updates with one click (optional snapshot first, automatic restarts)
+- Install Linux package updates (apt / dnf) the same way: security only or everything, restart reminder after a new kernel
+- Sign in with Google, Microsoft (work or school accounts) or GitHub, and link or unlink them under Account
+- Choose their own color scheme and light / dark mode (when the panel owner allows it)
 - Delete self-created servers
 - View provisioning progress and actionable failure messages
 - Manage personal VPN devices
@@ -130,11 +133,12 @@ PVE Panel was built with substantial help from an AI assistant (**Claude by Anth
 - Start, stop, restart and delete customer-owned servers
 - Review provisioning jobs and failures
 - Reset passwords and 2FA, require 2FA per user, link/unlink single sign-on
-- Review the activity/audit log
+- Review the activity log: filter by who acted (customer, administrator, the panel itself, unknown sign-ins), by kind of action (created, changed, deleted, power, security) or by text; open any event for its full record
 - Monitor WireGuard and Tailscale usage
 - Delete customers together with their owned infrastructure
 - See the running version and whether an update is available
 - Configure email (SMTP) in the admin portal and invite users by email
+- White-label: product name, logo, browser icon and support link; single sign-on with Google, Microsoft and GitHub
 - Give single customers or servers an expiry date: reminders, automatic stop, grace period, deletion
 - Role-based access for administrators (owner, operator, resource manager, read-only support, custom roles)
 - Datacenters and resource allocation pools: shared caps on vCPU, memory, disk, public IPs, GPUs and object storage
@@ -180,9 +184,12 @@ fails closed.
 | Built-in role | Can |
 | --- | --- |
 | **Owner** | Everything, including administrators and roles |
-| **Operator** | Customers, servers, templates, network; reads everything else |
+| **Operator** | Customers, servers, network; reads everything else (OS templates and settings too) |
 | **Resource manager** | Resource pools, datacenters, object storage, GPUs; reads everything else |
 | **Support (read-only)** | Sees everything, changes nothing |
+
+**OS templates** and **panel settings** (email, sign-in providers, branding, appearance, updates, expiry) can only be
+changed by owners, unless a custom role is given `templates.write` or `settings.write`.
 
 Custom roles are made in **Access**. Administrators created at first start or on the command line are owners;
 administrators made in the panel start as **Operator**. The last owner can't be demoted, removed or deleted.
@@ -775,6 +782,28 @@ Only the panel needs to reach the provider (outbound HTTPS); the provider never 
 
 Once SSO is validated, local password login can optionally be disabled independently for each portal.
 
+### Google, Microsoft and GitHub
+
+Next to the generic OIDC provider above, the panel owner can switch on **Google**, **Microsoft** (Entra ID / Microsoft 365)
+and **GitHub** in the **admin portal → Settings → Single sign-on**: create an app at the provider, enter the redirect
+address shown there (`https://<panel>/api/auth/sso/<provider>/callback`), paste the client ID and secret (stored encrypted,
+never shown again) and choose the portals. `PANEL_PUBLIC_URL` (and `ADMIN_PUBLIC_URL` for the admin portal) must be set.
+
+| | Google | Microsoft | GitHub |
+|---|---|---|---|
+| Protocol | OpenID Connect, PKCE, nonce | OpenID Connect, PKCE, nonce | OAuth 2.0, PKCE, state |
+| Identity kept | issuer + subject | issuer + subject | GitHub user ID |
+| Email trusted for sign-up when | `email_verified` | `xms_edov`, or the tenant is your own organisation | primary email is verified |
+
+Rules:
+
+- **No take-over by email.** An existing panel account is never linked just because the email matches. The user signs in as
+  usual and links the provider under **Account → Sign-in methods**; linking needs a sign-in from the last 15 minutes.
+- **Sign-up** (new customer accounts) is off by default, per provider, and only with an email the provider has verified;
+  optionally limited to email domains. Administrators are never created this way and must link the provider first.
+- The panel's own 2FA still applies after a provider sign-in, unless the provider reports multi-factor (`amr`).
+- The last way to sign in can't be unlinked. Every link, unlink, sign-up and refusal is in the activity log.
+
 ---
 
 ## ✉️ Email & invitations
@@ -811,7 +840,9 @@ The customer list shows *Invitation pending* or *Invitation expired* until the u
 
 ---
 
-## 🪟 Windows updates
+## 🪟🐧 Operating system updates
+
+### Windows
 
 Customers install the latest Windows updates from the server page — **Updates** tab:
 
@@ -820,9 +851,26 @@ Customers install the latest Windows updates from the server page — **Updates*
 - restarts automatically when needed (or waits for *Restart now*) and continues until Windows is up to date
 - live progress and a list of installed updates; failures explained in plain words
 
-Runs through the QEMU guest agent and Windows' own update API; respects WSUS/group policy. Switch it off under **Settings → Windows updates**.
+Runs through the QEMU guest agent and Windows' own update API; respects WSUS/group policy. Switch it off under **Settings → Operating system updates**.
 
 Details: [Windows updates](https://sebastianflint.github.io/pve-panel/docs/features/windows-updates).
+
+### Linux (apt / dnf)
+
+The same tab on Linux virtual machines installs package updates from the distribution's own repositories:
+
+- **Security updates only** (default; packages from a `*-security` archive on Debian/Ubuntu, `dnf --security` on RHEL,
+  Rocky, Alma, Fedora) or **all package updates**
+- optional **snapshot first**; at least 1 GB free on `/` is checked before starting
+- never: release upgrades (e.g. 24.04 → 26.04), removing packages, held (`apt-mark hold`) or version-locked packages;
+  changed configuration files are kept (`--force-confold`)
+- after a new kernel or system libraries: **restart automatically** (optional) or a *Restart now* reminder until the server
+  has been restarted
+
+How it works: the panel copies `src/guest/linux-update.sh` into the server through the QEMU guest agent and starts it
+detached (`systemd-run`, or `setsid` without systemd), then reads its progress file
+(`/var/lib/pvepanel/update-status.json`). Containers (LXC) have no guest agent and are not offered. Switch Linux updates
+off separately under **Settings → Operating system updates**.
 
 ---
 
@@ -1132,7 +1180,12 @@ npm run db:backup
 
 ## 🔧 Branding
 
-Change the product name through `.env`:
+The panel owner sets the **product name**, a **logo** (SVG, PNG or WebP, up to 512 KB), a **browser tab icon** and a
+**support link** (shown under the sign-in form) in the **admin portal → Settings → Branding**. The name set there
+overrides `PANEL_NAME`. Images are stored in the branding folder (see below) and checked on upload (SVGs with scripts or
+links are refused; all files are served with a script-blocking sandbox policy).
+
+The default product name comes from `.env`:
 
 ```env
 PANEL_NAME=PVE Panel
@@ -1151,6 +1204,9 @@ The configured name is used on:
 ### Color schemes
 
 Five color schemes — **Harbor** (default), **Forest**, **Ember**, **Orchid**, **Graphite** — each with a light and dark variant. Set in **Settings → Appearance** for everyone: admin interface, customer portal, sign-in pages and emails.
+
+Users can also pick their **own** scheme and **light, dark or device** mode under **Account → Appearance** (stored with
+their account, so it follows them to other devices). The owner can switch this off; everyone then sees the panel's scheme.
 
 ![Color schemes](docs/screenshots/color-schemes.png)
 
@@ -1268,7 +1324,7 @@ Only these file names are served, with a strict sandbox policy. Make sure you're
 | `POST` | `/api/vms/:vmid/reinstall` | Reinstall a self-created server from a template |
 | `POST` | `/api/vms/:vmid/resize` | Change CPU cores, memory and disk within the plan |
 | `POST` | `/api/vms/:vmid/extend` | Extend an expiring server (once, if allowed) |
-| `GET/POST` | `/api/vms/:vmid/updates` | Windows updates: status / start |
+| `GET/POST` | `/api/vms/:vmid/updates` | Windows or Linux updates: status / start |
 | `DELETE` | `/api/vms/:vmid` | Delete a self-created server |
 | `GET` | `/api/vpn` | VPN state |
 | `POST` | `/api/vpn/devices` | Add VPN device |
@@ -1276,6 +1332,9 @@ Only these file names are served, with a strict sandbox policy. Make sure you're
 | `GET/POST/DELETE` | `/api/vms/:vmid/tailscale` | Manage Tailscale |
 | `GET/POST` | `/api/account/2fa/...` | Manage 2FA |
 | `GET/POST/PATCH/DELETE` | `/api/account/passkeys/...` | Manage passkeys |
+| `GET/DELETE` | `/api/account/identities[/:provider]` | Linked sign-in providers: list / unlink |
+| `GET/PUT` | `/api/account/appearance` | Own color scheme and light/dark mode |
+| `GET` | `/api/auth/sso/:provider/start[?link=1]`, `/api/auth/sso/:provider/callback` | Sign in with (or link) Google, Microsoft, GitHub |
 | `POST` | `/api/auth/passkey/options`, `/api/auth/passkey/verify` | Sign in with a passkey |
 | `POST` | `/api/invite/check`, `/api/invite/accept` | Invitation link: check it, set the password |
 
@@ -1374,6 +1433,9 @@ Every change is tested on GitHub; releases are only published when all tests pas
 | Passkeys | registration and sign-in with a software authenticator; phishing origin, missing user verification, forged signature, replayed counter |
 | Expiry | rules, reminders, stop, self-extension, grace period, deletion, and the safety rules |
 | Windows updates | checks, snapshot, progress, restarts in between, waiting for a restart, error messages, background tracking |
+| Linux updates | apt and dnf, security only or all, snapshot, disk and package-manager checks, kernel restart reminder, errors, per-OS switch |
+| Single sign-on | Google / Microsoft (signed ID tokens) and GitHub against simulated providers: PKCE, state, nonce, no take-over by email, sign-up rules, linking, admins |
+| Platform | personal appearance, branding uploads (SVG checks), activity filters and paging, owner-only templates and settings |
 | API | the real panel against a simulated Proxmox: sign-in & 2FA, ownership, provisioning, networks, plan limits, reinstall, resize, email & invitations, VPN, Tailscale, customer deletion |
 | Browser | Playwright: sign-in, overview, server page, creating a server, admin views |
 

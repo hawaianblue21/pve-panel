@@ -111,14 +111,19 @@ test('runs are tracked even when nobody watches', { timeout: 60_000 }, async () 
   } finally { db.close(); }
 });
 
-test('Linux servers and switched-off updates are refused', async () => {
+test('stopped servers and switched-off updates are refused', async () => {
   const admin = await stack.adminSession();
-  await admin.put('/api/admin/vms/101', { userId: lena.userId });
-  assert.equal((await lena.get('/api/vms/101/updates')).json.available, false);
-  assert.equal((await lena.post('/api/vms/101/updates', {})).status, 400);
+  await admin.put('/api/admin/vms/101', { userId: lena.userId });   // Linux, stopped
+  const info = (await lena.get('/api/vms/101/updates')).json;
+  assert.equal(info.os, 'linux');
+  const stopped = await lena.post('/api/vms/101/updates', {});
+  assert.equal(stopped.status, 409);
+  assert.match(stopped.json.error, /Start the server first/);
 
+  // Switching Windows off leaves Linux alone (and the other way round)
   await admin.put('/api/admin/settings/winupdates', { enabled: false });
   assert.equal((await lena.get(`/api/vms/${win}/updates`)).json.available, false);
   assert.equal((await lena.post(`/api/vms/${win}/updates`, {})).status, 403);
+  assert.equal((await lena.get('/api/vms/101/updates')).json.available, true);
   await admin.put('/api/admin/settings/winupdates', { enabled: true });
 });

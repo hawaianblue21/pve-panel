@@ -33,12 +33,15 @@ test('installs Windows updates from the Updates tab', async ({ page }) => {
   await expect(page.locator('.update-last')).toContainText('KB5044284');
 });
 
-test('the Updates tab is not shown for Linux servers', async ({ page }) => {
+test('Linux servers get Linux package updates in the same tab', async ({ page }) => {
   await page.goto(process.env.E2E_CUSTOMER_URL);
   await page.locator('#login-form [name=email]').fill('lena@example.com');
   await page.locator('#login-form [name=password]').fill('another-long-password');
   await page.locator('#login-form button[type=submit]').click();
   await page.locator('.server-row[data-vmid="101"]').click();
-  await expect(page.locator('[data-tab="overview"]')).toBeVisible();
-  await expect(page.locator('[data-tab="updates"]')).toHaveCount(0);
+  await page.locator('[data-tab="updates"]').click();
+  await expect(page.locator('.updates h2')).toHaveText('Linux updates');
+  await expect(page.locator('#update-form')).toContainText('Security updates only');
+  await expect(page.locator('#update-form [name=autoRestart]')).not.toBeChecked();
+  await expect(page.locator('.updates')).toContainText('Start the server to install updates');   // 101 is stopped
 });

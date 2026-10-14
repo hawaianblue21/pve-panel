@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Customers and behaviour</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500&amp;family=Space+Grotesk:wght@500;600;700&amp;display=swap">
+<style>
+body{margin:0;background:#0A101C;}
+a{color:#8EC2FF;}a:hover{color:#C5E0FF;}
+</style>
+</helmet>
+<div style="min-height: 100vh; background: #0A101C; color: #E6EBF2; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 14px; line-height: 1.5; display: flex; flex-wrap: wrap; align-items: stretch;">
+
+<div style="flex: 1 1 240px; background: #0D1424; border-right: 1px solid #1C2638;">
+<dc-import name="Sidebar" portal="admin" active="customers" hint-size="100%,1240px"></dc-import>
+</div>
+
+<main style="flex: 999 1 560px; min-width: 0; box-sizing: border-box; padding: 28px 32px 48px; display: flex; flex-direction: column; gap: 20px;">
+
+<div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px;">
+<div style="display: flex; flex-direction: column; gap: 2px;">
+<h1 style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 28px; font-weight: 600;">Customers</h1>
+<span style="color: #93A0B4;">212 customers · usage, behaviour and risk signals from panel activity, metrics, billing and support</span>
+</div>
+<button type="button" style="min-height: 44px; padding: 0 16px; border: 0; border-radius: 10px; background: #4C9AFF; color: #06101F; font: inherit; font-weight: 600;">+ Add customer</button>
+</div>
+
+<div style="display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-start;">
+
+<nav aria-label="Customers" style="flex: 1 1 300px; min-width: 0; display: flex; flex-direction: column; gap: 8px;">
+<div role="tablist" aria-label="Segment" style="display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 4px;">
+<sc-for list="{{segments}}" as="s" hint-placeholder-count="4"><button type="button" role="tab" aria-selected="{{s.on}}" onClick="{{s.pick}}" style="min-height: 34px; padding: 0 12px; border-radius: 999px; border: 1px solid {{s.border}}; background: {{s.bg}}; color: #E6EBF2; font: inherit; font-size: 12px; cursor: pointer;">{{s.label}}</button></sc-for>
+</div>
+<sc-for list="{{customers}}" as="c" hint-placeholder-count="5">
+<button type="button" onClick="{{c.pick}}" aria-pressed="{{c.on}}" style="text-align: left; display: flex; justify-content: space-between; gap: 10px; padding: 12px 14px; border-radius: 12px; border: 1px solid {{c.border}}; background: {{c.bg}}; color: #E6EBF2; font: inherit; cursor: pointer;">
+<span style="display: flex; flex-direction: column; min-width: 0;"><span style="font-weight: 600;">{{c.name}}</span><span style="font-size: 12px; color: #93A0B4;">{{c.meta}}</span></span>
+<span style="align-self: center; padding: 2px 8px; border-radius: 6px; font-size: 11px; background: {{c.flagBg}}; color: {{c.flagFg}}; white-space: nowrap;">{{c.flag}}</span>
+</button>
+</sc-for>
+</nav>
+
+<section aria-labelledby="cp-h" style="flex: 3 1 600px; min-width: 0; display: flex; flex-direction: column; gap: 16px;">
+<div style="padding: 18px; background: #101828; border: 1px solid #1F2A3F; border-radius: 14px; display: flex; flex-wrap: wrap; justify-content: space-between; gap: 14px;">
+<span style="display: flex; flex-direction: column;"><h2 id="cp-h" style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 20px; font-weight: 600;">{{cur.name}}</h2><span style="font-size: 13px; color: #93A0B4;">{{cur.sub}}</span></span>
+<span style="display: flex; flex-wrap: wrap; gap: 8px;">
+<button type="button" style="min-height: 40px; padding: 0 12px; border: 1px solid #2A3750; border-radius: 10px; background: transparent; color: #E6EBF2; font: inherit; font-size: 13px;">View as customer (read-only)</button>
+<button type="button" style="min-height: 40px; padding: 0 12px; border: 1px solid #2A3750; border-radius: 10px; background: transparent; color: #E6EBF2; font: inherit; font-size: 13px;">Limits &amp; pool</button>
+<button type="button" style="min-height: 40px; padding: 0 12px; border: 1px solid #4A2A2A; border-radius: 10px; background: transparent; color: #FF8A8A; font: inherit; font-size: 13px;">Suspend</button>
+</span>
+</div>
+
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px;">
+<sc-for list="{{cur.kpis}}" as="k" hint-placeholder-count="5">
+<div style="display: flex; flex-direction: column; gap: 2px; padding: 12px 14px; background: #101828; border: 1px solid #1F2A3F; border-radius: 12px;"><span style="font-size: 12px; color: #93A0B4;">{{k.label}}</span><span style="font-family: 'Space Grotesk', sans-serif; font-size: 20px; font-weight: 600;">{{k.value}}</span><span style="font-size: 12px; color: {{k.color}};">{{k.sub}}</span></div>
+</sc-for>
+</div>
+
+<div style="display: flex; flex-wrap: wrap; gap: 16px;">
+<div style="flex: 2 1 360px; padding: 16px 18px; background: #101828; border: 1px solid #1F2A3F; border-radius: 14px; display: flex; flex-direction: column; gap: 10px;">
+<span style="font-weight: 600;">Activity in the last 14 days</span>
+<div role="img" aria-label="{{cur.chartLabel}}" style="display: grid; grid-template-columns: repeat(14, minmax(0, 1fr)); gap: 4px; align-items: end; height: 110px; border-bottom: 1px solid #2A3750;">
+<sc-for list="{{cur.bars}}" as="b" hint-placeholder-count="14"><span style="display: block; height: {{b.h}}; border-radius: 3px 3px 0 0; background: {{b.color}};"></span></sc-for>
+</div>
+<span style="display: flex; gap: 14px; font-size: 12px; color: #B8C2D1;"><span style="display: flex; align-items: center; gap: 6px;"><span style="width: 10px; height: 10px; border-radius: 2px; background: #4C9AFF;"></span>Panel actions</span><span style="display: flex; align-items: center; gap: 6px;"><span style="width: 10px; height: 10px; border-radius: 2px; background: #F5B94C;"></span>Unusual day</span></span>
+</div>
+<div style="flex: 1 1 260px; padding: 16px 18px; background: #101828; border: 1px solid #1F2A3F; border-radius: 14px; display: flex; flex-direction: column; gap: 8px;">
+<span style="font-weight: 600;">Signals</span>
+<sc-for list="{{cur.signals}}" as="s" hint-placeholder-count="4">
+<span style="display: flex; gap: 8px; font-size: 13px;"><span style="margin-top: 6px; width: 8px; height: 8px; flex: none; border-radius: 2px; background: {{s.color}};"></span><span>{{s.text}}</span></span>
+</sc-for>
+</div>
+</div>
+
+<div style="background: #101828; border: 1px solid #1F2A3F; border-radius: 14px; overflow: hidden;">
+<div style="display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 12px 18px; border-bottom: 1px solid #1C2638;"><span style="font-weight: 600;">Recent actions</span><a href="Admin-Activity.dc.html" style="font-size: 13px;">Full activity log</a></div>
+<sc-for list="{{cur.actions}}" as="a" hint-placeholder-count="5">
+<div style="display: grid; grid-template-columns: 0.8fr 2.4fr 1fr; gap: 10px; padding: 9px 18px; border-top: 1px solid #1C2638; font-size: 13px;"><span style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #93A0B4;">{{a.when}}</span><span>{{a.text}}</span><span style="color: #93A0B4;">{{a.via}}</span></div>
+</sc-for>
+</div>
+</section>
+</div>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1500}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { seg: 'All', picked: 0 }; }
+  renderVals() {
+    const FL = { Healthy: ['#123326', '#7EE6B0'], 'Overdue': ['#3A2E10', '#F5C46B'], 'Risk': ['#3A1C1C', '#FF9B9B'], 'Churn risk': ['#262046', '#C7B8FF'] };
+    const C = [
+      { name: 'PT Arunika Digital', meta: 'Arunika Group · 3 servers · Rp 1,39 jt/mo', flag: 'Overdue', sub: 'rina@arunika.id · customer since Sep 2026 · 2FA + passkey · pool Arunika Group',
+        kpis: [['Monthly spend', 'Rp 1,39 jt', '+92% vs Sep', '#7EE6B0'], ['Servers', '3', '1 GPU · 2 volumes', '#93A0B4'], ['Sign-ins (30 d)', '41', 'mostly 08–23 WIB', '#93A0B4'], ['Tickets', '3', '1 open · urgent', '#F5C46B'], ['AI chats', '12', '9 solved without a ticket', '#7EE6B0']],
+        bars: [3, 5, 4, 6, 2, 1, 7, 8, 5, 6, 9, 4, 12, 10], odd: [12],
+        signals: [['Invoice 2 days overdue · suspension 15 Oct', '#F5B94C'], ['Usage growing fast: likely upgrade candidate', '#3DD68C'], ['Backup job saturates disk at 22:00 daily', '#F5B94C'], ['All sign-ins with 2FA', '#3DD68C']],
+        actions: [['01:02', 'Created server ml-train-02 (Business + RTX 4090)', 'Panel'], ['00:44', 'Opened ticket #4821 web-prod-01 unreachable', 'Panel'], ['00:40', 'Signed in with a passkey', 'Chrome, Jakarta'], ['13 Oct 22:05', 'Rotated object storage access key', 'Panel'], ['13 Oct 21:58', 'Asked AI: website slow since 22:00', 'AI assistant']] },
+      { name: 'Medialink ID', meta: '9 servers · Rp 3,1 jt/mo', flag: 'Risk', sub: 'ops@medialink.id · customer since Mar 2026 · password only',
+        kpis: [['Monthly spend', 'Rp 3,1 jt', 'flat', '#93A0B4'], ['Servers', '9', '1 suspended (traffic)', '#F5C46B'], ['Sign-ins (30 d)', '6', '4 failed from new countries', '#FF9B9B'], ['Tickets', '1', '—', '#93A0B4'], ['AI chats', '0', '—', '#93A0B4']],
+        bars: [1, 0, 0, 2, 0, 0, 1, 0, 6, 0, 0, 1, 0, 0], odd: [8],
+        signals: [['cdn-edge-04: 100% CPU for 9 days, outbound to mining pool ports', '#FF8A8A'], ['4 failed sign-ins from new countries, no 2FA', '#FF8A8A'], ['Traffic limit hit, auto-suspended', '#F5B94C']],
+        actions: [['00:20', 'cdn-edge-04 suspended: traffic limit', 'System'], ['11 Oct 03:12', 'Failed sign-in ×4', 'Unknown, RO'], ['09 Oct', 'Created API token "deploy"', 'Panel']] },
+      { name: 'Universitas Bina', meta: '41 lab servers · Rp 2,4 jt/mo', flag: 'Healthy', sub: 'it@bina.ac.id · education pool · SSO via Google Workspace',
+        kpis: [['Monthly spend', 'Rp 2,4 jt', 'semester plan', '#93A0B4'], ['Servers', '41', 'expire 31 Jan', '#93A0B4'], ['Sign-ins (30 d)', '388', '41 students', '#93A0B4'], ['Tickets', '7', 'all solved', '#7EE6B0'], ['AI chats', '96', '88% solved', '#7EE6B0']],
+        bars: [8, 9, 12, 11, 2, 1, 10, 13, 12, 11, 9, 2, 1, 9], odd: [],
+        signals: [['Weekday usage pattern, as expected for courses', '#3DD68C'], ['Knowledge base: "cloud-init" searched 23× with no result', '#F5B94C']],
+        actions: [['13 Oct', '12 servers reinstalled (Ubuntu 24.04)', 'Panel'], ['12 Oct', 'Bucket pp31-lab-models created', 'API']] },
+      { name: 'Kopi Nusantara', meta: '1 server · Rp 150 rb/mo', flag: 'Churn risk', sub: 'owner@kopi-nusantara.id · password only',
+        kpis: [['Monthly spend', 'Rp 150 rb', '-60% after downgrade', '#C7B8FF'], ['Servers', '1', 'Starter', '#93A0B4'], ['Sign-ins (30 d)', '1', 'last 22 days ago', '#C7B8FF'], ['Tickets', '2', 'complained about speed', '#F5C46B'], ['AI chats', '0', '—', '#93A0B4']],
+        bars: [0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], odd: [],
+        signals: [['Downgraded Business → Starter', '#C7B8FF'], ['Two speed complaints, no follow-up', '#F5B94C']],
+        actions: [['22 Sep', 'Plan changed to Starter', 'Panel']] }
+    ];
+    const segs = ['All', 'Overdue', 'Risk', 'Churn risk'];
+    const segments = segs.map((s) => ({ label: s, on: s === this.state.seg, border: s === this.state.seg ? '#4C9AFF' : '#2A3750', bg: s === this.state.seg ? '#17284A' : 'transparent', pick: () => this.setState({ seg: s }) }));
+    const customers = C.map((c, i) => ({ ...c, i })).filter((c) => this.state.seg === 'All' || c.flag === this.state.seg).map((c) => ({
+      name: c.name, meta: c.meta, flag: c.flag, flagBg: FL[c.flag][0], flagFg: FL[c.flag][1], on: c.i === this.state.picked,
+      border: c.i === this.state.picked ? '#4C9AFF' : '#1F2A3F', bg: c.i === this.state.picked ? '#101C33' : '#101828', pick: () => this.setState({ picked: c.i })
+    }));
+    const c = C[this.state.picked];
+    const max = Math.max(...c.bars, 1);
+    return {
+      segments, customers,
+      cur: {
+        name: c.name, sub: c.sub, chartLabel: `Panel actions per day for ${c.name}, last 14 days`,
+        kpis: c.kpis.map(([label, value, sub, color]) => ({ label, value, sub, color })),
+        bars: c.bars.map((v, i) => ({ h: Math.max(3, Math.round(v / max * 100)) + 'px', color: c.odd.includes(i) ? '#F5B94C' : '#4C9AFF' })),
+        signals: c.signals.map(([text, color]) => ({ text, color })),
+        actions: c.actions.map(([when, text, via]) => ({ when, text, via }))
+      }
+    };
+  }
+}
+</script>
+</body>
+</html>
