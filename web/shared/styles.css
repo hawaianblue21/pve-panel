@@ -1072,3 +1072,79 @@ a.btn { text-decoration: none; }
 @media (max-width: 1100px) { .desk, .desk-body { grid-template-columns: minmax(0, 1fr); } }
 .md a, .help-list a, .help-results a, .suggest-list a, .lede a, .empty a, .notice a { color: var(--signal); text-underline-offset: 2px; }
 .help-cat .twofa-title { margin-bottom: 8px; }
+
+/* AI assistant (customer) */
+.assistant { display: grid; grid-template-columns: 230px minmax(0, 1fr); gap: 16px; align-items: start; }
+.chat-list { display: grid; gap: 4px; max-height: 70vh; overflow-y: auto; }
+.chat-list-item { display: flex; justify-content: space-between; align-items: center; gap: 6px; width: 100%; padding: 8px 10px; text-align: left;
+  font: inherit; font-size: 14px; color: inherit; background: transparent; border: 1px solid transparent; border-radius: var(--r-sm); cursor: pointer; }
+.chat-list-item span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chat-list-item:hover { background: var(--surface); }
+.chat-list-item[aria-current="true"] { background: var(--surface); border-color: var(--line); }
+.chat { display: grid; gap: 10px; padding: 14px; border: 1px solid var(--line); border-radius: var(--r-md); background: var(--surface); }
+.chat-log { list-style: none; margin: 0; padding: 4px; display: grid; gap: 12px; min-height: 320px; max-height: 60vh; overflow-y: auto; align-content: start; }
+.chat-msg { display: grid; gap: 4px; max-width: 85%; }
+.chat-user { justify-self: end; }
+.chat-assistant { justify-self: start; }
+.chat-bubble { padding: 10px 14px; border-radius: 14px; line-height: 1.55; overflow-wrap: anywhere; }
+.chat-user .chat-bubble { background: var(--signal); color: var(--signal-ink); border-bottom-right-radius: 4px; }
+.chat-assistant .chat-bubble { background: var(--surface-2, var(--bg)); border: 1px solid var(--line); border-bottom-left-radius: 4px; }
+.chat-sources { margin: 0 4px; color: var(--muted); }
+.chat-sources a { color: var(--signal); }
+.chat-rate { display: flex; gap: 2px; opacity: 0.55; }
+.chat-msg:hover .chat-rate, .chat-rate:focus-within { opacity: 1; }
+.chat-rate .icon-btn { font-size: 14px; padding: 2px 6px; }
+.chat-rate .icon-btn[aria-pressed="true"] { background: var(--surface-2, var(--bg)); border-radius: 6px; }
+.handover-card { display: grid; gap: 6px; padding: 12px 14px; border: 1px solid color-mix(in srgb, var(--signal) 35%, var(--line)); border-radius: var(--r-md); background: color-mix(in srgb, var(--signal) 6%, var(--surface)); }
+.handover-card p { margin: 0; }
+.chat-empty { display: grid; gap: 8px; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip { padding: 7px 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); font: inherit; font-size: 14px; cursor: pointer; }
+.chip:hover { border-color: var(--signal); }
+.chat-form { display: flex; gap: 8px; align-items: flex-end; }
+.chat-form textarea { flex: 1; resize: vertical; min-height: 46px; }
+.chat-foot { margin: 0; }
+@media (max-width: 900px) { .assistant { grid-template-columns: minmax(0, 1fr); } .chat-list { max-height: none; } .chat-msg { max-width: 100%; } }
+.msg-tool { padding: 6px 12px; border-style: dashed; background: transparent; }
+.small-num { font-size: 16px !important; }
+.chat-form textarea { font: inherit; }
+.handover-card .btn { justify-self: start; }
+
+/* =========================================================================
+   Billing (both portals)
+   ========================================================================= */
+.table .num, .table th.num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.table td.pos { color: color-mix(in srgb, var(--run) 60%, var(--ink)); }
+.billing-section { margin-top: 28px; max-width: 1100px; }
+.billing-section > .h2 { margin: 0 0 10px; }
+.billing-page .segmented button .small { font-weight: 400; opacity: 0.8; }
+.invoice-doc { max-width: 900px; padding: 24px; margin-top: 12px; border: 1px solid var(--line); border-radius: var(--r-md); background: var(--surface); }
+.invoice-head { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; align-items: flex-start; }
+.invoice-head h1 { margin: 0 0 4px; font-size: 22px; }
+.invoice-parties p { margin: 0 0 4px; }
+.invoice-parties { margin: 18px 0; }
+.invoice-lines tfoot td { border-bottom: 0; }
+.invoice-total td { font-weight: 700; font-size: 16px; border-top: 2px solid var(--line); }
+.pay-box { max-width: 900px; margin-top: 20px; display: grid; gap: 12px; }
+.pay-box form { display: grid; gap: 14px; }
+.bank-box { display: grid; gap: 10px; padding: 14px 16px; border: 1px dashed var(--line); border-radius: var(--r-md); }
+.bank-box p { margin: 0; }
+.bank-instructions { margin: 0; white-space: pre-wrap; font: 14px/1.5 var(--mono); }
+.secret-state { font-size: 13px; color: var(--muted); }
+@media (max-width: 640px) { .invoice-doc { padding: 16px; } }
+@media print {
+  body * { visibility: hidden !important; }
+  .invoice-doc, .invoice-doc * { visibility: visible !important; }
+  .invoice-doc { position: absolute; left: 0; top: 0; width: 100%; max-width: none; border: 0; margin: 0; padding: 0; background: #fff; color: #000; }
+  .no-print { display: none !important; }
+}
+@media (max-width: 720px) {
+  .bill-servers thead { display: none; }
+  .bill-servers, .bill-servers tbody, .bill-servers tr, .bill-servers td { display: block; width: 100%; }
+  .bill-servers tr { padding: 12px 14px; border-bottom: 1px solid var(--line); }
+  .bill-servers td { border: 0; padding: 4px 0; white-space: normal; }
+  .bill-servers td[data-label]::before { content: attr(data-label); display: block; font-size: 12px; color: var(--muted); }
+  .bill-servers .segmented { flex-wrap: wrap; }
+  .invoice-table th:nth-child(2), .invoice-table td:nth-child(2),
+  .invoice-table th:nth-child(3), .invoice-table td:nth-child(3) { display: none; }
+}

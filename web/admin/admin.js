@@ -6,6 +6,7 @@ import { renderAppearance } from '/shared/appearance.js';
 import { applyScheme } from '/shared/icons.js';
 import { createInfra } from '/infra.js';
 import { createDesk } from '/desk.js';
+import { createBilling } from '/billing.js';
 
 // Administration area: assign servers, manage customers, read the activity log.
 // Receives the shared helpers from app.js so it behaves like the rest of the panel.
@@ -98,6 +99,10 @@ const ACTION_LABELS = {
   admin_kb_delete: 'Deleted a knowledge-base article',
   admin_kb_draft_from_ticket: 'Drafted an article from a ticket',
   admin_zammad_settings: 'Changed the Zammad connection',
+  admin_ai_settings: 'Changed the AI assistant settings',
+  ai_conversation_started: 'Started a conversation with the assistant',
+  ai_handover: 'Assistant conversation became a ticket',
+  ai_error: 'AI assistant error',
   zammad_webhook_refused: 'Refused a Zammad webhook call',
   sso_identity_unlinked: 'Unlinked a sign-in provider',
   admin_sso_provider: 'Changed single sign-on provider',
@@ -148,6 +153,8 @@ export function createAdmin({ root, api, toast, fail, confirmAction, promptText,
   const infra = createInfra({ root, api, toast, fail, confirmAction, esc });
   // Ticket desk and knowledge base (own module)
   const desk = createDesk({ root, api, toast, fail, confirmAction, esc, getMe });
+  // Invoices, payments and wallets (own module)
+  const billing = createBilling({ root, api, toast, fail, confirmAction, esc });
   // Which permission a tab needs (the server checks every request as well)
   const TAB_PERMISSION = {
     servers: 'servers.read', users: 'customers.read', templates: 'servers.read', vpn: 'network.read',
@@ -155,6 +162,7 @@ export function createAdmin({ root, api, toast, fail, confirmAction, promptText,
   };
   const allowedTab = (id) => (infra.handles(id) ? infra.tabs().some(([t]) => t === id)
     : desk.handles(id) ? desk.tabs().some(([t]) => t === id)
+    : billing.handles(id) ? billing.tabs().some(([t]) => t === id)
     : !TAB_PERMISSION[id] || !st.perms || st.perms.has(TAB_PERMISSION[id]));
   const gb = (mb) => `${+(mb / 1024).toFixed(1)} GB`;
 
@@ -169,16 +177,19 @@ export function createAdmin({ root, api, toast, fail, confirmAction, promptText,
         await infra.load(st.tab);
       } else if (desk.handles(st.tab)) {
         await desk.load(st.tab);
+      } else if (billing.handles(st.tab)) {
+        await billing.load(st.tab);
       } else if (st.tab === 'servers') {
         [st.vms, st.users] = await Promise.all([api('/api/admin/vms'), api('/api/admin/users')]);
       } else if (st.tab === 'users') {
         [st.users, st.email] = await Promise.all([api('/api/admin/users'), api('/api/admin/settings/email')]);
         if (!quiet) setTimeout(watchDeletions);
       } else if (st.tab === 'settings') {
-        [st.email, st.expiry, st.appearance, st.winupdates, st.sso, st.branding, st.zammad] = await Promise.all([
+        [st.email, st.expiry, st.appearance, st.winupdates, st.sso, st.branding, st.zammad, st.ai, st.billing] = await Promise.all([
           api('/api/admin/settings/email'), api('/api/admin/settings/expiry'), api('/api/admin/settings/appearance'),
           api('/api/admin/settings/winupdates'), api('/api/admin/settings/sso'), api('/api/admin/settings/branding'),
-          api('/api/admin/settings/zammad').catch(() => null),
+          api('/api/admin/settings/zammad').catch(() => null), api('/api/admin/settings/ai').catch(() => null),
+          api('/api/admin/settings/billing').catch(() => null),
         ]);
       } else if (st.tab === 'about') {
         st.about = await api(`/api/admin/about${st.refreshAbout ? '?refresh=1' : ''}`);
@@ -202,7 +213,7 @@ export function createAdmin({ root, api, toast, fail, confirmAction, promptText,
 
   // ---- shell ------------------------------------------------------------
   function render() {
-    const tabs = [['servers', 'Servers'], ['users', 'Customers'], ...desk.tabs(), ['templates', 'Templates'], ['vpn', 'VPN'],
+    const tabs = [['servers', 'Servers'], ['users', 'Customers'], ...desk.tabs(), ...billing.tabs(), ['templates', 'Templates'], ['vpn', 'VPN'],
       ...infra.tabs(), ['activity', 'Activity'], ['account', 'Your account'], ['settings', 'Settings'], ['about', 'About']]
       .filter(([id]) => allowedTab(id));
     root.innerHTML = `
@@ -219,6 +230,7 @@ export function createAdmin({ root, api, toast, fail, confirmAction, promptText,
   function renderTab() {
     if (infra.handles(st.tab)) infra.render(st.tab);
     if (desk.handles(st.tab)) desk.render(st.tab);
+    if (billing.handles(st.tab)) billing.render(st.tab);
     if (st.tab === 'servers') renderServers();
     if (st.tab === 'users') renderUsers();
     if (st.tab === 'templates') renderTemplates();
@@ -937,6 +949,43 @@ export function createAdmin({ root, api, toast, fail, confirmAction, promptText,
   }
 
   // ---- settings: email ----------------------------------------------------
+  /** Settings card: the AI assistant for customers (Claude or an OpenAI-compatible API). */
+  function aiCard() {
+    const a = st.ai;
+    if (!a) return '';
+    return `
+      <section class="security-card settings-card">
+        <div class="settings-head">
+          <h2 class="twofa-title">AI assistant <span class="pill ${a.enabled ? 'pill-running' : ''}">${a.enabled ? 'On' : 'Off'}</span></h2>
+          <p class="muted">A chat for customers that answers from the knowledge base and their own servers and tickets. It only reads;
+            it can propose a ticket, which the customer confirms. Questions and answers are sent to the provider you choose here.</p>
+        </div>
+        <form id="ai-form" class="email-form" novalidate>
+          <div class="grid-3">
+            <label>Provider <select name="provider">
+              <option value="anthropic" ${a.provider === 'anthropic' ? 'selected' : ''}>Claude (Anthropic API)</option>
+              <option value="openai" ${a.provider === 'openai' ? 'selected' : ''}>OpenAI-compatible (OpenAI, vLLM, Ollama…)</option></select></label>
+            <label>Model <input name="model" value="${esc(a.model)}" spellcheck="false" placeholder="claude-sonnet-5-5"></label>
+            <label>API key <input name="apiKey" type="password" autocomplete="new-password" placeholder="${a.hasKey ? 'Stored; leave empty to keep it' : (a.provider === 'openai' ? 'Optional for local models' : 'sk-ant-…')}"></label>
+          </div>
+          <label>API address <input name="baseUrl" value="${esc(a.baseUrl)}" spellcheck="false"
+              placeholder="${a.provider === 'openai' ? 'https://api.openai.com/v1 or http://ollama.internal:11434/v1' : 'empty = https://api.anthropic.com'}">
+            <span class="hint">OpenAI-compatible: the address up to <span class="mono">/v1</span>. A model in your own network may use http.</span></label>
+          <div class="grid-3">
+            <label>Questions per customer per day <input name="dailyLimit" type="number" min="1" max="1000" value="${esc(a.dailyLimit)}"></label>
+            <label>Longest answer (tokens) <input name="maxTokens" type="number" min="256" max="4096" value="${esc(a.maxTokens)}"></label>
+            <label class="check" style="align-self:end"><input type="checkbox" name="handover" ${a.handover ? 'checked' : ''}><span>May propose tickets</span></label>
+          </div>
+          <label>Extra instructions <textarea name="instructions" rows="3" maxlength="4000" placeholder="e.g. Our support hours are 08:00–20:00 WIB. Answer in Indonesian unless the customer writes in English.">${esc(a.instructions)}</textarea></label>
+          <div class="row">
+            <label class="inline-check"><input type="checkbox" name="enabled" ${a.enabled ? 'checked' : ''}> Switched on for customers</label>
+            <button class="btn primary">Save</button>
+            <button type="button" class="btn" data-ai-test>Test</button>
+          </div>
+        </form>
+      </section>`;
+  }
+
   /** Settings card: optional two-way sync of support tickets with Zammad. */
   function zammadCard() {
     const z = st.zammad;
@@ -1130,6 +1179,10 @@ export function createAdmin({ root, api, toast, fail, confirmAction, promptText,
 
         ${zammadCard()}
 
+        ${aiCard()}
+
+        ${billing.settingsCard(st.billing)}
+
         <section class="security-card settings-card">
           <div class="settings-head">
             <h2 class="twofa-title">Operating system updates</h2>
@@ -1211,6 +1264,14 @@ export function createAdmin({ root, api, toast, fail, confirmAction, promptText,
     warnPlain();
   });
 
+  // Billing: open an invoice (click or Enter on its row)
+  root.addEventListener('click', (e) => {
+    if (billing.handles(st.tab) && e.target.closest('tr[data-billing-invoice]') && !e.target.closest('a, button')) billing.onClick(e, st.tab);
+  });
+  root.addEventListener('keydown', (e) => {
+    if (billing.handles(st.tab) && e.key === 'Enter' && e.target.closest?.('tr[data-billing-invoice]')) { e.preventDefault(); billing.onClick(e, st.tab); }
+  });
+
   // Activity: open an event's details (click or Enter)
   root.addEventListener('click', (e) => {
     const row = e.target.closest('tr[data-activity]');
@@ -1227,6 +1288,27 @@ export function createAdmin({ root, api, toast, fail, confirmAction, promptText,
       const el = ev.target.elements;
       st.activityFilter = { actor: el.actor.value, category: el.category.value, q: el.q.value.trim() };
       load();
+      return;
+    }
+    if (ev.target.id === 'billing-settings-form') {
+      ev.preventDefault();
+      try { st.billing = await billing.saveSettings(ev.target); renderSettings(); } catch (err) { fail(err); }
+      return;
+    }
+    if (ev.target.id === 'ai-form') {
+      ev.preventDefault();
+      const el = ev.target.elements;
+      const body = {
+        provider: el.provider.value, model: el.model.value.trim(), baseUrl: el.baseUrl.value.trim(),
+        dailyLimit: Number(el.dailyLimit.value), maxTokens: Number(el.maxTokens.value),
+        handover: el.handover.checked, instructions: el.instructions.value, enabled: el.enabled.checked,
+      };
+      if (el.apiKey.value) body.apiKey = el.apiKey.value;
+      try {
+        st.ai = await api('/api/admin/settings/ai', { method: 'PUT', body });
+        toast(st.ai.enabled ? 'AI assistant is on' : 'AI assistant settings saved');
+        renderSettings();
+      } catch (err) { fail(err); }
       return;
     }
     if (ev.target.id === 'zammad-form') {
@@ -1476,7 +1558,17 @@ export function createAdmin({ root, api, toast, fail, confirmAction, promptText,
     if (!t) return;
     if (infra.handles(st.tab) && !t.dataset.adminTab && await infra.onClick(e, st.tab)) return;
     if (desk.handles(st.tab) && !t.dataset.adminTab && await desk.onClick(e, st.tab)) return;
+    if (billing.handles(st.tab) && !t.dataset.adminTab && await billing.onClick(e, st.tab)) return;
 
+    if (t.hasAttribute('data-ai-test')) {
+      t.disabled = true;
+      try {
+        const r = await api('/api/admin/settings/ai/test', { method: 'POST' });
+        toast(`The model answered: “${r.answer}”`);
+      } catch (err) { fail(err); }
+      t.disabled = false;
+      return;
+    }
     if (t.hasAttribute('data-zammad-test')) {
       t.disabled = true;
       try {
@@ -1789,6 +1881,11 @@ export function createAdmin({ root, api, toast, fail, confirmAction, promptText,
       desk.onSubmit(e, st.tab);
       return;
     }
+    if (billing.handles(st.tab)) {
+      e.preventDefault();
+      billing.onSubmit(e, st.tab);
+      return;
+    }
     if (e.target.id !== 'user-form') return;
     e.preventDefault();
     createUser(e.target);
@@ -1801,6 +1898,7 @@ export function createAdmin({ root, api, toast, fail, confirmAction, promptText,
       st.perms = new Set(me.permissions);
       infra.setPermissions(me.permissions);
       desk.setPermissions(me.permissions);
+      billing.setPermissions(me.permissions);
     } catch (err) {
       fail(err);
     }

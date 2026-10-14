@@ -10,6 +10,8 @@ import { renderPasskeys } from '/shared/passkeys.js';
 import { renderIdentities } from '/shared/identities.js';
 import { renderAppearance, loadPersonalAppearance } from '/shared/appearance.js';
 import { createSupport } from '/support.js';
+import { createAssistant } from '/assistant.js';
+import { createBilling } from '/billing.js';
 
 const brandReady = applyBrand();
 document.querySelectorAll('[data-brand-mark]').forEach((el) => { el.innerHTML = brandMark(30); });
@@ -140,7 +142,32 @@ const support = createSupport({
     renderList();
   },
 });
-window.addEventListener('hashchange', () => { if (state.me) support.route(location.hash); });
+// AI assistant (own module; shown when the provider has set it up)
+const assistant = createAssistant({
+  state,
+  renderList: () => renderList(),
+  setView(view, hash) {
+    state.view = view;
+    state.selected = null;
+    history.replaceState(null, '', hash);
+    renderList();
+  },
+  openTicket: (number) => support.openSupport(String(number)),
+});
+// Billing (own module; shown when the provider bills through the panel)
+const billing = createBilling({
+  state,
+  renderList: () => renderList(),
+  setView(view, hash) {
+    state.view = view;
+    state.selected = null;
+    history.replaceState(null, '', hash);
+    renderList();
+  },
+});
+window.addEventListener('hashchange', () => {
+  if (state.me && !assistant.route(location.hash) && !billing.route(location.hash)) support.route(location.hash);
+});
 
 function renderList() {
   const supportViews = ['support', 'support-new', 'ticket'];
@@ -150,6 +177,10 @@ function renderList() {
       ? `<button class="nav-item" id="new-server" aria-current="${state.view === 'create'}">${icon('plus')}<span>New server</span></button>` : '',
     state.account.vpn?.enabled
       ? `<button class="nav-item" id="vpn-access" aria-current="${state.view === 'vpn'}">${icon('shield')}<span>VPN access</span></button>` : '',
+    state.assistantEnabled
+      ? `<button class="nav-item" id="nav-assistant" aria-current="${state.view === 'assistant'}">${icon('spark')}<span>AI assistant</span></button>` : '',
+    state.billingEnabled
+      ? `<button class="nav-item" id="nav-billing" aria-current="${['billing', 'invoice'].includes(state.view)}">${icon('wallet')}<span>Billing</span></button>` : '',
     `<button class="nav-item" id="nav-support" aria-current="${supportViews.includes(state.view)}">${icon('chat')}<span>Support</span>${state.supportWaiting ? `<span class="nav-badge" title="Tickets waiting for your reply">${state.supportWaiting}</span>` : ''}</button>`,
     `<button class="nav-item" id="nav-help" aria-current="${['help', 'article'].includes(state.view)}">${icon('book')}<span>Help center</span></button>`,
   ].join('');
@@ -1088,14 +1119,16 @@ function expiryBadge(e) {
 function expiryBanner(vm) {
   const e = vm.expiry;
   if (!e) return '';
-  const extend = e.canExtend
-    ? `<button class="btn" data-extend>${icon('clock')}<span>Extend by ${e.extendDays} days</span></button>` : '';
+  const extend = [
+    state.billingEnabled ? `<button class="btn primary" data-renew-server>${icon('wallet')}<span>Renew</span></button>` : '',
+    e.canExtend ? `<button class="btn" data-extend>${icon('clock')}<span>Extend by ${e.extendDays} days</span></button>` : '',
+  ].join(' ');
   if (e.expired) {
     return `
       <div class="notice warn expiry-banner">
         <p><strong>This server expired on ${esc(fmtDay(e.expiredAt))} and was stopped.</strong>
           ${e.deleteAt ? `It will be deleted with all its data on <strong>${esc(fmtDay(e.deleteAt))}</strong>.` : 'Its data is kept until your provider decides.'}
-          ${e.canExtend ? '' : 'Contact your provider if you still need it.'}</p>
+          ${e.canExtend || state.billingEnabled ? '' : 'Contact your provider if you still need it.'}</p>
         ${extend}
       </div>`;
   }
@@ -1103,7 +1136,7 @@ function expiryBanner(vm) {
   return `
     <div class="notice ${d <= 7 ? 'warn' : ''} expiry-banner">
       <p>${icon('clock', { size: 16 })} This server expires on <strong>${esc(fmtDay(e.expiresAt))}</strong>
-        (in ${d} day${d === 1 ? '' : 's'}). It is then stopped${e.canExtend ? '' : '; contact your provider to extend it'}.</p>
+        (in ${d} day${d === 1 ? '' : 's'}). It is then stopped${e.canExtend || state.billingEnabled ? '' : '; contact your provider to extend it'}.</p>
       ${extend}
     </div>`;
 }
@@ -1457,6 +1490,8 @@ $('#rack-actions').addEventListener('click', (e) => {
   if (e.target.closest('#new-server')) openCreate();
   if (e.target.closest('#vpn-access')) openVpn();
   if (e.target.closest('#nav-support')) support.openSupport();
+  if (e.target.closest('#nav-assistant')) assistant.open();
+  if (e.target.closest('#nav-billing')) billing.open();
   if (e.target.closest('#nav-help')) support.openHelp();
 });
 
@@ -1618,6 +1653,7 @@ $('#detail').addEventListener('click', (e) => {
     input.type = 'text';
   }
   if (t.hasAttribute('data-extend')) { extendExpiry(); return; }
+  if (t.hasAttribute('data-renew-server') && state.detail) { billing.open({ focus: state.detail.vmid }); return; }
   if (t.hasAttribute('data-reinstall')) openReinstall();
   if (t.hasAttribute('data-resize')) openResize();
   if (t.hasAttribute('data-back-to-server') && state.detail) select(state.detail.vmid);
@@ -1712,7 +1748,7 @@ async function startApp(me) {
     openAccount();
   } else if (location.hash === '#vpn' && state.account.vpn?.enabled) {
     await openVpn();
-  } else if (support.route(location.hash)) {
+  } else if (assistant.route(location.hash) || billing.route(location.hash) || support.route(location.hash)) {
     // support ticket or help-center article (e.g. a link from an email)
   } else {
     const fromHash = Number(location.hash.slice(1));
@@ -1720,6 +1756,8 @@ async function startApp(me) {
     else await openHome();
   }
   support.refreshBadge();
+  assistant.loadStatus().then(() => renderList());
+  billing.loadStatus().then(() => renderList());
 
   // Every 10 s normally, every 5 s while a server is being created or deleted.
   clearInterval(state.poll);

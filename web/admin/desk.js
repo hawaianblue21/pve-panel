@@ -15,7 +15,7 @@ export function createDesk({ root, api, toast, fail, confirmAction, esc, getMe }
   };
   const can = (p) => st.perms.has(p);
   const body = () => root.querySelector('#admin-body');
-  const TABS = [['tickets', 'Tickets', 'support.read'], ['kb', 'Knowledge base', 'support.read']];
+  const TABS = [['tickets', 'Tickets', 'support.read'], ['kb', 'Knowledge base', 'support.read'], ['ai', 'AI assistant', 'support.read']];
 
   // ---- loading ---------------------------------------------------------------------
   async function loadList() {
@@ -32,10 +32,12 @@ export function createDesk({ root, api, toast, fail, confirmAction, esc, getMe }
       if (st.ticket) st.ticket = await api(`/api/admin/support/tickets/${st.ticket.number}`).catch(() => null);
     }
     if (tab === 'kb') st.kb = await api('/api/admin/kb');
+    if (tab === 'ai') st.ai = await api('/api/admin/ai');
   }
   function render(tab) {
     if (tab === 'tickets') renderTickets();
     if (tab === 'kb') renderKb();
+    if (tab === 'ai') renderAi();
   }
   async function refresh(tab) {
     try { await load(tab); render(tab); } catch (err) { fail(err); }
@@ -211,6 +213,55 @@ export function createDesk({ root, api, toast, fail, confirmAction, esc, getMe }
   };
 
   // ---- events ------------------------------------------------------------------------
+  // ---- AI assistant: what customers asked, what it did, where it handed over ----------
+  function renderAi() {
+    const a = st.ai;
+    const t = a.totals;
+    const rated = t.helpful + t.notHelpful;
+    body().innerHTML = `
+      ${a.settings.enabled ? '' : '<p class="notice"><span>The assistant is off. Set up the provider under <strong>Settings → AI assistant</strong>.</span></p>'}
+      <div class="kpi-row">
+        <div class="kpi"><span class="muted small">Conversations (${a.days} days)</span><strong>${t.conversations}</strong></div>
+        <div class="kpi"><span class="muted small">Questions</span><strong>${t.questions}</strong></div>
+        <div class="kpi"><span class="muted small">Handed over as tickets</span><strong>${t.handovers}</strong></div>
+        <div class="kpi"><span class="muted small">Rated helpful</span><strong>${rated ? `${Math.round((t.helpful / rated) * 100)}%` : '–'}</strong></div>
+        <div class="kpi"><span class="muted small">Tokens in / out</span><strong class="small-num">${t.tokensIn.toLocaleString()} / ${t.tokensOut.toLocaleString()}</strong></div>
+      </div>
+      <div class="desk">
+        <div class="desk-list" role="list">
+          ${a.conversations.length ? a.conversations.map((c) => `
+            <button type="button" class="desk-item" role="listitem" data-open-ai="${c.id}" aria-current="${st.aiConv?.id === c.id}">
+              <span class="desk-item-top"><span class="muted small">${esc(c.email)}</span>
+                ${c.ticketNumber ? `<span class="tag">ticket #${c.ticketNumber}</span>` : ''}${c.worstRating === -1 ? '<span class="tag warn">not helpful</span>' : ''}</span>
+              <strong>${esc(c.title)}</strong>
+              <span class="muted small">${c.questions} question${c.questions === 1 ? '' : 's'} · ${esc(when(c.updatedAt))}</span>
+            </button>`).join('') : '<p class="muted">No conversations yet.</p>'}
+        </div>
+        <div class="desk-detail">${st.aiConv ? aiConversationView(st.aiConv) : '<p class="muted">Choose a conversation to see what the assistant looked up and answered.</p>'}</div>
+      </div>`;
+  }
+
+  function aiConversationView(c) {
+    return `
+      <header class="desk-head"><h2 class="h2">${esc(c.title)}</h2>
+        <p class="muted small">${esc(c.email)} · ${esc(when(c.createdAt))}${c.ticketNumber ? ` · became ticket <span class="mono">#${c.ticketNumber}</span>` : ''}</p></header>
+      <ol class="conversation">
+        ${c.messages.map((m) => {
+          if (m.role === 'tool') return `<li class="msg msg-tool"><details><summary class="small muted">Tool result: ${esc(m.toolName)}</summary><pre class="activity-json">${esc(m.content)}</pre></details></li>`;
+          if (m.role === 'assistant' && !m.content && m.toolCalls.length) {
+            return `<li class="msg msg-tool small muted">Looked up: ${m.toolCalls.map((x) => `<span class="mono">${esc(x.name)}(${esc(JSON.stringify(x.input))})</span>`).join(', ')}</li>`;
+          }
+          return `<li class="msg msg-${m.role === 'user' ? 'customer' : 'agent'}">
+            <div class="msg-head"><strong>${m.role === 'user' ? 'Customer' : 'Assistant'}</strong>
+              <span class="muted small">${m.rating === 1 ? '👍 ' : m.rating === -1 ? '👎 ' : ''}${esc(when(m.createdAt))}</span></div>
+            <div class="msg-body md">${markdown(m.content)}</div>
+            ${m.toolCalls.length ? `<p class="small muted">Looked up: ${m.toolCalls.map((x) => `<span class="mono">${esc(x.name)}</span>`).join(', ')}</p>` : ''}
+            ${m.handover ? `<p class="small">Proposed ticket: <strong>${esc(m.handover.subject)}</strong> (${esc(m.handover.category)}, ${esc(m.handover.priority)})</p>` : ''}
+          </li>`;
+        }).join('')}
+      </ol>`;
+  }
+
   async function onClick(e, tab) {
     const t = e.target.closest('button');
     if (!t) return false;
@@ -240,6 +291,10 @@ export function createDesk({ root, api, toast, fail, confirmAction, esc, getMe }
         if (ta) { ta.value = `${ta.value ? `${ta.value.trimEnd()}\n\n` : ''}See: [${d.title}](#help/${d.insertArticle})`; ta.focus(); }
         return true;
       }
+    }
+    if (tab === 'ai' && d.openAi) {
+      try { st.aiConv = await api(`/api/admin/ai/conversations/${d.openAi}`); renderAi(); } catch (err) { fail(err); }
+      return true;
     }
     if (tab === 'kb') {
       if (d.kbNew !== undefined || d.kbGap !== undefined) {

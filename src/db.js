@@ -341,6 +341,107 @@ db.exec(`
   );
 `);
 
+// ---- AI assistant (ai.js): conversations of customers with the assistant ----------
+db.exec(`
+  CREATE TABLE IF NOT EXISTS ai_conversations (
+    id            INTEGER PRIMARY KEY,
+    user_id       INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    title         TEXT NOT NULL DEFAULT 'New conversation',
+    ticket_number INTEGER,
+    created_at    TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at    TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE INDEX IF NOT EXISTS ai_conversations_user ON ai_conversations(user_id);
+
+  -- role: user | assistant | tool. Assistant rows may carry tool calls (JSON),
+  -- tool rows the result given to the model; sources = articles the answer used.
+  CREATE TABLE IF NOT EXISTS ai_messages (
+    id              INTEGER PRIMARY KEY,
+    conversation_id INTEGER NOT NULL REFERENCES ai_conversations(id) ON DELETE CASCADE,
+    role            TEXT NOT NULL CHECK (role IN ('user', 'assistant', 'tool')),
+    content         TEXT NOT NULL DEFAULT '',
+    tool_calls      TEXT,
+    tool_call_id    TEXT,
+    tool_name       TEXT,
+    sources         TEXT,
+    handover        TEXT,
+    rating          INTEGER,
+    tokens_in       INTEGER NOT NULL DEFAULT 0,
+    tokens_out      INTEGER NOT NULL DEFAULT 0,
+    created_at      TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE INDEX IF NOT EXISTS ai_messages_conversation ON ai_messages(conversation_id);
+`);
+
+// ---- Billing (billing.js): invoices in whole rupiah, payments, wallet ----------------
+db.exec(`
+  CREATE TABLE IF NOT EXISTS invoices (
+    id            INTEGER PRIMARY KEY,
+    number        TEXT UNIQUE NOT NULL,
+    user_id       INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    purpose       TEXT NOT NULL CHECK (purpose IN ('renewal', 'topup', 'manual')),
+    vmid          INTEGER,
+    months        INTEGER,
+    lines         TEXT NOT NULL,
+    subtotal      INTEGER NOT NULL,
+    tax_name      TEXT NOT NULL DEFAULT 'PPN',
+    tax_rate      REAL NOT NULL,
+    tax           INTEGER NOT NULL,
+    total         INTEGER NOT NULL,
+    currency      TEXT NOT NULL DEFAULT 'IDR',
+    status        TEXT NOT NULL DEFAULT 'unpaid' CHECK (status IN ('unpaid', 'paid', 'void')),
+    due_at        TEXT NOT NULL,
+    paid_at       TEXT,
+    paid_via      TEXT,
+    fulfilled_at  TEXT,
+    auto          INTEGER NOT NULL DEFAULT 0,
+    customer_ref  TEXT,
+    note          TEXT,
+    bill_to       TEXT,
+    created_at    TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE INDEX IF NOT EXISTS invoices_user ON invoices(user_id, status);
+
+  -- One checkout at a payment gateway (an invoice can have several attempts)
+  CREATE TABLE IF NOT EXISTS checkouts (
+    id          INTEGER PRIMARY KEY,
+    invoice_id  INTEGER NOT NULL REFERENCES invoices(id) ON DELETE CASCADE,
+    gateway     TEXT NOT NULL CHECK (gateway IN ('xendit', 'midtrans')),
+    order_id    TEXT UNIQUE NOT NULL,
+    gateway_id  TEXT,
+    url         TEXT,
+    amount      INTEGER NOT NULL,
+    status      TEXT NOT NULL DEFAULT 'pending',
+    expires_at  TEXT,
+    created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+
+  CREATE TABLE IF NOT EXISTS payments (
+    id          INTEGER PRIMARY KEY,
+    invoice_id  INTEGER NOT NULL REFERENCES invoices(id) ON DELETE CASCADE,
+    method      TEXT NOT NULL,
+    reference   TEXT,
+    amount      INTEGER NOT NULL,
+    admin_id    INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+
+  CREATE TABLE IF NOT EXISTS wallet_entries (
+    id            INTEGER PRIMARY KEY,
+    user_id       INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    amount        INTEGER NOT NULL,
+    balance_after INTEGER NOT NULL,
+    reason        TEXT NOT NULL,
+    invoice_id    INTEGER REFERENCES invoices(id) ON DELETE SET NULL,
+    admin_id      INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    created_at    TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE INDEX IF NOT EXISTS wallet_user ON wallet_entries(user_id);
+`);
+addColumn('vms', 'auto_renew', 'INTEGER NOT NULL DEFAULT 0');
+addColumn('vms', 'price_monthly', 'INTEGER');            // fixed price; NULL = from the rate card
+addColumn('users', 'billing_profile', 'TEXT');           // JSON: name, address, tax ID on invoices
+
 // ---- Single sign-on identities (Google, Microsoft, GitHub; see sso.js) ------------
 // One identity per provider per account; found by provider + issuer + subject.
 db.exec(`

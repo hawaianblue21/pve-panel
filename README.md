@@ -119,6 +119,8 @@ PVE Panel was built with substantial help from an AI assistant (**Claude by Anth
 - Choose their own color scheme and light / dark mode (when the panel owner allows it)
 - Open **support tickets** (optionally about one of their servers), follow the conversation and get answers by email
 - Search the **help center** (knowledge base) and rate articles
+- Ask the **AI assistant**: answers from the help center and their own servers and tickets, hands over to a ticket
+- **Billing**: wallet with top-ups, renew servers for 1, 3, 6 or 12 months (with discounts), auto-renew from the wallet, printable invoices with PPN; pay by wallet, **Xendit**, **Midtrans** or bank transfer
 - Delete self-created servers
 - View provisioning progress and actionable failure messages
 - Manage personal VPN devices
@@ -144,6 +146,8 @@ PVE Panel was built with substantial help from an AI assistant (**Claude by Anth
 - **Ticket desk**: queues L1 / L2 / L3, priority, status, assignment, internal notes, the customer's servers and recent activity next to each ticket, matching articles
 - **Knowledge base**: Markdown articles with drafts and visibility (public, customers, agents only), drafts from solved tickets, and a list of help-center searches that found nothing
 - Optional two-way sync with a **Zammad** helpdesk
+- **AI assistant** for customers (Claude, or any OpenAI-compatible API incl. local models): settings, usage, and every conversation with what the assistant looked up
+- **Billing**: invoices with filters (unpaid, transfer reported, overdue), revenue and tax this month, confirm bank transfers, cancel invoices, adjust wallets, fixed prices per server; a *Finance* role
 - Give single customers or servers an expiry date: reminders, automatic stop, grace period, deletion
 - Role-based access for administrators (owner, operator, resource manager, read-only support, custom roles)
 - Datacenters and resource allocation pools: shared caps on vCPU, memory, disk, public IPs, GPUs and object storage
@@ -833,6 +837,30 @@ that found nothing are listed, most frequent first, with *Write article*.
 Permissions: `support.read`, `support.write`, `kb.write`. The built-in **Support agent** role has them plus read access;
 **Operator** can answer and write articles; **Support (read-only)** only reads.
 
+### AI assistant
+
+Customers can chat with an assistant (menu **AI assistant**) once the owner sets it up in **Settings → AI assistant**:
+
+| Provider | Settings |
+|---|---|
+| **Claude** (Anthropic Messages API) | API key and model (default `claude-sonnet-5-5`); address empty = `https://api.anthropic.com` |
+| **OpenAI-compatible** | Address up to `/v1` (OpenAI, Azure-style gateways, or a model in your own network through vLLM, Ollama, LM Studio; http is allowed there), model, optional key |
+
+What it can do, with tools that always run as the signed-in customer:
+
+- search and read the **help center** (never agents-only articles) and name the articles it used as sources
+- read the customer's **own servers** (state, size, usage, expiry) and **tickets**
+- **propose a ticket** (subject, summary, category, priority, server): the customer sees a *Create ticket* button; the ticket
+  gets the whole conversation attached and is routed like any other
+
+What it can't do: start, stop, change, delete or order anything, or see other customers. Limits: questions per customer
+per day (default 40), tool rounds per answer (5), message length (2,000 characters), answer length. If the provider
+fails, customers get a friendly message and the error is in the activity log.
+
+Administrators (`support.read`) see the usage (conversations, questions, handovers, ratings, tokens) and every
+conversation including the tools the assistant called, in **AI assistant**. Questions and answers are sent to the
+provider configured here: choose it to fit your privacy requirements, e.g. a local model.
+
 ### Optional: Zammad
 
 Tickets always work in the panel. To also use a [Zammad](https://zammad.org) helpdesk (email, WhatsApp, phone, SLAs),
@@ -931,6 +959,40 @@ Reminders (7 / 1 days) ──► Expired: stopped ──► Grace period (14 day
 - reminders, notices and a daily admin summary by email
 
 Details: [Server expiry](https://sebastianflint.github.io/pve-panel/docs/administration/expiry).
+
+---
+
+## 💳 Billing & payments (Xendit, Midtrans)
+
+Off by default. The owner switches it on in **Settings → Billing**; customers then see **Billing** in the menu and a
+**Renew** button on servers with an end date. Billing builds on [server expiry](#-server-expiry): a paid renewal moves
+the end date (and starts an expired server again).
+
+```text
+Customer ── renew 1/3/6/12 months or top up ──► Invoice (PPN) ──► pay:
+   wallet ─────────────────────────────────────────────────────► paid at once
+   Xendit / Midtrans ─► payment page ─► webhook ─► status API check ─► paid
+   bank transfer ─► customer reports reference ─► admin confirms ───► paid
+Paid renewal ──► end date + 30 days per month · paid top-up ──► wallet balance
+Auto-renew ──► N days before the end: one month from the wallet (email if the balance is short)
+```
+
+- **Prices** come from a rate card (per vCPU, GB RAM, GB disk, with a minimum; rounded up to Rp 1.000) or a fixed
+  price per server; discounts for 3, 6 and 12 months; tax name and rate (default PPN 11 %) are settings.
+- **Top-ups** are not taxed: tax is charged on the service the balance pays for.
+- **Invoices** are numbered `PREFIX-YYYYMM-0001`, carry seller and customer details (incl. NPWP) and print as PDF.
+- **Gateways** are never trusted on their notification alone. Xendit: the `x-callback-token` header must match;
+  Midtrans: the SHA-512 `signature_key` must match. Then the panel asks the gateway's API for the status and the paid
+  amount; a smaller amount is not accepted. A payment that arrives twice (two payment pages) goes to the wallet.
+- API keys are stored encrypted and never shown again.
+
+| Gateway | Panel setting | In the gateway dashboard |
+|---|---|---|
+| Xendit (Invoice API) | Secret API key (Money-in write), callback verification token | Webhook *Invoices paid* → `https://portal.example.com/api/billing/webhooks/xendit` |
+| Midtrans (Snap) | Server key, sandbox on/off | Notification URL → `https://portal.example.com/api/billing/webhooks/midtrans` |
+
+Set `PANEL_PUBLIC_URL` (the customer portal address): Settings shows the webhook addresses from it, and customers return
+to their invoice there after paying (without it, the address the browser used). Auto-renew runs every hour (`AUTORENEW_INTERVAL_SECONDS`).
 
 ---
 
@@ -1382,6 +1444,18 @@ Only these file names are served, with a strict sandbox policy. Make sure you're
 | `GET` | `/api/kb[?q=]`, `/api/kb/:slug` | Help center: categories, search, article (public articles also without sign-in) |
 | `POST` | `/api/kb/:slug/feedback` | “Did this help?” |
 | `POST` | `/api/support/zammad/webhook` | Zammad → panel (HMAC-SHA1 signed) |
+| `GET` | `/api/assistant` | Is the assistant on; questions used today |
+| `GET/POST` | `/api/assistant/conversations` | Own conversations / start one with a question |
+| `GET/DELETE` | `/api/assistant/conversations/:id` | A conversation / delete it |
+| `POST` | `/api/assistant/conversations/:id/messages` | Ask a follow-up question |
+| `POST` | `/api/assistant/conversations/:id/handover` | Create the proposed ticket |
+| `POST` | `/api/assistant/messages/:id/rating` | Helpful or not |
+| `GET` | `/api/billing` | Wallet, servers with prices, invoices, payment methods |
+| `GET` | `/api/billing/invoices/:number` | An own invoice |
+| `POST` | `/api/billing/renewals`, `/api/billing/topups` | Invoice to renew a server (`vmid`, `months`) / to top up the wallet |
+| `POST` | `/api/billing/invoices/:number/pay` | Pay: `wallet`, `xendit`, `midtrans` (returns the payment page) or `bank` |
+| `PUT` | `/api/billing/servers/:vmid/auto-renew`, `/api/billing/profile` | Auto-renew on/off / billing details |
+| `POST` | `/api/billing/webhooks/xendit`, `/api/billing/webhooks/midtrans` | Gateway → panel (authenticated, then confirmed with the gateway's API) |
 | `GET` | `/api/auth/sso/:provider/start[?link=1]`, `/api/auth/sso/:provider/callback` | Sign in with (or link) Google, Microsoft, GitHub |
 | `POST` | `/api/auth/passkey/options`, `/api/auth/passkey/verify` | Sign in with a passkey |
 | `POST` | `/api/invite/check`, `/api/invite/accept` | Invitation link: check it, set the password |
@@ -1485,6 +1559,7 @@ Every change is tested on GitHub; releases are only published when all tests pas
 | Single sign-on | Google / Microsoft (signed ID tokens) and GitHub against simulated providers: PKCE, state, nonce, no take-over by email, sign-up rules, linking, admins |
 | Platform | personal appearance, branding uploads (SVG checks), activity filters and paging, owner-only templates and settings |
 | Support | tickets (routing, privacy between customers, internal notes, email), knowledge base (visibility, drafts, search, gaps), roles, Zammad sync against a simulated Zammad (signed webhook, retries) |
+| AI assistant | Claude and OpenAI-compatible APIs against a simulated model: tool use, own data only, no agents-only articles, handover only on confirmation, limits, provider errors, review |
 | API | the real panel against a simulated Proxmox: sign-in & 2FA, ownership, provisioning, networks, plan limits, reinstall, resize, email & invitations, VPN, Tailscale, customer deletion |
 | Browser | Playwright: sign-in, overview, server page, creating a server, admin views |
 
