@@ -500,6 +500,8 @@ export default async function vmRoutes(app) {
       return reply.code(403).send({ error: 'This server has expired. Extend it to use it again.' });
     }
     const upid = await pve.post(`${path}/status/${action}`);
+    // Proxmox rebuilds the cloud-init drive on start and reboot: public addresses become active
+    if (['start', 'reboot'].includes(action)) db.prepare("UPDATE ip_addresses SET apply = 'live' WHERE vmid = ? AND apply = 'restart'").run(row.vmid);
     return recordTask(req, guest, upid, `power_${action}`);
   });
 

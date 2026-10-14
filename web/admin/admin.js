@@ -8,6 +8,7 @@ import { createInfra } from '/infra.js';
 import { createDesk } from '/desk.js';
 import { createBilling } from '/billing.js';
 import { createVolumes } from '/volumes.js';
+import { createIpam } from '/ipam.js';
 import { createPlans } from '/plans.js';
 
 // Administration area: assign servers, manage customers, read the activity log.
@@ -178,6 +179,8 @@ export function createAdmin({ root, api, toast, fail, confirmAction, promptText,
   const billing = createBilling({ root, api, toast, fail, confirmAction, esc });
   // Block storage tiers and volumes (own module)
   const volumes = createVolumes({ root, api, toast, fail, esc });
+  // Public IPv4 pools and addresses (own module)
+  const ipam = createIpam({ root, api, toast, fail, confirmAction, promptText, esc });
   // Plans: sizes with a price (own module)
   const plans = createPlans({ root, api, toast, fail, confirmAction, esc });
   // Which permission a tab needs (the server checks every request as well)
@@ -189,6 +192,7 @@ export function createAdmin({ root, api, toast, fail, confirmAction, promptText,
     : desk.handles(id) ? desk.tabs().some(([t]) => t === id)
     : billing.handles(id) ? billing.tabs().some(([t]) => t === id)
     : volumes.handles(id) ? volumes.tabs().some(([t]) => t === id)
+    : ipam.handles(id) ? ipam.tabs().some(([t]) => t === id)
     : plans.handles(id) ? plans.tabs().some(([t]) => t === id)
     : !TAB_PERMISSION[id] || !st.perms || st.perms.has(TAB_PERMISSION[id]));
   const gb = (mb) => `${+(mb / 1024).toFixed(1)} GB`;
@@ -208,6 +212,8 @@ export function createAdmin({ root, api, toast, fail, confirmAction, promptText,
         await billing.load(st.tab);
       } else if (volumes.handles(st.tab)) {
         await volumes.load(st.tab);
+      } else if (ipam.handles(st.tab)) {
+        await ipam.load(st.tab);
       } else if (plans.handles(st.tab)) {
         await plans.load(st.tab);
       } else if (st.tab === 'servers') {
@@ -245,7 +251,7 @@ export function createAdmin({ root, api, toast, fail, confirmAction, promptText,
   // ---- shell ------------------------------------------------------------
   function render() {
     const tabs = [['servers', 'Servers'], ['users', 'Customers'], ...desk.tabs(), ...billing.tabs(), ...plans.tabs(), ['templates', 'Templates'], ['vpn', 'VPN'],
-      ...infra.tabs(), ...volumes.tabs(), ['activity', 'Activity'], ['account', 'Your account'], ['settings', 'Settings'], ['about', 'About']]
+      ...infra.tabs(), ...volumes.tabs(), ...ipam.tabs(), ['activity', 'Activity'], ['account', 'Your account'], ['settings', 'Settings'], ['about', 'About']]
       .filter(([id]) => allowedTab(id));
     root.innerHTML = `
       <div class="admin-inner">
@@ -256,6 +262,8 @@ export function createAdmin({ root, api, toast, fail, confirmAction, promptText,
         </div>
         <section id="admin-body"></section>
       </div>`;
+    // many tabs: keep the open one in view
+    root.querySelector('.tab[aria-selected="true"]')?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
   }
 
   function renderTab() {
@@ -263,6 +271,7 @@ export function createAdmin({ root, api, toast, fail, confirmAction, promptText,
     if (desk.handles(st.tab)) desk.render(st.tab);
     if (billing.handles(st.tab)) billing.render(st.tab);
     if (volumes.handles(st.tab)) volumes.render(st.tab);
+    if (ipam.handles(st.tab)) ipam.render(st.tab);
     if (plans.handles(st.tab)) plans.render(st.tab);
     if (st.tab === 'servers') renderServers();
     if (st.tab === 'users') renderUsers();
@@ -1297,6 +1306,14 @@ export function createAdmin({ root, api, toast, fail, confirmAction, promptText,
     warnPlain();
   });
 
+  // Public IPs: open a pool (click or Enter on its row)
+  root.addEventListener('click', (e) => {
+    if (ipam.handles(st.tab) && e.target.closest('tr[data-ipam-pool]') && !e.target.closest('a, button')) ipam.onClick(e, st.tab);
+  });
+  root.addEventListener('keydown', (e) => {
+    if (ipam.handles(st.tab) && e.key === 'Enter' && e.target.closest?.('tr[data-ipam-pool]')) { e.preventDefault(); ipam.onClick(e, st.tab); }
+  });
+
   // Billing: open an invoice (click or Enter on its row)
   root.addEventListener('click', (e) => {
     if (billing.handles(st.tab) && e.target.closest('tr[data-billing-invoice]') && !e.target.closest('a, button')) billing.onClick(e, st.tab);
@@ -1593,6 +1610,7 @@ export function createAdmin({ root, api, toast, fail, confirmAction, promptText,
     if (desk.handles(st.tab) && !t.dataset.adminTab && await desk.onClick(e, st.tab)) return;
     if (billing.handles(st.tab) && !t.dataset.adminTab && await billing.onClick(e, st.tab)) return;
     if (volumes.handles(st.tab) && !t.dataset.adminTab && await volumes.onClick(e, st.tab)) return;
+    if (ipam.handles(st.tab) && !t.dataset.adminTab && await ipam.onClick(e, st.tab)) return;
     if (plans.handles(st.tab) && !t.dataset.adminTab && await plans.onClick(e, st.tab)) return;
 
     if (t.hasAttribute('data-ai-test')) {
@@ -1927,6 +1945,11 @@ export function createAdmin({ root, api, toast, fail, confirmAction, promptText,
       volumes.onSubmit(e, st.tab);
       return;
     }
+    if (ipam.handles(st.tab)) {
+      e.preventDefault();
+      ipam.onSubmit(e, st.tab);
+      return;
+    }
     if (plans.handles(st.tab)) {
       e.preventDefault();
       plans.onSubmit(e, st.tab);
@@ -1946,6 +1969,7 @@ export function createAdmin({ root, api, toast, fail, confirmAction, promptText,
       desk.setPermissions(me.permissions);
       billing.setPermissions(me.permissions);
       volumes.setPermissions(me.permissions);
+      ipam.setPermissions(me.permissions);
       plans.setPermissions(me.permissions);
     } catch (err) {
       fail(err);

@@ -11,6 +11,7 @@ import { expiryForNewServer } from './expiry.js';
 import { activeRun } from './winupdate.js';
 import { checkPoolCapacity, placement, datacenterById } from './pools.js';
 import { profilesForUser, claimGpu, applyRecordedGpus } from './gpu.js';
+import { applyRecordedIps, releaseIpsOfDeletedServer } from './ipam.js';
 
 const MB = 1024 ** 2;
 const GB = 1024 ** 3;
@@ -298,6 +299,8 @@ async function finishCreate(actor, node, vmid, cloneUpid, spec, tplRow, net, {
     if (net) await isolateGuest(path, net);
     // GPUs reserved at creation, or recorded before a reinstall
     await applyRecordedGpus(path, vmid);
+    // public addresses recorded before a reinstall
+    await applyRecordedIps(path, vmid);
 
     const disk = bootDiskKey(cfg);
     if (disk && spec.diskGb > diskSizeGb(cfg[disk])) {
@@ -580,6 +583,7 @@ export async function deleteServer(req, row) {
 
   if (!guest) {
     // Clone never happened or VM already gone: just drop the record.
+    releaseIpsOfDeletedServer(row.vmid);
     db.prepare('DELETE FROM vms WHERE vmid = ?').run(row.vmid);
     audit(req, row.vmid, 'server_deleted');
     return { removed: true };
@@ -596,6 +600,7 @@ export async function deleteServer(req, row) {
   const actor = { account: { id: req.account.id }, ip: req.ip };
   waitTask(guest.node, upid)
     .then(() => {
+      releaseIpsOfDeletedServer(row.vmid);      // the VM and its NICs are gone
       db.prepare('DELETE FROM vms WHERE vmid = ?').run(row.vmid);
       audit(actor, row.vmid, 'server_deleted');
     })

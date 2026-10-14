@@ -17,6 +17,7 @@ export const PERMISSIONS = [
   { key: 'templates.write', group: 'Servers', label: 'Offer, set up and withdraw OS templates' },
   { key: 'network.read', group: 'Network', label: 'View networks, VPN and Tailscale' },
   { key: 'network.write', group: 'Network', label: 'Remove VPN devices, resync the gateway' },
+  { key: 'ipam.write', group: 'Network', label: 'Manage public IPv4 pools, reserve and free addresses, IPAM settings' },
   { key: 'pools.read', group: 'Resources', label: 'View resource pools and datacenters' },
   { key: 'pools.write', group: 'Resources', label: 'Change resource pools, datacenters and pool members' },
   { key: 'storage.read', group: 'Resources', label: 'View block storage volumes and object storage (SeaweedFS)' },
@@ -53,8 +54,8 @@ export const BUILTIN_ROLES = [
     permissions: [...READS, 'support.write', 'kb.write'],
   },
   {
-    key: 'resources', name: 'Resource manager', description: 'Capacity: pools, datacenters, block and object storage, GPUs',
-    permissions: [...READS, 'pools.write', 'storage.write', 'gpu.write'],
+    key: 'resources', name: 'Resource manager', description: 'Capacity: pools, datacenters, block and object storage, GPUs, public IPs',
+    permissions: [...READS, 'pools.write', 'storage.write', 'gpu.write', 'ipam.write'],
   },
   {
     key: 'finance', name: 'Finance', description: 'Invoices, payments, wallets, plans and prices; reads everything else',
@@ -165,6 +166,14 @@ const ROUTES = {
   'PUT /api/admin/pools/:id/members/:userId': 'pools.write',
   'DELETE /api/admin/pools/:id/members/:userId': 'pools.write',
 
+  'GET /api/admin/ipam': 'network.read',
+  'POST /api/admin/ipam/pools': 'ipam.write',
+  'PUT /api/admin/ipam/pools/:id': 'ipam.write',
+  'DELETE /api/admin/ipam/pools/:id': 'ipam.write',
+  'GET /api/admin/ipam/pools/:id/addresses': 'network.read',
+  'PUT /api/admin/ipam/addresses/:id': 'ipam.write',
+  'GET /api/admin/settings/ipam': 'network.read',
+  'PUT /api/admin/settings/ipam': 'ipam.write',
   'GET /api/admin/volumes': 'storage.read',
   'GET /api/admin/settings/volumes': 'storage.read',
   'PUT /api/admin/settings/volumes': 'storage.write',

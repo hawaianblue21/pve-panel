@@ -119,6 +119,7 @@ PVE Panel was built with substantial help from an AI assistant (**Claude by Anth
 - Choose their own color scheme and light / dark mode (when the panel owner allows it)
 - Open **support tickets** (optionally about one of their servers), follow the conversation and get answers by email
 - Search the **help center** (knowledge base) and rate articles
+- **Public IPv4** for their servers, with reverse DNS
 - **Storage**: block volumes (create, attach, detach, move between servers, enlarge) and S3 object storage buckets with access keys
 - Ask the **AI assistant**: answers from the help center and their own servers and tickets, hands over to a ticket
 - **Plans**: create servers from plans (size and monthly price), pay the first period from the wallet, move up to a larger plan for the difference
@@ -286,6 +287,32 @@ Enlarge (attached, grows only) · Delete (detached only: removing unusedN destro
 - Moving works between servers on the same Proxmox node (disk reassignment). Containers (LXC) are not offered.
 
 Customer API: `GET/POST /api/volumes`, `POST /api/volumes/:id/attach|detach|resize`, `PATCH/DELETE /api/volumes/:id`.
+
+### Public IPv4 addresses (IPAM)
+
+Pools of public addresses in **Public IPs** (admin portal): a subnet routed to a Proxmox bridge (optionally a VLAN tag),
+its gateway, DNS servers, an optional datacenter, a price per address per month and an optional reverse zone. Customers
+add addresses on the server page (Overview → Public IPv4), up to a number per server, within their resource pool.
+
+| Server | What the panel does | Active |
+|---|---|---|
+| VM with cloud-init | `netN` on the pool bridge + `ipconfigN: ip=<addr>/<bits>,gw=<gateway>` | after a start or restart from the panel |
+| Container (LXC) | `netN` with `ip=` and `gw=` | at once |
+| VM without cloud-init | `netN` on the pool bridge; the customer sees address, netmask, gateway and a netplan example | after setting it up inside |
+
+- **Anti-spoofing**: the Proxmox firewall IP filter set `ipfilter-netN` holds only the assigned address, so a server can't
+  send from addresses it wasn't given (the VM firewall and its `ipfilter` option must be on, as for network isolation).
+- The public card carries the default route (a static route wins over the DHCP route of the private network), so answers
+  leave from the public address.
+- **Release** removes the card, the cloud-init entry and the IP filter; the address **cools down** (default 24 hours)
+  before it is handed out again. Deleting a server releases its addresses; a server that leaves the panel without being
+  destroyed (unassigned) leaves them **held** until an administrator frees them.
+- A **reinstall** puts the addresses back with the same MAC address.
+- **Reverse DNS**: customers set a PTR per address; with PowerDNS configured (API address, key, server ID) and a reverse
+  zone on the pool, the panel writes it there (`PATCH /api/v1/servers/<id>/zones/<zone>`), otherwise it is stored for you.
+- Addresses are billed with their server (renewal invoice line) and count against the pool's public IP cap.
+
+Customer API: `GET/POST /api/vms/:vmid/ips`, `DELETE /api/ips/:id`, `PUT /api/ips/:id/ptr`.
 
 ---
 
