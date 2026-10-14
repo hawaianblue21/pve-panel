@@ -15,7 +15,8 @@ const DUMMY_HASH = bcrypt.hashSync('not-a-real-password', 12);
 
 const findByEmail = db.prepare('SELECT * FROM users WHERE email = ?');
 const findById = db.prepare(`
-  SELECT id, email, is_admin, can_create, max_servers, max_cores, max_memory_mb, max_disk_gb, deleting
+  SELECT id, email, is_admin, admin_role_id, resource_pool_id,
+         can_create, max_servers, max_cores, max_memory_mb, max_disk_gb, deleting
   FROM users WHERE id = ?
 `);
 

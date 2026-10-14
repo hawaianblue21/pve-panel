@@ -39,6 +39,18 @@ export async function startMockPve({ port = 0 } = {}) {
   const send = (res, data, code=200, msg) => { res.writeHead(code, msg || '', {'content-type':'application/json'}); res.end(JSON.stringify({data, message: msg})); };
   const body = (req) => new Promise(r => { let b=''; req.on('data',c=>b+=c); req.on('end',()=>r(Object.fromEntries(new URLSearchParams(b)))); });
   const destroyed = []; // DELETE calls, for assertions
+  const clones = [];    // clone requests (with target node / storage), for assertions
+  const gpuMappings = [
+    { id: 'rtx4090', description: 'GeForce RTX 4090', mdev: 0, map: [
+      'node=pve1,path=0000:01:00.0,id=10de:2684,iommugroup=14', 'node=pve1,path=0000:02:00.0,id=10de:2684,iommugroup=15'] },
+    { id: 'a16', description: 'NVIDIA A16 (vGPU)', mdev: 1, map: ['node=pve1,path=0000:41:00.0,id=10de:25b6,iommugroup=30'] },
+  ];
+  const pciDevices = [
+    { id: '0000:01:00.0', class: '0x030000', vendor: '0x10de', vendor_name: 'NVIDIA Corporation', device_name: 'AD102 [GeForce RTX 4090]', iommugroup: 14, mdev: false },
+    { id: '0000:02:00.0', class: '0x030000', vendor: '0x10de', vendor_name: 'NVIDIA Corporation', device_name: 'AD102 [GeForce RTX 4090]', iommugroup: 15, mdev: false },
+    { id: '0000:41:00.0', class: '0x030200', vendor: '0x10de', vendor_name: 'NVIDIA Corporation', device_name: 'GA107GL [A16]', iommugroup: 30, mdev: true },
+    { id: '0000:00:1f.3', class: '0x040300', vendor: '0x8086', vendor_name: 'Intel Corporation', device_name: 'Audio', iommugroup: 9, mdev: false },
+  ];
 
   const tsApproved = new Set();
 
@@ -157,6 +169,19 @@ export async function startMockPve({ port = 0 } = {}) {
     const t = p.match(/\/tasks\/(.+)\/status$/);
     if (t) { const x = tasks.get(decodeURIComponent(t[1])); if (!x) return send(res,null,404);
       if (Date.now() > x.done) { if (!x.fired) { x.fired=true; x.then(); } return send(res,{status:'stopped',exitstatus:x.exit||'OK'}); } return send(res,{status:'running'}); }
+    // GPUs: PCI resource mappings, the node's PCI devices and mediated device types
+    if (p === '/cluster/mapping/pci') return send(res, gpuMappings);
+    if (/^\/nodes\/[^/]+\/hardware\/pci$/.test(p)) return send(res, pciDevices);
+    const md = p.match(/^\/nodes\/[^/]+\/hardware\/pci\/([^/]+)\/mdev$/);
+    if (md) {
+      const dev = decodeURIComponent(md[1]);
+      if (!pciDevices.some((d) => d.id === dev && d.mdev)) return send(res, null, 500, `device ${dev} does not support mediated devices`);
+      const used = [...vms.values()].filter((v) => Object.entries(v.cfg).some(([k, val]) => /^hostpci\d+$/.test(k) && String(val).includes('mdev=nvidia-660'))).length;
+      return send(res, [
+        { type: 'nvidia-660', name: 'NVIDIA A16-4Q', description: 'num_heads=4, frl_config=60, framebuffer=4096M', available: Math.max(0, 4 - used) },
+        { type: 'nvidia-661', name: 'NVIDIA A16-8Q', description: 'num_heads=4, frl_config=60, framebuffer=8192M', available: 2 },
+      ]);
+    }
     const m = p.match(/^\/nodes\/([^/]+)\/qemu\/(\d+)(\/.*)?$/);
     if (!m) return send(res, null, 501);
     const vmid = Number(m[2]); const rest = m[3] || ''; const vm = vms.get(vmid);
@@ -165,11 +190,13 @@ export async function startMockPve({ port = 0 } = {}) {
       if (vm.status !== 'stopped') return send(res, null, 500, 'VM is running'); return send(res, task('qmdestroy', vmid, 1000, () => vms.delete(vmid))); }
     if (rest === '/clone' && req.method === 'POST') { const b = await body(req); log('CLONE', vmid, JSON.stringify(b));
       const id = Number(b.newid); if (vms.has(id)) return send(res,null,500,`VM ${id} already exists`);
-      vms.set(id, { origin: vmid, vmid:id, node:'pve1', type:'qemu', name:b.name, status:'stopped', lock:'clone', maxcpu:vm.maxcpu, maxmem:vm.maxmem, maxdisk:vm.maxdisk, cfg:{...vm.cfg, scsi0: vm.cfg.scsi0.replace(`base-${vmid}`, `vm-${id}`), net0: vm.cfg.net0 ? vm.cfg.net0.replace(/=[0-9A-Fa-f:]{17}/, '').replace(/^(\w+)/, `$1=${newMac()}`) : `virtio=${newMac()},bridge=vmbr0`} });
+      clones.push({ from: vmid, ...b });
+      vms.set(id, { origin: vmid, vmid:id, node:b.target || 'pve1', type:'qemu', name:b.name, status:'stopped', lock:'clone', maxcpu:vm.maxcpu, maxmem:vm.maxmem, maxdisk:vm.maxdisk, cfg:{...vm.cfg, scsi0: vm.cfg.scsi0.replace(`base-${vmid}`, `vm-${id}`), net0: vm.cfg.net0 ? vm.cfg.net0.replace(/=[0-9A-Fa-f:]{17}/, '').replace(/^(\w+)/, `$1=${newMac()}`) : `virtio=${newMac()},bridge=vmbr0`} });
       if (vms.get(id).cfg.net0 && !/=/.test(vms.get(id).cfg.net0.split(',')[0])) vms.get(id).cfg.net0 = withMac(vms.get(id).cfg.net0);
       return send(res, task('qmclone', vmid, 2500, () => { delete vms.get(id).lock; })); }
     if (rest === '/config' && req.method === 'GET') return send(res, vm.cfg);
     if (rest === '/config' && req.method === 'PUT') { const b = await body(req); if (b.net0) b.net0 = withMac(b.net0); log('CONFIG', vmid, JSON.stringify(b));
+      if (b.delete) { for (const k of b.delete.split(',')) delete vm.cfg[k.trim()]; delete b.delete; }
       const hot = vm.status === 'running';
       for (const k of ['cores', 'memory', 'sockets']) if (b[k] !== undefined && hot && String(vm.cfg[k] ?? '') !== String(b[k])) (vm.pending ??= {})[k] = b[k];
       Object.assign(vm.cfg, b);
@@ -272,7 +299,7 @@ export async function startMockPve({ port = 0 } = {}) {
   return {
     url: `http://127.0.0.1:${actualPort}`,
     port: actualPort,
-    vms, sdn, gwFiles, destroyed,
+    vms, sdn, gwFiles, destroyed, clones,
     /** GET a control endpoint, e.g. control('/__lose/104/1') */
     control: (p) => fetch(`http://127.0.0.1:${actualPort}/api2/json${p}`, {
       headers: { authorization: 'PVEAPIToken=panel@pve!panel=x' },

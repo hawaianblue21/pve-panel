@@ -19,6 +19,10 @@ import { usageOf } from '../provision.js';
 import { networkOf, allNetworks } from '../network.js';
 import { adminOverview, removeDevice, syncGateway } from '../vpn.js';
 import { config } from '../config.js';
+import {
+  enforceRoutePermission, requirePermission, roleOf, permissionsOf, roleByKey, roleById, assertOwnerRemains,
+} from '../rbac.js';
+import adminInfraRoutes from './admin-infra.js';
 
 const PASSWORD = { type: 'string', minLength: 12, maxLength: 200 };
 
@@ -28,6 +32,20 @@ function badRequest(reply, error) {
 
 export default async function adminRoutes(app) {
   app.addHook('preHandler', app.requireAdmin);
+  // Role-based access: every route needs the permission rbac.js maps it to.
+  app.addHook('preHandler', enforceRoutePermission);
+
+  // Who am I in the administration: role and permissions (drives which tabs show)
+  app.get('/api/admin/me', async (req) => {
+    const role = roleOf(req.account);
+    return {
+      id: req.account.id, email: req.account.email,
+      role: { id: role.id, key: role.key, name: role.name },
+      permissions: [...permissionsOf(req.account)],
+    };
+  });
+
+  await app.register(adminInfraRoutes);
 
   // ---- Users ------------------------------------------------------------
 
@@ -43,6 +61,7 @@ export default async function adminRoutes(app) {
              u.expiry_mode AS expiryMode, u.expiry_days AS expiryDays, u.expiry_date AS expiryDate,
              u.expiry_self_extend AS expirySelfExtend,
              u.password_set, u.invite_token_hash, u.invite_expires, u.invited_at,
+             u.admin_role_id AS adminRoleId, u.resource_pool_id AS resourcePoolId,
              COUNT(v.vmid) AS servers
       FROM users u LEFT JOIN vms v ON v.user_id = u.id
       GROUP BY u.id ORDER BY u.email
@@ -50,6 +69,8 @@ export default async function adminRoutes(app) {
     return Promise.all(users.map(async (u) => ({
       ...u,
       isAdmin: !!u.isAdmin,
+      adminRole: u.isAdmin ? (roleById(u.adminRoleId) ?? roleByKey('owner')).key : null,
+      adminRoleId: undefined,
       canCreate: !!u.canCreate,
       deleting: !!u.deleting,
       totpEnabled: !!u.totpEnabled,
@@ -71,6 +92,7 @@ export default async function adminRoutes(app) {
           email: { type: 'string', format: 'email', maxLength: 254 },
           password: PASSWORD,
           isAdmin: { type: 'boolean' },
+          adminRole: { type: 'string', maxLength: 31 },
           requireTotp: { type: 'boolean' },
           invite: { type: 'boolean' },
         },
@@ -78,6 +100,14 @@ export default async function adminRoutes(app) {
     },
   }, async (req, reply) => {
     const { email, password, isAdmin = false, requireTotp = false, invite = false } = req.body;
+    // Only owners (rbac.write) make administrators. New administrators get the
+    // least powerful built-in role unless another one is chosen.
+    let role = null;
+    if (isAdmin) {
+      requirePermission(req.account, 'rbac.write');
+      role = roleByKey(req.body.adminRole ?? 'operator');
+      if (!role) return badRequest(reply, 'Unknown administrator role');
+    }
     const clean = email.trim();
     if (db.prepare('SELECT 1 FROM users WHERE email = ?').get(clean)) {
       return reply.code(409).send({ error: 'A user with this email already exists' });
@@ -90,10 +120,10 @@ export default async function adminRoutes(app) {
     // Invited users choose their own password through the link.
     const hash = invite ? unusablePassword() : await bcrypt.hash(password, 12);
     const { lastInsertRowid } = db.prepare(
-      'INSERT INTO users (email, password_hash, is_admin, totp_required, password_set) VALUES (?, ?, ?, ?, ?)',
-    ).run(clean, hash, isAdmin ? 1 : 0, requireTotp ? 1 : 0, invite ? 0 : 1);
+      'INSERT INTO users (email, password_hash, is_admin, totp_required, password_set, admin_role_id) VALUES (?, ?, ?, ?, ?, ?)',
+    ).run(clean, hash, isAdmin ? 1 : 0, requireTotp ? 1 : 0, invite ? 0 : 1, role?.id ?? null);
     const id = Number(lastInsertRowid);
-    audit(req, null, 'admin_user_create', { email: clean, isAdmin, requireTotp, invite });
+    audit(req, null, 'admin_user_create', { email: clean, isAdmin, role: role?.key, requireTotp, invite });
 
     let inviteError = null;
     if (invite) {
@@ -188,6 +218,12 @@ export default async function adminRoutes(app) {
     if (isAdmin === false && id === req.account.id) {
       return badRequest(reply, "You can't remove your own admin rights");
     }
+    if (typeof isAdmin === 'boolean' && isAdmin !== !!user.is_admin) {
+      requirePermission(req.account, 'rbac.write');
+      if (!isAdmin) assertOwnerRemains(id, { removingAdmin: true });
+    }
+    // Changing another administrator (password, 2FA, sign-in methods) is an RBAC matter too
+    if (user.is_admin && id !== req.account.id) requirePermission(req.account, 'rbac.write');
     if (password) {
       const hash = await bcrypt.hash(password, 12);
       db.prepare(`UPDATE users SET password_hash = ?, password_set = 1, invite_token_hash = NULL, invite_expires = NULL
@@ -195,7 +231,9 @@ export default async function adminRoutes(app) {
       audit(req, null, 'admin_password_reset', { email: user.email });
     }
     if (typeof isAdmin === 'boolean') {
-      db.prepare('UPDATE users SET is_admin = ? WHERE id = ?').run(isAdmin ? 1 : 0, id);
+      // Granted here: the least powerful built-in role (change it in Access)
+      db.prepare('UPDATE users SET is_admin = ?, admin_role_id = ? WHERE id = ?')
+        .run(isAdmin ? 1 : 0, isAdmin ? roleByKey('operator').id : null, id);
       audit(req, null, isAdmin ? 'admin_grant' : 'admin_revoke', { email: user.email });
     }
     if (typeof req.body.totpRequired === 'boolean') {
@@ -259,6 +297,11 @@ export default async function adminRoutes(app) {
   app.delete('/api/admin/users/:id', async (req, reply) => {
     const id = Number(req.params.id);
     if (id === req.account.id) return badRequest(reply, "You can't delete your own account");
+    const target = db.prepare('SELECT is_admin FROM users WHERE id = ?').get(id);
+    if (target?.is_admin) {
+      requirePermission(req.account, 'rbac.write');
+      assertOwnerRemains(id, { removingAdmin: true });
+    }
     startCustomerDeletion(req, id, {
       keepAssigned: req.query.keepAssigned === 'true',
       keepNetwork: req.query.keepNetwork === 'true',
