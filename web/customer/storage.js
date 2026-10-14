@@ -151,11 +151,11 @@ echo "UUID=$(sudo blkid -s UUID -o value /dev/sdb) /data ext4 defaults,nofail 0 
             <select id="attach-${v.id}" data-attach-target>${servers.map((s) => `<option value="${s.vmid}" ${s.vmid === v.vmid ? 'selected' : ''}>${esc(s.name)} (${s.vmid})</option>`).join('')}</select>
             <button class="btn primary" data-attach-go>Attach</button><button class="btn" data-attach-cancel>Cancel</button></div>` : ''}</td>
         <td class="num">${rp(v.monthly)}</td>
-        <td class="nowrap row end">
+        <td><div class="nowrap row end">
           ${v.attached ? '<button class="btn" data-vol-detach>Detach</button><button class="btn" data-vol-resize>Enlarge</button>'
             : `${attaching === v.id ? '' : '<button class="btn" data-vol-attach>Attach</button>'}<button class="btn danger" data-vol-delete>Delete</button>`}
           <button class="icon-btn" data-vol-rename title="Rename" aria-label="Rename ${esc(v.label)}">✎</button>
-        </td>
+        </div></td>
       </tr>`;
   }
 
@@ -186,7 +186,7 @@ echo "UUID=$(sudo blkid -s UUID -o value /dev/sdb) /data ext4 defaults,nofail 0 
             <tr data-bucket="${esc(b.name)}"><td class="mono">${esc(b.name)}</td>
               <td class="num">${b.usage ? b.usage.objects.toLocaleString('id-ID') : '·'}</td><td class="num">${gb(b.usage?.bytes)}</td>
               <td class="num">${b.quotaGb ? `${b.quotaGb} GB` : 'none'}</td>
-              <td class="row end"><button class="btn danger" data-bucket-delete>Delete</button></td></tr>`).join('')}
+              <td><div class="row end"><button class="btn danger" data-bucket-delete>Delete</button></div></td></tr>`).join('')}
           </tbody></table></div>` : '<p class="muted">No buckets yet.</p>'}
 
       <div class="grid-2" style="margin-top:20px;max-width:1100px">

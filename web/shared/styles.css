@@ -1170,8 +1170,15 @@ a.btn { text-decoration: none; }
 .kpi .meter { margin-top: 6px; }
 @media (max-width: 720px) {
   .vol-table th:nth-child(4), .vol-table td:nth-child(4) { display: none; }
-  .vol-table td.row { flex-direction: column; align-items: stretch; }
+  .vol-table td .row { flex-direction: column; align-items: stretch; }
 }
 .volumes-admin .security-card { max-width: 1100px; display: grid; }
 .tier-table input { width: 100%; min-width: 80px; }
 .tier-table td { padding: 8px 6px; }
+
+/* Public IPv4 (server overview) */
+.public-ips { margin-top: 20px; }
+.public-ips .section-head { margin-top: 0; }
+.ip-help-row td { background: var(--surface-2); }
+.ip-manual summary { cursor: pointer; font-weight: 600; }
+.ip-table .tag { margin-left: 0; }

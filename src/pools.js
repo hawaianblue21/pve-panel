@@ -197,6 +197,7 @@ export async function poolUsage(poolId) {
     const b = db.prepare(`SELECT COUNT(*) AS n, COALESCE(SUM(quota_gb), 0) AS gb FROM s3_buckets WHERE user_id IN (${marks})`).get(...ids);
     total.s3Buckets = b.n;
     total.s3Gb = b.gb;
+    total.publicIps = db.prepare(`SELECT COUNT(*) AS n FROM ip_addresses WHERE state = 'assigned' AND user_id IN (${marks})`).get(...ids).n;
   }
   return total;
 }

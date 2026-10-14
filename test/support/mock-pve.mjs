@@ -259,7 +259,7 @@ export async function startMockPve({ port = 0 } = {}) {
       if (failClones > 0) { failClones -= 1; return send(res, task('qmclone', vmid, 800, () => { vms.delete(id); }, 'clone failed: storage full')); }
       return send(res, task('qmclone', vmid, 2500, () => { delete vms.get(id).lock; })); }
     if (rest === '/config' && req.method === 'GET') return send(res, vm.cfg);
-    if (rest === '/config' && req.method === 'PUT') { const b = await body(req); if (b.net0) b.net0 = withMac(b.net0); log('CONFIG', vmid, JSON.stringify(b));
+    if (rest === '/config' && req.method === 'PUT') { const b = await body(req); for (const k of Object.keys(b)) if (/^net\d+$/.test(k)) b[k] = withMac(b[k]); log('CONFIG', vmid, JSON.stringify(b));
       if (b.delete) { for (const k of b.delete.split(',').map((x) => x.trim())) diskDelete(vm, k); delete b.delete; }
       diskAssign(vm, b);
       const hot = vm.status === 'running';
@@ -296,7 +296,16 @@ export async function startMockPve({ port = 0 } = {}) {
       if (vm.pending) { vm.maxcpu = Number(vm.cfg.cores); vm.maxmem = Number(vm.cfg.memory)*2**20; delete vm.pending; log('PENDING applied', vmid); } })); }
     if (rest === '/status/current') return send(res, { status: vm.status, cpus: vm.maxcpu, uptime: 600, mem: vm.maxmem/4, maxmem: vm.maxmem, agent: 0 });
     if (rest.startsWith('/firewall')) { const b = req.method==='GET'||req.method==='DELETE' ? Object.fromEntries(u.searchParams) : await body(req);
-      vm.fwRules ??= [];
+      vm.fwRules ??= []; vm.ipsets ??= {};
+      { const sm = rest.match(/^\/firewall\/ipset(?:\/([\w-]+))?$/);
+        if (sm) {
+          if (req.method !== 'GET') log('FW', vmid, req.method, rest, JSON.stringify(b));
+          if (!sm[1] && req.method === 'POST') { vm.ipsets[b.name] = []; return send(res, null); }
+          if (!sm[1]) return send(res, Object.keys(vm.ipsets).map((name) => ({ name })));
+          if (req.method === 'DELETE') { delete vm.ipsets[sm[1]]; return send(res, null); }
+          if (req.method === 'POST') { if (!vm.ipsets[sm[1]]) return send(res, null, 500, 'no such IPSet'); vm.ipsets[sm[1]].push({ cidr: b.cidr }); return send(res, null); }
+          return send(res, vm.ipsets[sm[1]] ?? []);
+        } }
       if (rest === '/firewall/rules' && req.method === 'POST') vm.fwRules.splice(Number(b.pos ?? vm.fwRules.length), 0, b);
       if (rest === '/firewall/rules' && req.method === 'GET') return send(res, vm.fwRules.map((r, i) => ({ ...r, pos: i })));
       if (req.method !== 'GET') log('FW', vmid, req.method, rest, JSON.stringify(b)); return send(res, req.method==='GET' ? [] : null); }

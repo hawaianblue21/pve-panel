@@ -13,6 +13,7 @@ import { createSupport } from '/support.js';
 import { createAssistant } from '/assistant.js';
 import { createBilling } from '/billing.js';
 import { createStorage } from '/storage.js';
+import { createPublicIps } from '/publicips.js';
 import { planFieldset, updatePlanChoice, planBody, openUpgrade } from '/plans.js';
 
 const brandReady = applyBrand();
@@ -443,6 +444,7 @@ function renderOverview(body) {
       <div><dt>Disk</dt><dd>${bytes(vm.maxdisk)}</dd></div>
       <div class="wide"><dt>IP addresses</dt><dd>${ips}</dd></div>
     </dl>
+    <div id="public-ips"></div>
     ${vm.pendingSize ? `
       <div class="notice warn size-pending">
         <p><strong>Size change waiting for a restart:</strong> ${esc(vm.pendingSize.cores)} ${vm.pendingSize.cores === 1 ? 'core' : 'cores'},
@@ -483,6 +485,7 @@ function renderOverview(body) {
         <button class="btn danger" data-delete-server ${vm.status === 'running' ? 'disabled' : ''}>${icon('trash')}<span>Delete server</span></button>
       </div>` : ''}`;
 
+  publicIps.render($('#public-ips'), vm);
   loadCharts();
 }
 
@@ -706,6 +709,15 @@ $('#detail').addEventListener('submit', async (e) => {
     err.textContent = ex.message;
     button.disabled = false;
   }
+});
+
+// Public IPv4 addresses on the Overview tab (own module)
+const publicIps = createPublicIps({
+  getVm: () => (state.view === 'server' ? state.detail : null),
+  refresh: () => { if (state.view === 'server' && state.tab === 'overview') renderTab(); },
+});
+$('#detail').addEventListener('click', (e) => {
+  if (state.view === 'server' && state.tab === 'overview' && e.target.closest('#public-ips')) publicIps.onClick(e);
 });
 
 $('#detail').addEventListener('click', (e) => {

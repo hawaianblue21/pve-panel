@@ -18,6 +18,7 @@ import { db, audit } from './db.js';
 import { config } from './config.js';
 import { seal, open } from './secrets.js';
 import { volumesOfServer } from './volumes.js';
+import { ipsOfServer } from './ipam.js';
 import { clusterGuests } from './pve.js';
 import { extendServer, setServerExpiry } from './expiry.js';
 import { planRow } from './plans.js';
@@ -168,6 +169,9 @@ export async function renewalQuote(vmid, months, s = stored()) {
   const vols = volumesOfServer(vmid);
   const volMonthly = vols.reduce((a, v) => a + v.monthly, 0);
   const extras = volMonthly > 0 ? [{ description: `Block storage: ${vols.map((v) => `${v.label} ${v.sizeGb} GB ${v.tier}`).join(', ')}`, monthly: volMonthly }] : [];
+  // public IPv4 addresses of the server
+  const ips = ipsOfServer(vmid).filter((a) => a.monthly > 0);
+  if (ips.length) extras.push({ description: `Public IPv4: ${ips.map((a) => a.address).join(', ')}`, monthly: ips.reduce((a, x) => a + x.monthly, 0) });
   return { price: { ...p, volumesMonthly: volMonthly }, ...periodLines(`${p.name} (${vmid})${size ? ` · ${size}` : ''}`, p.monthly, months, s, extras) };
 }
 
@@ -590,7 +594,7 @@ export async function customerOverview(userId) {
   const servers = [];
   for (const v of vms) {
     let monthly = null;
-    try { monthly = (await priceOf(v.vmid, s)).monthly + volumesOfServer(v.vmid).reduce((a, x) => a + x.monthly, 0); } catch { /* size unknown right now */ }
+    try { monthly = (await priceOf(v.vmid, s)).monthly + volumesOfServer(v.vmid).reduce((a, x) => a + x.monthly, 0) + ipsOfServer(v.vmid).reduce((a, x) => a + x.monthly, 0); } catch { /* size unknown right now */ }
     servers.push({ vmid: v.vmid, name: v.label || `server ${v.vmid}`, expiresAt: v.expires_at, expired: !!v.expired_at, autoRenew: !!v.auto_renew, monthly });
   }
   const invoices = db.prepare('SELECT * FROM invoices WHERE user_id = ? AND status <> \'void\' ORDER BY id DESC LIMIT 50').all(userId).map((i) => pub(i));

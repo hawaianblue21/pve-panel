@@ -566,6 +566,50 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS volumes_vm ON volumes(vmid);
 `);
 
+// ---- Public IPv4 pools and addresses (ipam.js) ----------------------------------
+// Every usable address of a pool is a row. state: free | assigned | reserved (by an
+// administrator, e.g. the gateway) | cooldown (released; free again after the
+// cool-down) | held (its server left the panel without being destroyed: an
+// administrator decides). nic is the server's netN carrying it.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS ip_pools (
+    id            INTEGER PRIMARY KEY,
+    name          TEXT NOT NULL,
+    cidr          TEXT NOT NULL UNIQUE,
+    gateway       TEXT NOT NULL,
+    bridge        TEXT NOT NULL,
+    vlan          INTEGER,
+    dns           TEXT NOT NULL DEFAULT '',
+    datacenter_id INTEGER REFERENCES datacenters(id) ON DELETE SET NULL,
+    price_monthly INTEGER NOT NULL DEFAULT 0,
+    reverse_zone  TEXT,
+    created_at    TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE TABLE IF NOT EXISTS ip_addresses (
+    id          INTEGER PRIMARY KEY,
+    pool_id     INTEGER NOT NULL REFERENCES ip_pools(id) ON DELETE CASCADE,
+    address     TEXT NOT NULL UNIQUE,
+    state       TEXT NOT NULL DEFAULT 'free',
+    user_id     INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    vmid        INTEGER,
+    nic         TEXT,
+    mac         TEXT,
+    apply       TEXT,
+    ptr         TEXT,
+    note        TEXT,
+    assigned_at TEXT,
+    released_at TEXT
+  );
+  CREATE INDEX IF NOT EXISTS ip_addresses_vm ON ip_addresses(vmid);
+  CREATE INDEX IF NOT EXISTS ip_addresses_pool ON ip_addresses(pool_id, state);
+  -- a server row removed without the panel destroying the VM (e.g. unassigned):
+  -- the address may still be configured there, so it is held for an administrator
+  CREATE TRIGGER IF NOT EXISTS ip_hold_on_vm_delete AFTER DELETE ON vms BEGIN
+    UPDATE ip_addresses SET state = 'held', note = 'Server ' || OLD.vmid || ' left the panel; check it before freeing', user_id = NULL
+      WHERE vmid = OLD.vmid AND state = 'assigned';
+  END;
+`);
+
 // Background jobs don't survive a restart; don't leave servers stuck forever.
 db.exec(`
   UPDATE vms SET state = 'failed', error = 'Setup was interrupted because the panel restarted'
