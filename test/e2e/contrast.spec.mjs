@@ -57,9 +57,9 @@ for (const mode of ['light', 'dark']) {
         await check(customer, scheme, 'new server form');
 
         await admin.goto(A());
-        await expect(admin.locator('#vm-rows tr').first()).toBeVisible();
-        await check(admin, scheme, 'admin servers');
-        for (const [tab, ready] of [['users', 'tr[data-user]'], ['settings', '#email-form'], ['account', '.security-card'], ['about', '.about']]) {
+        await expect(admin.locator('.overview .node-table')).toBeVisible();
+        await check(admin, scheme, 'admin overview');
+        for (const [tab, ready] of [['servers', '#vm-rows tr'], ['hosts', '.hosts .node-table'], ['users', 'tr[data-user]'], ['settings', '#email-form'], ['account', '.security-card'], ['about', '.about']]) {
           await admin.locator(`[data-admin-tab=${tab}]`).click();
           await expect(admin.locator(ready).first()).toBeVisible();
           await check(admin, scheme, `admin ${tab}`);

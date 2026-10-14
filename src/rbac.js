@@ -33,6 +33,7 @@ export const PERMISSIONS = [
   { key: 'plans.write', group: 'Billing', label: 'Create, change and retire plans and their prices' },
   { key: 'billing.read', group: 'Billing', label: 'View invoices, payments and wallets' },
   { key: 'billing.write', group: 'Billing', label: 'Confirm payments, cancel invoices, adjust wallets and prices' },
+  { key: 'hosts.write', group: 'Servers', label: 'Put Proxmox nodes into maintenance (no new servers there)' },
   { key: 'audit.read', group: 'Panel', label: 'Read the activity log' },
   { key: 'rbac.write', group: 'Panel', label: 'Manage administrators and roles' },
 ];
@@ -55,7 +56,7 @@ export const BUILTIN_ROLES = [
   },
   {
     key: 'resources', name: 'Resource manager', description: 'Capacity: pools, datacenters, block and object storage, GPUs, public IPs',
-    permissions: [...READS, 'pools.write', 'storage.write', 'gpu.write', 'ipam.write'],
+    permissions: [...READS, 'pools.write', 'storage.write', 'gpu.write', 'ipam.write', 'hosts.write'],
   },
   {
     key: 'finance', name: 'Finance', description: 'Invoices, payments, wallets, plans and prices; reads everything else',
@@ -166,6 +167,9 @@ const ROUTES = {
   'PUT /api/admin/pools/:id/members/:userId': 'pools.write',
   'DELETE /api/admin/pools/:id/members/:userId': 'pools.write',
 
+  'GET /api/admin/dashboard': null,
+  'GET /api/admin/hosts': 'servers.read',
+  'PUT /api/admin/hosts/:node/maintenance': 'hosts.write',
   'GET /api/admin/ipam': 'network.read',
   'POST /api/admin/ipam/pools': 'ipam.write',
   'PUT /api/admin/ipam/pools/:id': 'ipam.write',

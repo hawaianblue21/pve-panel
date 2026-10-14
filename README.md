@@ -143,6 +143,7 @@ PVE Panel was built with substantial help from an AI assistant (**Claude by Anth
 - Review the activity log: filter by who acted (customer, administrator, the panel itself, unknown sign-ins), by kind of action (created, changed, deleted, power, security) or by text; open any event for its full record
 - Monitor WireGuard and Tailscale usage
 - Delete customers together with their owned infrastructure
+- **Overview** dashboard and **Hosts** with maintenance mode (no new servers on a node)
 - See the running version and whether an update is available
 - Configure email (SMTP) in the admin portal and invite users by email
 - White-label: product name, logo, browser icon and support link; single sign-on with Google, Microsoft and GitHub
@@ -183,6 +184,20 @@ PVE Panel supports automated provisioning for both Linux and Windows workloads.
 - DHCP cleanup and validation
 - Windows setup-state detection
 - Automatic reboot and readiness checks
+
+---
+
+## 📊 Admin overview and hosts
+
+The admin portal opens on **Overview**: guests running and stopped, nodes online, revenue and overdue invoices, open
+tickets and public IPv4 use, each tile opening its tab; every node with CPU, memory and storage; alerts (node
+unreachable, memory or storage at 85 % or more, no quorum, failed setups, transfers to confirm, overdue invoices,
+urgent tickets, IP pools almost full, held addresses); and the latest activity. Each administrator sees only what
+their role may read.
+
+**Hosts** lists the nodes of the Proxmox cluster with quorum, PVE version, kernel, uptime, load and storage. A node
+that can't be reached shows its last reported state. **Maintenance mode** (permission `hosts.write`) keeps new servers
+off a node: they are placed on another node of its datacenter; servers already on it keep running.
 
 ---
 
