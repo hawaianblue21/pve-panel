@@ -255,6 +255,10 @@ export function placement(userId, datacenterId, templateNode) {
     // Several to choose from and none chosen: the template's own datacenter if allowed
     dc = allowed.find((d) => d.nodes.includes(templateNode)) ?? allowed[0];
   }
-  const node = dc.nodes.includes(templateNode) ? templateNode : dc.nodes[0];
+  // nodes in maintenance (Hosts tab) get no new servers
+  const off = new Set(db.prepare('SELECT node FROM node_settings WHERE maintenance = 1').all().map((r) => r.node));
+  const nodes = dc.nodes.filter((n) => !off.has(n));
+  if (!nodes.length) throw new PoolError(409, `No host in ${dc.name} takes new servers right now (maintenance). Please try again later or choose another datacenter.`);
+  const node = nodes.includes(templateNode) ? templateNode : nodes[0];
   return { datacenter: dc, node, storage: dc.storage || null };
 }

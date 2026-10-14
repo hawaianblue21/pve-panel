@@ -30,6 +30,7 @@ import adminSupportRoutes from './admin-support.js';
 import adminBillingRoutes from './admin-billing.js';
 import adminVolumeRoutes from './admin-volumes.js';
 import adminIpamRoutes from './admin-ipam.js';
+import adminHostRoutes from './admin-hosts.js';
 import adminPlanRoutes from './admin-plans.js';
 
 const PASSWORD = { type: 'string', minLength: 12, maxLength: 200 };
@@ -58,6 +59,7 @@ export default async function adminRoutes(app) {
   await app.register(adminBillingRoutes);
   await app.register(adminVolumeRoutes);
   await app.register(adminIpamRoutes);
+  await app.register(adminHostRoutes);
   await app.register(adminPlanRoutes);
 
   // ---- Users ------------------------------------------------------------

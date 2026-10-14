@@ -12,6 +12,8 @@
 //   /__lu/<vmid>/<scenario>      Linux updates: normal | uptodate | kernel | nopm | lowdisk | error | dnf
 //   /__failclone/<n>             the next n clones end with an error
 //   /__node/<vmid>/<node>        move a VM to another node (block storage tests)
+//   /__nodestate/<node>/<online|offline>   a node goes away or comes back
+//   /cluster/resources?type=node|storage|vm, /cluster/status, /nodes/<node>/status
 //   /__sdn, /__vms, /__gw        inspect state
 import http from 'node:http';
 import { WebSocketServer } from 'ws';
@@ -34,6 +36,13 @@ export async function startMockPve({ port = 0 } = {}) {
     [9102,{ vmid:9102,node:'pve1', type:'qemu', name:'win2022-locked-down', status:'stopped', template:1, maxcpu:2, maxmem:4*2**30, maxdisk:40*2**30, cfg:{cores:2,memory:4096,ostype:'win11',agent:'1',scsi0:'VMStorage:base-9102-disk-0,size=40G',net0:'virtio=BC:24:11:00:00:03,bridge=vmbr0'} }],
     [150, { vmid:150, node:'pve1', type:'qemu', name:'vpn-gw', status:'running', maxcpu:1, maxmem:2**29, maxdisk:8*2**30, cfg:{cores:1,memory:512,agent:'1'} }],
     [9001,{ vmid:9001,node:'pve1', type:'qemu', name:'ubuntu2404-cloud', status:'stopped', template:1, maxcpu:1, maxmem:2**30, maxdisk:4*2**30, cfg:{cores:1,memory:1024,ostype:'l26',scsi0:'VMStorage:base-9001-disk-0,size=3584M'} }],
+  ]);
+  // Proxmox nodes of the simulated cluster (pve2 has no guests unless a test moves one there)
+  const hosts = new Map([
+    ['pve1', { node: 'pve1', status: 'online', cpu: 0.18, maxcpu: 64, mem: 96 * 2 ** 30, maxmem: 256 * 2 ** 30, uptime: 3_542_400,
+      storages: [{ storage: 'VMStorage', disk: 2.1 * 2 ** 40, maxdisk: 7.6 * 2 ** 40 }, { storage: 'local-lvm', disk: 40 * 2 ** 30, maxdisk: 400 * 2 ** 30 }] }],
+    ['pve2', { node: 'pve2', status: 'online', cpu: 0.71, maxcpu: 32, mem: 230 * 2 ** 30, maxmem: 256 * 2 ** 30, uptime: 1_036_800,
+      storages: [{ storage: 'VMStorage', disk: 6.9 * 2 ** 40, maxdisk: 7.6 * 2 ** 40 }] }],
   ]);
   const tasks = new Map(); let seq = 0;
   const sdn = { zones: [], vnets: [], subnets: new Map(), pending: 0 };
@@ -200,7 +209,26 @@ export async function startMockPve({ port = 0 } = {}) {
   const srv = http.createServer(async (req, res) => {
     const u = new URL(req.url, 'http://x'); const p = u.pathname.replace('/api2/json','');
     if (req.headers.authorization !== 'PVEAPIToken=panel@pve!panel=x') return send(res, null, 401);
-    if (p === '/cluster/resources') return send(res, [...vms.values()].map(({cfg, ...v}) => ({...v, id:`qemu/${v.vmid}`, cpu:0.05, mem:v.maxmem/4, uptime: v.status==='running' ? uptimeOf(v.vmid) : 0})));
+    { const ns = p.match(/^\/__nodestate\/([\w-]+)\/(online|offline)$/); if (ns) { hosts.get(ns[1]).status = ns[2]; return send(res, null); } }
+    if (p === '/cluster/resources') {
+      const type = u.searchParams.get('type');
+      const guests = [...vms.values()].map(({cfg, ...v}) => ({...v, id:`qemu/${v.vmid}`, cpu:0.05, mem:v.maxmem/4, uptime: v.status==='running' ? uptimeOf(v.vmid) : 0}));
+      const nodeRows = [...hosts.values()].map((h) => ({ id: `node/${h.node}`, type: 'node', node: h.node, status: h.status,
+        ...(h.status === 'online' ? { cpu: h.cpu, maxcpu: h.maxcpu, mem: h.mem, maxmem: h.maxmem, disk: 9 * 2 ** 30, maxdisk: 100 * 2 ** 30, uptime: h.uptime } : {}) }));
+      const storageRows = [...hosts.values()].flatMap((h) => h.storages.map((st) => ({ id: `storage/${h.node}/${st.storage}`, type: 'storage', node: h.node, storage: st.storage,
+        status: h.status === 'online' ? 'available' : 'unknown', disk: st.disk, maxdisk: st.maxdisk, shared: st.shared ?? 0, content: 'images,rootdir' })));
+      if (type === 'node') return send(res, nodeRows);
+      if (type === 'storage') return send(res, storageRows);
+      if (type === 'vm') return send(res, guests);
+      return send(res, [...guests, ...nodeRows, ...storageRows]);
+    }
+    if (p === '/cluster/status') return send(res, [{ type: 'cluster', id: 'cluster', name: 'mock-cluster', quorate: [...hosts.values()].filter((h) => h.status === 'online').length * 2 > hosts.size ? 1 : 0, nodes: hosts.size, version: 7 },
+      ...[...hosts.values()].map((h, i) => ({ type: 'node', id: `node/${h.node}`, name: h.node, nodeid: i + 1, online: h.status === 'online' ? 1 : 0, ip: `10.0.0.${11 + i}`, local: i === 0 ? 1 : 0 }))]);
+    { const nm = p.match(/^\/nodes\/([\w-]+)\/status$/); if (nm && hosts.has(nm[1])) { const h = hosts.get(nm[1]);
+      if (h.status !== 'online') return send(res, null, 595, `no route to host ${h.node}`);
+      return send(res, { pveversion: 'pve-manager/9.0.10/abcdef0123456789', kversion: 'Linux 6.14.8-2-pve #1 SMP PREEMPT_DYNAMIC PMX 6.14.8-2', uptime: h.uptime,
+        cpu: h.cpu, loadavg: ['0.42', '0.51', '0.60'], cpuinfo: { cpus: h.maxcpu, model: 'AMD EPYC 9354 32-Core Processor', sockets: 1 },
+        memory: { used: h.mem, total: h.maxmem, free: h.maxmem - h.mem }, rootfs: { used: 9 * 2 ** 30, total: 100 * 2 ** 30 } }); } }
     if (p === '/__gw') return send(res, Object.fromEntries(gwFiles));
     { const nm = p.match(/^\/__node\/(\d+)\/([\w-]+)$/); if (nm) { vms.get(Number(nm[1])).node = nm[2]; return send(res, null); } }
     if (p === '/__sdn') return send(res, { ...sdn, subnets: Object.fromEntries(sdn.subnets) });

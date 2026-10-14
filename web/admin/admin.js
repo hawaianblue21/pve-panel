@@ -9,6 +9,7 @@ import { createDesk } from '/desk.js';
 import { createBilling } from '/billing.js';
 import { createVolumes } from '/volumes.js';
 import { createIpam } from '/ipam.js';
+import { createHosts } from '/hosts.js';
 import { createPlans } from '/plans.js';
 
 // Administration area: assign servers, manage customers, read the activity log.
@@ -138,6 +139,17 @@ const ACTION_LABELS = {
   admin_gpu_profile_delete: 'Deleted a GPU profile',
   admin_gpu_attach: 'Attached a GPU',
   admin_gpu_detach: 'Detached a GPU',
+  volume_created: 'Created a volume',
+  volume_attached: 'Attached a volume',
+  volume_detached: 'Detached a volume',
+  volume_resized: 'Enlarged a volume',
+  volume_deleted: 'Deleted a volume',
+  ip_assigned: 'Added a public IP address',
+  ip_released: 'Released a public IP address',
+  ip_ptr_set: 'Set reverse DNS',
+  admin_ip_pool_create: 'Added a public IP pool',
+  admin_node_maintenance_on: 'Put a node into maintenance',
+  admin_node_maintenance_off: 'Ended maintenance on a node',
   admin_plan_create: 'Added a plan',
   admin_plan_update: 'Changed a plan',
   admin_plan_delete: 'Deleted a plan',
@@ -168,7 +180,7 @@ export function generatePassword(length = 16) {
 
 export function createAdmin({ root, api, toast, fail, confirmAction, promptText, esc, getMe, onAbout }) {
   const st = {
-    tab: 'servers', users: [], vms: [], audit: [], filter: '', newUser: null,
+    tab: 'overview', users: [], vms: [], audit: [], filter: '', newUser: null,
     templates: [], storages: {}, vpn: null, perms: null,
   };
   // Access control, resource pools, object storage and GPUs (own module)
@@ -181,6 +193,12 @@ export function createAdmin({ root, api, toast, fail, confirmAction, promptText,
   const volumes = createVolumes({ root, api, toast, fail, esc });
   // Public IPv4 pools and addresses (own module)
   const ipam = createIpam({ root, api, toast, fail, confirmAction, promptText, esc });
+  // Overview dashboard and Proxmox nodes (own module)
+  const hosts = createHosts({
+    root, api, toast, fail, confirmAction, promptText, esc,
+    labels: { has: (tab) => allowedTab(tab), action: (a) => ACTION_LABELS[a] ?? a },
+    openTab: (tab) => { st.tab = tab; render(); load(); },
+  });
   // Plans: sizes with a price (own module)
   const plans = createPlans({ root, api, toast, fail, confirmAction, esc });
   // Which permission a tab needs (the server checks every request as well)
@@ -193,6 +211,7 @@ export function createAdmin({ root, api, toast, fail, confirmAction, promptText,
     : billing.handles(id) ? billing.tabs().some(([t]) => t === id)
     : volumes.handles(id) ? volumes.tabs().some(([t]) => t === id)
     : ipam.handles(id) ? ipam.tabs().some(([t]) => t === id)
+    : hosts.handles(id) ? hosts.tabs().some(([t]) => t === id)
     : plans.handles(id) ? plans.tabs().some(([t]) => t === id)
     : !TAB_PERMISSION[id] || !st.perms || st.perms.has(TAB_PERMISSION[id]));
   const gb = (mb) => `${+(mb / 1024).toFixed(1)} GB`;
@@ -214,6 +233,8 @@ export function createAdmin({ root, api, toast, fail, confirmAction, promptText,
         await volumes.load(st.tab);
       } else if (ipam.handles(st.tab)) {
         await ipam.load(st.tab);
+      } else if (hosts.handles(st.tab)) {
+        await hosts.load(st.tab);
       } else if (plans.handles(st.tab)) {
         await plans.load(st.tab);
       } else if (st.tab === 'servers') {
@@ -250,8 +271,8 @@ export function createAdmin({ root, api, toast, fail, confirmAction, promptText,
 
   // ---- shell ------------------------------------------------------------
   function render() {
-    const tabs = [['servers', 'Servers'], ['users', 'Customers'], ...desk.tabs(), ...billing.tabs(), ...plans.tabs(), ['templates', 'Templates'], ['vpn', 'VPN'],
-      ...infra.tabs(), ...volumes.tabs(), ...ipam.tabs(), ['activity', 'Activity'], ['account', 'Your account'], ['settings', 'Settings'], ['about', 'About']]
+    const tabs = [...hosts.tabs().filter(([id]) => id === 'overview'), ['servers', 'Servers'], ['users', 'Customers'], ...desk.tabs(), ...billing.tabs(), ...plans.tabs(), ['templates', 'Templates'], ['vpn', 'VPN'],
+      ...infra.tabs(), ...hosts.tabs().filter(([id]) => id === 'hosts'), ...volumes.tabs(), ...ipam.tabs(), ['activity', 'Activity'], ['account', 'Your account'], ['settings', 'Settings'], ['about', 'About']]
       .filter(([id]) => allowedTab(id));
     root.innerHTML = `
       <div class="admin-inner">
@@ -272,6 +293,7 @@ export function createAdmin({ root, api, toast, fail, confirmAction, promptText,
     if (billing.handles(st.tab)) billing.render(st.tab);
     if (volumes.handles(st.tab)) volumes.render(st.tab);
     if (ipam.handles(st.tab)) ipam.render(st.tab);
+    if (hosts.handles(st.tab)) hosts.render(st.tab);
     if (plans.handles(st.tab)) plans.render(st.tab);
     if (st.tab === 'servers') renderServers();
     if (st.tab === 'users') renderUsers();
@@ -1611,6 +1633,7 @@ export function createAdmin({ root, api, toast, fail, confirmAction, promptText,
     if (billing.handles(st.tab) && !t.dataset.adminTab && await billing.onClick(e, st.tab)) return;
     if (volumes.handles(st.tab) && !t.dataset.adminTab && await volumes.onClick(e, st.tab)) return;
     if (ipam.handles(st.tab) && !t.dataset.adminTab && await ipam.onClick(e, st.tab)) return;
+    if (hosts.handles(st.tab) && !t.dataset.adminTab && await hosts.onClick(e, st.tab)) return;
     if (plans.handles(st.tab) && !t.dataset.adminTab && await plans.onClick(e, st.tab)) return;
 
     if (t.hasAttribute('data-ai-test')) {
@@ -1970,6 +1993,7 @@ export function createAdmin({ root, api, toast, fail, confirmAction, promptText,
       billing.setPermissions(me.permissions);
       volumes.setPermissions(me.permissions);
       ipam.setPermissions(me.permissions);
+      hosts.setPermissions(me.permissions);
       plans.setPermissions(me.permissions);
     } catch (err) {
       fail(err);
@@ -1977,7 +2001,7 @@ export function createAdmin({ root, api, toast, fail, confirmAction, promptText,
     // Back from linking a sign-in provider: open the account page with the result
     const q = new URLSearchParams(location.search);
     if (q.has('sso_linked') || (q.has('sso_error') && location.hash === '#account')) st.tab = 'account';
-    if (!allowedTab(st.tab)) st.tab = ['servers', 'users', 'resources', 'gpu', 'storage', 'account'].find(allowedTab);
+    if (!allowedTab(st.tab)) st.tab = ['overview', 'servers', 'users', 'resources', 'gpu', 'storage', 'account'].find(allowedTab);
   }
 
   return {

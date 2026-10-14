@@ -610,6 +610,21 @@ db.exec(`
   END;
 `);
 
+// ---- Proxmox nodes (hosts.js): maintenance flag and the last reported state -------
+db.exec(`
+  CREATE TABLE IF NOT EXISTS node_settings (
+    node        TEXT PRIMARY KEY,
+    maintenance INTEGER NOT NULL DEFAULT 0,      -- 1 = no new servers are placed here
+    note        TEXT,
+    updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE TABLE IF NOT EXISTS node_snapshots (
+    node    TEXT PRIMARY KEY,
+    data    TEXT NOT NULL,                       -- JSON: load, memory, storage, version
+    seen_at TEXT NOT NULL
+  );
+`);
+
 // Background jobs don't survive a restart; don't leave servers stuck forever.
 db.exec(`
   UPDATE vms SET state = 'failed', error = 'Setup was interrupted because the panel restarted'
