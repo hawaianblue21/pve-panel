@@ -65,7 +65,7 @@ test('knowledge base: an agent publishes an article, the customer finds it, vote
   const customer = await browser.newPage();
   await signIn(customer, process.env.E2E_CUSTOMER_URL, 'lena@example.com', 'another-long-password');
   await customer.locator('#nav-help').click();
-  await expect(customer.locator('.help-cat')).toContainText('Take a snapshot before risky changes');
+  await expect(customer.locator('.help-grid')).toContainText('Take a snapshot before risky changes');
   await customer.locator('#help-search [name=q]').fill('snapshot');
   await customer.locator('#help-search button').click();
   await customer.locator('.help-results a').first().click();

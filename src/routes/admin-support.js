@@ -6,6 +6,7 @@ import { config } from '../config.js';
 import * as support from '../support.js';
 import * as kb from '../kb.js';
 import { zammadSettings, saveZammad, testZammad, retryPending } from '../zammad.js';
+import * as ai from '../ai.js';
 
 const NUMBER = { type: 'object', required: ['number'], properties: { number: { type: 'integer', minimum: 1 } } };
 const ID = { type: 'object', required: ['id'], properties: { id: { type: 'integer', minimum: 1 } } };
@@ -81,6 +82,29 @@ export default async function adminSupportRoutes(app) {
     audit(req, null, 'admin_kb_delete', { id: req.params.id });
     return reply.code(204).send();
   });
+
+  // ---- AI assistant -------------------------------------------------------------------
+  app.get('/api/admin/ai', async () => ({ settings: ai.aiSettings(), ...ai.adminOverview() }));
+  app.get('/api/admin/ai/conversations/:id', { schema: { params: ID } }, async (req) => ai.adminConversation(req.params.id));
+  app.get('/api/admin/settings/ai', async () => ai.aiSettings());
+  app.put('/api/admin/settings/ai', {
+    schema: {
+      body: {
+        type: 'object', additionalProperties: false, minProperties: 1,
+        properties: {
+          enabled: { type: 'boolean' }, provider: { type: 'string', enum: ['anthropic', 'openai'] },
+          baseUrl: { type: 'string', maxLength: 300 }, model: { type: 'string', maxLength: 100 }, apiKey: { type: 'string', maxLength: 500 },
+          dailyLimit: { type: 'integer' }, maxTokens: { type: 'integer' }, instructions: { type: 'string', maxLength: 4000 }, handover: { type: 'boolean' },
+        },
+      },
+    },
+  }, async (req) => {
+    const saved = ai.saveAiSettings(req.body);
+    const { apiKey, ...rest } = req.body;
+    audit(req, null, 'admin_ai_settings', { ...rest, keyChanged: apiKey !== undefined });
+    return saved;
+  });
+  app.post('/api/admin/settings/ai/test', { config: { rateLimit: { max: 10, timeWindow: '1 minute' } } }, async () => ai.testAssistant());
 
   // ---- Zammad (optional) ---------------------------------------------------------------
   app.get('/api/admin/settings/zammad', async () => zammadSettings(config.oidc.publicUrl.customer || null));

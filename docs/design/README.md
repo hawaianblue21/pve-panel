@@ -32,8 +32,8 @@ Status: ✅ implemented · 🟡 partly (what is missing is listed) · ⬜ design
 | Activity log | `Admin-Activity.dc.html` | ✅ filters by actor, kind and text, event details, paging (diff view missing) |
 | Ticket desk (Zammad) | `Admin-Support.dc.html` | ✅ queues, notes, customer context, KB suggestions, optional Zammad sync (AI triage missing) |
 | Knowledge base editor | `Admin-KB.dc.html` | ✅ drafts from tickets, visibility, searches without results (AI drafts missing) |
-| AI assistant | `Admin-AI.dc.html` | ⬜ |
-| API tokens & integrations (owner only) | `Admin-Integrations.dc.html` | 🟡 Zammad (in Settings); API tokens, payment gateways and AI provider missing |
+| AI assistant | `Admin-AI.dc.html` | ✅ provider settings, usage, conversations with tool calls (behaviour presets and knowledge-gap view missing) |
+| API tokens & integrations (owner only) | `Admin-Integrations.dc.html` | 🟡 Zammad and AI provider (in Settings); API tokens and payment gateways missing |
 | Settings & white label (owner only) | `Admin-Settings.dc.html` | 🟡 branding, single sign-on, appearance, updates, email, expiry; Proxmox clusters, Proxmox Backup Server missing |
 | Patch management | `Admin-Updates.dc.html` | 🟡 Windows/Linux switches, per-server runs and log; fleet view and rollout rings missing |
 | Server lifecycle (expiry) | `Admin-Lifecycle.dc.html` | 🟡 rules, reminders, stop, grace, deletion, pause; queue view missing |
@@ -54,7 +54,7 @@ Status: ✅ implemented · 🟡 partly (what is missing is listed) · ⬜ design
 | Object storage | `Customer-Object.dc.html` | 🟡 API (`/api/storage`); customer screen missing |
 | Support tickets | `Customer-Tickets.dc.html` | ✅ |
 | Knowledge base (help center) | `Customer-KB.dc.html` | ✅ |
-| AI assistant | `Customer-Assistant.dc.html` | ⬜ |
+| AI assistant | `Customer-Assistant.dc.html` | ✅ answers with sources, ratings, handover to a ticket |
 
 ## Shared
 

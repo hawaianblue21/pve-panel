@@ -10,6 +10,7 @@ import { renderPasskeys } from '/shared/passkeys.js';
 import { renderIdentities } from '/shared/identities.js';
 import { renderAppearance, loadPersonalAppearance } from '/shared/appearance.js';
 import { createSupport } from '/support.js';
+import { createAssistant } from '/assistant.js';
 
 const brandReady = applyBrand();
 document.querySelectorAll('[data-brand-mark]').forEach((el) => { el.innerHTML = brandMark(30); });
@@ -140,7 +141,19 @@ const support = createSupport({
     renderList();
   },
 });
-window.addEventListener('hashchange', () => { if (state.me) support.route(location.hash); });
+// AI assistant (own module; shown when the provider has set it up)
+const assistant = createAssistant({
+  state,
+  renderList: () => renderList(),
+  setView(view, hash) {
+    state.view = view;
+    state.selected = null;
+    history.replaceState(null, '', hash);
+    renderList();
+  },
+  openTicket: (number) => support.openSupport(String(number)),
+});
+window.addEventListener('hashchange', () => { if (state.me && !assistant.route(location.hash)) support.route(location.hash); });
 
 function renderList() {
   const supportViews = ['support', 'support-new', 'ticket'];
@@ -150,6 +163,8 @@ function renderList() {
       ? `<button class="nav-item" id="new-server" aria-current="${state.view === 'create'}">${icon('plus')}<span>New server</span></button>` : '',
     state.account.vpn?.enabled
       ? `<button class="nav-item" id="vpn-access" aria-current="${state.view === 'vpn'}">${icon('shield')}<span>VPN access</span></button>` : '',
+    state.assistantEnabled
+      ? `<button class="nav-item" id="nav-assistant" aria-current="${state.view === 'assistant'}">${icon('spark')}<span>AI assistant</span></button>` : '',
     `<button class="nav-item" id="nav-support" aria-current="${supportViews.includes(state.view)}">${icon('chat')}<span>Support</span>${state.supportWaiting ? `<span class="nav-badge" title="Tickets waiting for your reply">${state.supportWaiting}</span>` : ''}</button>`,
     `<button class="nav-item" id="nav-help" aria-current="${['help', 'article'].includes(state.view)}">${icon('book')}<span>Help center</span></button>`,
   ].join('');
@@ -1457,6 +1472,7 @@ $('#rack-actions').addEventListener('click', (e) => {
   if (e.target.closest('#new-server')) openCreate();
   if (e.target.closest('#vpn-access')) openVpn();
   if (e.target.closest('#nav-support')) support.openSupport();
+  if (e.target.closest('#nav-assistant')) assistant.open();
   if (e.target.closest('#nav-help')) support.openHelp();
 });
 
@@ -1712,7 +1728,7 @@ async function startApp(me) {
     openAccount();
   } else if (location.hash === '#vpn' && state.account.vpn?.enabled) {
     await openVpn();
-  } else if (support.route(location.hash)) {
+  } else if (assistant.route(location.hash) || support.route(location.hash)) {
     // support ticket or help-center article (e.g. a link from an email)
   } else {
     const fromHash = Number(location.hash.slice(1));
@@ -1720,6 +1736,7 @@ async function startApp(me) {
     else await openHome();
   }
   support.refreshBadge();
+  assistant.loadStatus().then(() => renderList());
 
   // Every 10 s normally, every 5 s while a server is being created or deleted.
   clearInterval(state.poll);

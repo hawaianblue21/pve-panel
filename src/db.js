@@ -341,6 +341,38 @@ db.exec(`
   );
 `);
 
+// ---- AI assistant (ai.js): conversations of customers with the assistant ----------
+db.exec(`
+  CREATE TABLE IF NOT EXISTS ai_conversations (
+    id            INTEGER PRIMARY KEY,
+    user_id       INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    title         TEXT NOT NULL DEFAULT 'New conversation',
+    ticket_number INTEGER,
+    created_at    TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at    TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE INDEX IF NOT EXISTS ai_conversations_user ON ai_conversations(user_id);
+
+  -- role: user | assistant | tool. Assistant rows may carry tool calls (JSON),
+  -- tool rows the result given to the model; sources = articles the answer used.
+  CREATE TABLE IF NOT EXISTS ai_messages (
+    id              INTEGER PRIMARY KEY,
+    conversation_id INTEGER NOT NULL REFERENCES ai_conversations(id) ON DELETE CASCADE,
+    role            TEXT NOT NULL CHECK (role IN ('user', 'assistant', 'tool')),
+    content         TEXT NOT NULL DEFAULT '',
+    tool_calls      TEXT,
+    tool_call_id    TEXT,
+    tool_name       TEXT,
+    sources         TEXT,
+    handover        TEXT,
+    rating          INTEGER,
+    tokens_in       INTEGER NOT NULL DEFAULT 0,
+    tokens_out      INTEGER NOT NULL DEFAULT 0,
+    created_at      TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE INDEX IF NOT EXISTS ai_messages_conversation ON ai_messages(conversation_id);
+`);
+
 // ---- Single sign-on identities (Google, Microsoft, GitHub; see sso.js) ------------
 // One identity per provider per account; found by provider + issuer + subject.
 db.exec(`
