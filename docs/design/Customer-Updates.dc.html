@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>OS updates</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500&amp;family=Space+Grotesk:wght@500;600;700&amp;display=swap">
+<style>
+body{margin:0;background:#0A101C;}
+a{color:#8EC2FF;}a:hover{color:#C5E0FF;}
+@keyframes pp-bar{from{background-position:0 0}to{background-position:40px 0}}
+</style>
+</helmet>
+<div style="min-height: 100vh; background: #0A101C; color: #E6EBF2; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 14px; line-height: 1.5; display: flex; flex-wrap: wrap; align-items: stretch;">
+
+<div style="flex: 1 1 240px; background: #0D1424; border-right: 1px solid #1C2638;">
+<dc-import name="Sidebar" portal="customer" active="updates" hint-size="100%,1040px"></dc-import>
+</div>
+
+<main style="flex: 999 1 560px; min-width: 0; box-sizing: border-box; padding: 28px 32px 48px; display: flex; flex-direction: column; gap: 18px;">
+
+<div style="display: flex; flex-direction: column; gap: 2px;">
+<h1 style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 28px; font-weight: 600;">Updates</h1>
+<span style="color: #93A0B4;">Install operating system updates on your servers from here. A snapshot is taken first, so you can roll back.</span>
+</div>
+
+<div role="tablist" aria-label="Server" style="display: flex; flex-wrap: wrap; gap: 10px;">
+<sc-for list="{{servers}}" as="s" hint-placeholder-count="3">
+<button type="button" role="tab" aria-selected="{{s.on}}" onClick="{{s.pick}}" style="flex: 1 1 220px; max-width: 320px; display: flex; flex-direction: column; gap: 2px; padding: 12px 14px; border-radius: 12px; border: 1px solid {{s.border}}; background: {{s.bg}}; color: #E6EBF2; font: inherit; text-align: left; cursor: pointer;">
+<span style="display: flex; justify-content: space-between; gap: 8px;"><span style="font-weight: 600;">{{s.name}}</span><span style="padding: 1px 8px; border-radius: 999px; font-size: 11px; background: {{s.badgeBg}}; color: {{s.badgeFg}};">{{s.badge}}</span></span>
+<span style="font-size: 12px; color: #93A0B4;">{{s.os}}</span>
+</button>
+</sc-for>
+</div>
+
+<div style="display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 12px; color: #93A0B4;">
+<span>Preview state:</span>
+<sc-for list="{{phases}}" as="p" hint-placeholder-count="4"><button type="button" onClick="{{p.pick}}" aria-pressed="{{p.on}}" style="min-height: 30px; padding: 0 10px; border-radius: 999px; border: 1px solid {{p.border}}; background: {{p.bg}}; color: #C3CCDA; font: inherit; font-size: 12px; cursor: pointer;">{{p.label}}</button></sc-for>
+</div>
+
+<div style="display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-start;">
+<section aria-labelledby="up-h" style="flex: 3 1 560px; min-width: 0; padding: 20px; background: #101828; border: 1px solid #1F2A3F; border-radius: 14px; display: flex; flex-direction: column; gap: 14px;">
+
+<sc-if value="{{ph.ready}}" hint-placeholder-val="{{true}}">
+<div style="display: flex; flex-direction: column; gap: 14px;">
+<div style="display: flex; flex-direction: column; gap: 2px;">
+<h2 id="up-h" style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 18px; font-weight: 600;">{{cur.title}}</h2>
+<span style="font-size: 13px; color: #93A0B4;">{{cur.lead}}</span>
+</div>
+<div style="padding: 10px 12px; border-radius: 10px; background: #152645; border: 1px solid #21406E; font-size: 13px; color: #CFE3FF;">{{cur.available}}</div>
+<div role="radiogroup" aria-label="Which updates" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px;">
+<sc-for list="{{scopes}}" as="o" hint-placeholder-count="2">
+<button type="button" role="radio" aria-checked="{{o.on}}" onClick="{{o.pick}}" style="display: flex; gap: 10px; align-items: flex-start; padding: 12px 14px; border-radius: 12px; border: 1.5px solid {{o.border}}; background: {{o.bg}}; color: #E6EBF2; font: inherit; text-align: left; cursor: pointer;">
+<span style="flex: none; width: 16px; height: 16px; margin-top: 3px; border-radius: 50%; border: 2px solid {{o.border}}; box-sizing: border-box; background: {{o.dot}};"></span>
+<span style="display: flex; flex-direction: column; gap: 2px;"><span style="font-weight: 600;">{{o.label}}</span><span style="font-size: 12px; color: #93A0B4;">{{o.desc}}</span></span>
+</button>
+</sc-for>
+</div>
+<div style="display: flex; flex-direction: column; gap: 10px;">
+<sc-for list="{{opts}}" as="o" hint-placeholder-count="3">
+<label style="display: flex; gap: 10px; align-items: flex-start; font-size: 13px;"><input type="checkbox" checked="{{o.on}}" onChange="{{noop}}" style="width: 18px; height: 18px; margin-top: 2px; accent-color: #4C9AFF;"><span style="display: flex; flex-direction: column;"><span style="font-weight: 500;">{{o.label}}</span><span style="color: #93A0B4; font-size: 12px;">{{o.desc}}</span></span></label>
+</sc-for>
+</div>
+<div style="display: flex; flex-wrap: wrap; gap: 10px; align-items: center;">
+<button type="button" onClick="{{start}}" style="min-height: 44px; padding: 0 18px; border: 0; border-radius: 10px; background: #4C9AFF; color: #06101F; font: inherit; font-weight: 600;">Install updates now</button>
+<span style="font-size: 13px; color: #93A0B4;">or run them in your weekly window ({{window}})</span>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ph.running}}" hint-placeholder-val="{{false}}">
+<div role="status" style="display: flex; flex-direction: column; gap: 12px;">
+<span style="font-family: 'Space Grotesk', sans-serif; font-size: 18px; font-weight: 600;">Installing updates…</span>
+<div style="height: 10px; border-radius: 999px; background: #1C2638; overflow: hidden;"><div style="width: {{cur.pct}}%; height: 100%; background: repeating-linear-gradient(45deg, #4C9AFF 0 10px, #3B86EA 10px 20px); background-size: 40px 10px; animation: pp-bar 1s linear infinite;"></div></div>
+<span style="font-size: 13px; color: #B8C2D1;">{{cur.step}}</span>
+<pre style="margin: 0; padding: 12px; border-radius: 10px; background: #070C16; font-family: 'JetBrains Mono', monospace; font-size: 12px; line-height: 1.6; color: #93A0B4; white-space: pre-wrap;">{{cur.log}}</pre>
+<span style="font-size: 12px; color: #93A0B4;">This can take 30 minutes or more. You can leave this page; the updates continue and you get an email when they finish.</span>
+</div>
+</sc-if>
+
+<sc-if value="{{ph.restart}}" hint-placeholder-val="{{false}}">
+<div style="display: flex; flex-direction: column; gap: 12px;">
+<span style="font-family: 'Space Grotesk', sans-serif; font-size: 18px; font-weight: 600;">Restart required <span style="font-weight: 400; color: #93A0B4; font-size: 14px;">{{cur.round}}</span></span>
+<div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 16px; border-radius: 12px; background: #2E2410; border: 1px solid #5A4618; color: #F8DFA6;">
+<span style="font-size: 13px; max-width: 520px;">{{cur.restartText}}</span>
+<button type="button" style="min-height: 40px; padding: 0 14px; border: 0; border-radius: 10px; background: #F5C46B; color: #2A1E05; font: inherit; font-weight: 600;">Restart now</button>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ph.done}}" hint-placeholder-val="{{false}}">
+<div style="display: flex; flex-direction: column; gap: 10px; padding: 14px 16px; border-radius: 12px; background: #0F2A20; border: 1px solid #1E5A40;">
+<span style="font-weight: 600; color: #7EE6B0;">Last run {{cur.when}}: {{cur.count}}</span>
+<sc-for list="{{cur.items}}" as="i" hint-placeholder-count="4"><span style="font-size: 12.5px; color: #C3CCDA;"><span style="font-family: 'JetBrains Mono', monospace; color: #8EC2FF;">{{i.id}}</span> {{i.text}}</span></sc-for>
+<span style="font-size: 12px; color: #93A0B4;">Snapshot "before-updates-1410" kept for 3 days. <a href="Customer-Server.dc.html">Roll back under Snapshots</a></span>
+</div>
+</sc-if>
+</section>
+
+<aside style="flex: 2 1 300px; min-width: 0; display: flex; flex-direction: column; gap: 14px;">
+<section aria-labelledby="sch-h" style="padding: 16px; background: #101828; border: 1px solid #1F2A3F; border-radius: 14px; display: flex; flex-direction: column; gap: 10px;">
+<h2 id="sch-h" style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 16px; font-weight: 600;">Automatic updates</h2>
+<label style="display: flex; align-items: center; gap: 10px; font-size: 13px;"><input type="checkbox" checked="{{true}}" onChange="{{noop}}" style="width: 18px; height: 18px; accent-color: #4C9AFF;">Install security updates every week</label>
+<label style="display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: #C3CCDA;">Window (WIB)<select style="min-height: 40px; padding: 0 10px; border: 1px solid #2A3750; border-radius: 8px; background: #0C1322; color: #E6EBF2; font: inherit;"><option>{{window}}</option><option>Saturday 23:00 to 03:00</option></select></label>
+<span style="font-size: 12px; color: #93A0B4;">Your provider may also run critical security updates in their own window; you get an email 3 days before.</span>
+</section>
+<section aria-labelledby="hi-h" style="padding: 16px; background: #101828; border: 1px solid #1F2A3F; border-radius: 14px; display: flex; flex-direction: column; gap: 8px;">
+<h2 id="hi-h" style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 16px; font-weight: 600;">History</h2>
+<sc-for list="{{cur.history}}" as="h" hint-placeholder-count="4"><span style="display: flex; justify-content: space-between; gap: 10px; font-size: 13px;"><span>{{h.d}}</span><span style="color: {{h.c}};">{{h.r}}</span></span></sc-for>
+</section>
+<section style="padding: 14px 16px; background: #101828; border: 1px solid #1F2A3F; border-radius: 14px; font-size: 12px; color: #93A0B4; display: flex; flex-direction: column; gap: 4px;">
+<span style="font-weight: 600; color: #C3CCDA;">How it works</span>
+<span>{{cur.how}}</span>
+</section>
+</aside>
+</div>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1300}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { srv: 'win', phase: 'ready', scope: 0 }; }
+  renderVals() {
+    const S = {
+      win: { name: 'win-office', os: 'Windows Server 2022 · 2 vCPU · 4 GB', badge: '3 updates', badgeBg: '#3A2E10', badgeFg: '#F5C46B',
+        title: 'Windows updates', lead: 'Latest updates from Microsoft. Feature upgrades to a new Windows version and preview updates are never installed.',
+        available: '3 updates available · about 1.2 GB · checked 10 min ago',
+        scopes: [['Security and critical updates', 'Recommended. Monthly cumulative update and Defender definitions.'], ['All quality updates', 'Also optional updates such as .NET improvements.']],
+        opts: [['Take a snapshot first', 'If an update causes problems, roll back under Snapshots.', true], ['Restart automatically when needed', 'Otherwise the panel asks you to restart and continues afterwards.', true], ['Check free disk space first (10 GB)', 'Stops before installing if the disk is too full.', true]],
+        pct: 62, step: 'Installing 2 of 3 · 2026-10 Cumulative Update for .NET Framework', log: '02:31 Snapshot before-updates-1410 created\n02:32 Searching Windows Update (security, critical)\n02:35 Downloading 3 updates (1.2 GB)\n02:44 Installed KB5044284\n02:46 Installing KB5044029…',
+        round: '(round 2)', restartText: 'Windows needs a restart to finish installing. The panel continues automatically after the restart.',
+        when: '14 Oct 2026, 02:58', count: '3 updates installed',
+        items: [{ id: 'KB5044284', text: '2026-10 Cumulative Update for Microsoft server operating system' }, { id: 'KB5044029', text: '2026-10 Cumulative Update for .NET Framework' }, { id: 'KB2267602', text: 'Security Intelligence Update for Microsoft Defender Antivirus' }],
+        history: [{ d: '14 Oct · 3 updates', r: 'Done', c: '#7EE6B0' }, { d: '09 Sep · 4 updates', r: 'Done', c: '#7EE6B0' }, { d: '12 Aug · 2 updates', r: 'Rolled back', c: '#F5C46B' }],
+        how: 'Runs through the QEMU Guest Agent as a SYSTEM scheduled task (PSWindowsUpdate not required). The guest agent must be running; Windows images from the template catalog have it.' },
+      lin: { name: 'web-prod-01', os: 'Ubuntu 24.04 LTS · 4 vCPU · 8 GB', badge: '14 packages', badgeBg: '#3A1C1C', badgeFg: '#FF9B9B',
+        title: 'Linux updates', lead: 'Package updates from your distribution’s repositories (apt on Debian/Ubuntu, dnf on Rocky/Alma/RHEL). Release upgrades (for example 24.04 → 26.04) are never done here.',
+        available: '14 packages can be upgraded · 5 are security updates · includes a new kernel (restart needed)',
+        scopes: [['Security updates only', 'Recommended for production. Uses the -security repository / dnf --security.'], ['All package updates', 'Every upgradable package, without removing packages.']],
+        opts: [['Take a snapshot first', 'If an update causes problems, roll back under Snapshots.', true], ['Restart automatically when the kernel or libc changed', 'Otherwise the panel shows "Restart required".', false], ['Keep held packages', 'Packages you held (apt-mark hold / versionlock) are skipped.', true]],
+        pct: 48, step: 'Upgrading 7 of 14 · openssl 3.0.13-0ubuntu3.4', log: '02:31 Snapshot before-updates-1410 created\n02:31 apt-get update (noble, noble-security)\n02:32 5 security, 9 other upgradable\n02:33 Unpacking linux-image-6.8.0-48 …\n02:34 Setting up openssl …',
+        round: '(new kernel 6.8.0-48)', restartText: 'A new kernel was installed. The server keeps running on the old kernel until you restart it.',
+        when: '14 Oct 2026, 02:41', count: '14 packages upgraded',
+        items: [{ id: 'linux-image', text: '6.8.0-45 → 6.8.0-48 (security)' }, { id: 'openssl', text: '3.0.13-0ubuntu3.3 → 3.0.13-0ubuntu3.4 (security)' }, { id: 'nginx', text: '1.24.0-2ubuntu7 → 1.24.0-2ubuntu7.1' }, { id: '+11', text: 'more packages' }],
+        history: [{ d: '14 Oct · 14 packages', r: 'Done · restart pending', c: '#F5C46B' }, { d: '07 Oct · 3 packages', r: 'Done', c: '#7EE6B0' }, { d: '30 Sep · 0 packages', r: 'Up to date', c: '#93A0B4' }],
+        how: 'Runs through the QEMU Guest Agent with apt-get or dnf as root, non-interactive, keeping your config files (--force-confold). Needs the guest agent; cloud images from the template catalog have it.' }
+    };
+    const cur = S[this.state.srv];
+    const servers = [['win', S.win], ['lin', S.lin]].map(([k, s]) => ({ name: s.name, os: s.os, badge: s.badge, badgeBg: s.badgeBg, badgeFg: s.badgeFg, on: k === this.state.srv, border: k === this.state.srv ? '#4C9AFF' : '#1F2A3F', bg: k === this.state.srv ? '#121F38' : '#101828', pick: () => this.setState({ srv: k, scope: 0 }) }));
+    const P = [['ready', 'Ready'], ['running', 'Installing'], ['restart', 'Restart required'], ['done', 'Finished']];
+    const phases = P.map(([k, l]) => ({ label: l, on: k === this.state.phase, border: k === this.state.phase ? '#4C9AFF' : '#2A3750', bg: k === this.state.phase ? '#17284A' : 'transparent', pick: () => this.setState({ phase: k }) }));
+    const ph = Object.fromEntries(P.map(([k]) => [k, k === this.state.phase]));
+    const scopes = cur.scopes.map(([l, d], i) => ({ label: l, desc: d, on: i === this.state.scope, border: i === this.state.scope ? '#4C9AFF' : '#2A3750', bg: i === this.state.scope ? '#121F38' : '#0C1322', dot: i === this.state.scope ? '#4C9AFF' : 'transparent', pick: () => this.setState({ scope: i }) }));
+    const opts = cur.opts.map(([l, d, on]) => ({ label: l, desc: d, on }));
+    return { servers, phases, ph, cur, scopes, opts, window: 'Sunday 01:00 to 05:00', noop: () => {}, start: () => this.setState({ phase: 'running' }) };
+  }
+}
+</script>
+</body>
+</html>

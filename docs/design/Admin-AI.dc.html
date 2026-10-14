@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>AI assistant settings</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500&amp;family=Space+Grotesk:wght@500;600;700&amp;display=swap">
+<style>
+body{margin:0;background:#0A101C;}
+a{color:#8EC2FF;}a:hover{color:#C5E0FF;}
+</style>
+</helmet>
+<div style="min-height: 100vh; background: #0A101C; color: #E6EBF2; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 14px; line-height: 1.5; display: flex; flex-wrap: wrap; align-items: stretch;">
+
+<div style="flex: 1 1 240px; background: #0D1424; border-right: 1px solid #1C2638;">
+<dc-import name="Sidebar" portal="admin" active="ai" hint-size="100%,1240px"></dc-import>
+</div>
+
+<main style="flex: 999 1 560px; min-width: 0; box-sizing: border-box; padding: 28px 32px 48px; display: flex; flex-direction: column; gap: 18px;">
+
+<div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px;">
+<div style="display: flex; flex-direction: column; gap: 2px;">
+<h1 style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 28px; font-weight: 600;">AI assistant</h1>
+<span style="color: #93A0B4;">What the customer assistant may read, when it hands over to a person, and how well it answers</span>
+</div>
+<span style="padding: 6px 12px; border-radius: 999px; background: #123326; color: #7EE6B0; font-size: 13px;">● Live for all customers</span>
+</div>
+
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px;">
+<sc-for list="{{kpis}}" as="k" hint-placeholder-count="5">
+<div style="display: flex; flex-direction: column; gap: 2px; padding: 12px 14px; background: #101828; border: 1px solid #1F2A3F; border-radius: 12px;"><span style="font-size: 12px; color: #93A0B4;">{{k.label}}</span><span style="font-family: 'Space Grotesk', sans-serif; font-size: 22px; font-weight: 600;">{{k.value}}</span><span style="font-size: 12px; color: {{k.color}};">{{k.sub}}</span></div>
+</sc-for>
+</div>
+
+<div role="tablist" aria-label="AI sections" style="display: flex; flex-wrap: wrap; gap: 4px; border-bottom: 1px solid #1F2A3F;">
+<sc-for list="{{tabs}}" as="t" hint-placeholder-count="3"><button type="button" role="tab" aria-selected="{{t.on}}" onClick="{{t.pick}}" style="min-height: 44px; padding: 0 14px; border: 0; border-bottom: 2px solid {{t.line}}; background: transparent; color: {{t.color}}; font: inherit; font-weight: 500; cursor: pointer;">{{t.label}}</button></sc-for>
+</div>
+
+<sc-if value="{{isBehaviour}}" hint-placeholder-val="{{true}}">
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 16px;">
+<section aria-labelledby="md-h" style="padding: 18px; background: #101828; border: 1px solid #1F2A3F; border-radius: 14px; display: flex; flex-direction: column; gap: 12px;">
+<h2 id="md-h" style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 16px; font-weight: 600;">Model &amp; language</h2>
+<label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: #C3CCDA;">Provider<select style="min-height: 42px; padding: 0 12px; border: 1px solid #2A3750; border-radius: 10px; background: #0C1322; color: #E6EBF2; font: inherit;"><option>Anthropic Claude (API key in API &amp; integrations)</option><option>Self-hosted model (OpenAI-compatible endpoint)</option></select></label>
+<label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: #C3CCDA;">Answer language<select style="min-height: 42px; padding: 0 12px; border: 1px solid #2A3750; border-radius: 10px; background: #0C1322; color: #E6EBF2; font: inherit;"><option>Same as the customer (Bahasa Indonesia / English)</option></select></label>
+<label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: #C3CCDA;">Monthly budget<input type="text" value="Rp 3.000.000 · alert at 80%" onChange="{{noop}}" style="min-height: 42px; padding: 0 12px; border: 1px solid #2A3750; border-radius: 10px; background: #0C1322; color: #E6EBF2; font: inherit;"></label>
+</section>
+
+<section aria-labelledby="gr-h" style="padding: 18px; background: #101828; border: 1px solid #1F2A3F; border-radius: 14px; display: flex; flex-direction: column; gap: 10px;">
+<h2 id="gr-h" style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 16px; font-weight: 600;">What it may read and do</h2>
+<sc-for list="{{tools}}" as="t" hint-placeholder-count="7">
+<label style="display: flex; gap: 10px; align-items: flex-start; font-size: 13px;"><input type="checkbox" checked="{{t.on}}" disabled="{{t.locked}}" onChange="{{t.toggle}}" style="width: 18px; height: 18px; margin-top: 2px; accent-color: #4C9AFF;"><span style="display: flex; flex-direction: column;"><span style="font-weight: 500;">{{t.label}}</span><span style="font-size: 12px; color: #93A0B4;">{{t.desc}}</span></span></label>
+</sc-for>
+</section>
+
+<section aria-labelledby="ho-h" style="padding: 18px; background: #101828; border: 1px solid #1F2A3F; border-radius: 14px; display: flex; flex-direction: column; gap: 10px;">
+<h2 id="ho-h" style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 16px; font-weight: 600;">Hand over to a person</h2>
+<sc-for list="{{handover}}" as="h" hint-placeholder-count="4">
+<div style="display: flex; justify-content: space-between; gap: 10px; padding: 10px 12px; border-radius: 10px; background: #0C1322; font-size: 13px;"><span>{{h.when}}</span><span style="color: #9CC8FF; text-align: right;">{{h.then}}</span></div>
+</sc-for>
+<span style="font-size: 12px; color: #93A0B4;">The transcript, metrics snapshot and recent events go with the ticket, so the customer doesn't repeat themselves.</span>
+</section>
+
+<section aria-labelledby="sf-h" style="padding: 18px; background: #101828; border: 1px solid #1F2A3F; border-radius: 14px; display: flex; flex-direction: column; gap: 10px;">
+<h2 id="sf-h" style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 16px; font-weight: 600;">Safety rules (always on)</h2>
+<span style="font-size: 13px; color: #D7DEE8;">Only the signed-in customer's own data; never another tenant's.</span>
+<span style="font-size: 13px; color: #D7DEE8;">No power, delete, resize or billing changes: it links to the right page instead.</span>
+<span style="font-size: 13px; color: #D7DEE8;">Passwords, keys and tokens are masked before anything is sent to the model.</span>
+<span style="font-size: 13px; color: #D7DEE8;">Answers cite knowledge base articles; "I don't know" is preferred to guessing.</span>
+</section>
+</div>
+</sc-if>
+
+<sc-if value="{{isConvos}}" hint-placeholder-val="{{false}}">
+<section aria-label="Conversations" style="background: #101828; border: 1px solid #1F2A3F; border-radius: 14px; overflow: hidden;">
+<sc-for list="{{convos}}" as="c" hint-placeholder-count="5">
+<div style="display: grid; grid-template-columns: 0.7fr 1.3fr 2.4fr 1fr 0.8fr; gap: 10px; align-items: center; padding: 11px 18px; border-top: 1px solid #1C2638; font-size: 13px;">
+<span style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #93A0B4;">{{c.when}}</span><span>{{c.customer}}</span><span style="color: #D7DEE8;">{{c.q}}</span>
+<span style="color: {{c.color}};">{{c.outcome}}</span><span style="color: #93A0B4;">{{c.rating}}</span>
+</div>
+</sc-for>
+</section>
+</sc-if>
+
+<sc-if value="{{isGaps}}" hint-placeholder-val="{{false}}">
+<section aria-label="Knowledge gaps" style="background: #101828; border: 1px solid #1F2A3F; border-radius: 14px; overflow: hidden;">
+<div style="padding: 12px 18px; border-bottom: 1px solid #1C2638; font-size: 13px; color: #93A0B4;">Questions the assistant could not answer from the knowledge base, grouped. One click starts a KB draft.</div>
+<sc-for list="{{gaps}}" as="g" hint-placeholder-count="4">
+<div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px; padding: 12px 18px; border-top: 1px solid #1C2638; font-size: 13px;">
+<span style="display: flex; flex-direction: column;"><span style="font-weight: 500;">{{g.topic}}</span><span style="font-size: 12px; color: #93A0B4;">{{g.example}}</span></span>
+<span style="font-family: 'JetBrains Mono', monospace;">{{g.count}}× this week</span>
+<a href="Admin-KB.dc.html" style="display: inline-flex; align-items: center; min-height: 36px; padding: 0 12px; border: 1px solid #2A3750; border-radius: 8px; color: #E6EBF2; text-decoration: none; font-size: 13px;">Draft article</a>
+</div>
+</sc-for>
+</section>
+</sc-if>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1500}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { tab: 'behaviour', tools: { kb: true, servers: true, metrics: true, billing: true, network: true, tickets: true } }; }
+  renderVals() {
+    const tab = this.state.tab;
+    const tabs = [['behaviour', 'Behaviour'], ['convos', 'Conversations'], ['gaps', 'Knowledge gaps']].map(([id, label]) => ({ label, on: id === tab, line: id === tab ? '#4C9AFF' : 'transparent', color: id === tab ? '#FFFFFF' : '#B8C2D1', pick: () => this.setState({ tab: id }) }));
+    const T = [
+      ['kb', 'Knowledge base', 'Published articles only', false],
+      ['servers', 'Customer\'s servers', 'Names, status, OS, size, datacenter', false],
+      ['metrics', 'Metrics', 'CPU, memory, disk wait, network, last 7 days', false],
+      ['billing', 'Billing', 'Invoices, plan and wallet, read-only', false],
+      ['network', 'Network', 'IPs, firewall rules, VPN devices', false],
+      ['tickets', 'Create ticket drafts', 'Customer confirms before it is sent', false],
+      ['actions', 'Change servers (power, delete, resize)', 'Never allowed for the assistant', true]
+    ];
+    return {
+      tabs, isBehaviour: tab === 'behaviour', isConvos: tab === 'convos', isGaps: tab === 'gaps', noop: () => {},
+      tools: T.map(([id, label, desc, locked]) => ({ label, desc, locked, on: locked ? false : !!this.state.tools[id], toggle: () => { if (!locked) this.setState({ tools: { ...this.state.tools, [id]: !this.state.tools[id] } }); } })),
+      kpis: [
+        { label: 'Conversations (7 d)', value: '1 284', sub: '212 customers', color: '#93A0B4' },
+        { label: 'Solved without ticket', value: '41%', sub: '+6 pts vs last week', color: '#7EE6B0' },
+        { label: 'Handed over', value: '187', sub: 'ticket with transcript', color: '#93A0B4' },
+        { label: 'Thumbs up', value: '89%', sub: 'of rated answers', color: '#7EE6B0' },
+        { label: 'Cost this month', value: 'Rp 1,2 jt', sub: '40% of budget', color: '#93A0B4' }
+      ],
+      handover: [
+        { when: 'Customer says down, outage, urgent', then: 'Ticket · Urgent · L1 → on-call' },
+        { when: 'Two answers rated unhelpful', then: 'Offer ticket · Normal · L1' },
+        { when: 'Billing dispute or refund', then: 'Ticket · Finance' },
+        { when: 'Abuse or security signals', then: 'Ticket · L3 Security, no answer given' }
+      ],
+      convos: [
+        { when: '00:41', customer: 'PT Arunika Digital', q: 'Website down after restart', outcome: 'Handed over · #4821', color: '#F5C46B', rating: '—' },
+        { when: '00:12', customer: 'Universitas Bina', q: 'How to reinstall 12 lab servers at once?', outcome: 'Solved', color: '#7EE6B0', rating: 'Helpful' },
+        { when: '23:50', customer: 'Toko Sinar Jaya', q: 'Why is my invoice higher this month?', outcome: 'Solved', color: '#7EE6B0', rating: 'Helpful' },
+        { when: '23:31', customer: 'Kopi Nusantara', q: 'Website slow again', outcome: 'Not solved', color: '#FF9B9B', rating: 'Unhelpful' },
+        { when: '23:02', customer: 'CV Maju Bersama', q: 'Mount backup volume on Windows', outcome: 'Solved', color: '#7EE6B0', rating: 'Helpful' }
+      ],
+      gaps: [
+        { topic: 'Custom cloud-init scripts for students', example: '"Can I add my own cloud-init user-data?"', count: 23 },
+        { topic: 'Moving a server to another datacenter', example: '"How do I move my server from DC1 to DC2?"', count: 11 },
+        { topic: 'Windows RDP licensing', example: '"Do I need RDS CALs for 5 users?"', count: 7 },
+        { topic: 'GPU driver versions', example: '"Which CUDA version is on the GPU template?"', count: 5 }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

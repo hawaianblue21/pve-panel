@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Patch management</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500&amp;family=Space+Grotesk:wght@500;600;700&amp;display=swap">
+<style>
+body{margin:0;background:#0A101C;}
+a{color:#8EC2FF;}a:hover{color:#C5E0FF;}
+</style>
+</helmet>
+<div style="min-height: 100vh; background: #0A101C; color: #E6EBF2; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 14px; line-height: 1.5; display: flex; flex-wrap: wrap; align-items: stretch;">
+
+<div style="flex: 1 1 240px; background: #0D1424; border-right: 1px solid #1C2638;">
+<dc-import name="Sidebar" portal="admin" active="patching" hint-size="100%,1240px"></dc-import>
+</div>
+
+<main style="flex: 999 1 560px; min-width: 0; box-sizing: border-box; padding: 28px 32px 48px; display: flex; flex-direction: column; gap: 18px;">
+
+<div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px;">
+<div style="display: flex; flex-direction: column; gap: 2px;">
+<h1 style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 28px; font-weight: 600;">Patch management</h1>
+<span style="color: #93A0B4;">Windows and Linux updates on customer servers, through the QEMU Guest Agent. Customers run their own; you set the policy and can roll out critical fixes.</span>
+</div>
+<button type="button" style="min-height: 44px; padding: 0 16px; border: 0; border-radius: 10px; background: #4C9AFF; color: #06101F; font: inherit; font-weight: 600;">Plan a rollout</button>
+</div>
+
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px;">
+<sc-for list="{{kpis}}" as="k" hint-placeholder-count="5">
+<div style="display: flex; flex-direction: column; gap: 2px; padding: 12px 14px; background: #101828; border: 1px solid #1F2A3F; border-radius: 12px;"><span style="font-size: 12px; color: #93A0B4;">{{k.label}}</span><span style="font-family: 'Space Grotesk', sans-serif; font-size: 22px; font-weight: 600; color: {{k.color}};">{{k.value}}</span><span style="font-size: 12px; color: #93A0B4;">{{k.sub}}</span></div>
+</sc-for>
+</div>
+
+<div style="display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-start;">
+<section aria-labelledby="fl-h" style="flex: 3 1 600px; min-width: 0; background: #101828; border: 1px solid #1F2A3F; border-radius: 14px; overflow: hidden;">
+<div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px; padding: 14px 16px; border-bottom: 1px solid #1C2638;">
+<h2 id="fl-h" style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 16px; font-weight: 600;">Servers</h2>
+<div role="tablist" aria-label="Filter" style="display: flex; flex-wrap: wrap; gap: 6px;">
+<sc-for list="{{filters}}" as="f" hint-placeholder-count="5"><button type="button" role="tab" aria-selected="{{f.on}}" onClick="{{f.pick}}" style="min-height: 32px; padding: 0 12px; border-radius: 999px; border: 1px solid {{f.border}}; background: {{f.bg}}; color: #E6EBF2; font: inherit; font-size: 12px; cursor: pointer;">{{f.label}}</button></sc-for>
+</div>
+</div>
+<div style="display: grid; grid-template-columns: 0.3fr 1.4fr 1.4fr 1.2fr 1.2fr 1fr; gap: 10px; padding: 9px 16px; font-size: 11px; color: #93A0B4; text-transform: uppercase; letter-spacing: 0.04em;"><span></span><span>Server · customer</span><span>OS</span><span>Pending</span><span>Last run</span><span>Agent</span></div>
+<sc-for list="{{rows}}" as="r" hint-placeholder-count="8">
+<div style="display: grid; grid-template-columns: 0.3fr 1.4fr 1.4fr 1.2fr 1.2fr 1fr; gap: 10px; align-items: center; padding: 10px 16px; border-top: 1px solid #1C2638; font-size: 13px;">
+<input type="checkbox" aria-label="Select {{r.name}}" onChange="{{noop}}" style="width: 18px; height: 18px; accent-color: #4C9AFF;">
+<span style="display: flex; flex-direction: column;"><span style="font-weight: 500;">{{r.name}}</span><span style="font-size: 12px; color: #93A0B4;">{{r.cust}}</span></span>
+<span style="font-size: 12px;">{{r.os}}</span>
+<span style="color: {{r.pColor}};">{{r.pending}}</span>
+<span style="font-size: 12px; color: {{r.lColor}};">{{r.last}}</span>
+<span style="font-size: 12px; color: {{r.aColor}};">{{r.agent}}</span>
+</div>
+</sc-for>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; padding: 12px 16px; border-top: 1px solid #1C2638;">
+<button type="button" style="min-height: 38px; padding: 0 12px; border: 1px solid #2A3750; border-radius: 8px; background: transparent; color: #E6EBF2; font: inherit; font-size: 13px;">Check now</button>
+<button type="button" style="min-height: 38px; padding: 0 12px; border: 1px solid #2A3750; border-radius: 8px; background: transparent; color: #E6EBF2; font: inherit; font-size: 13px;">Install on selected (customer notified)</button>
+<button type="button" style="min-height: 38px; padding: 0 12px; border: 1px solid #2A3750; border-radius: 8px; background: transparent; color: #E6EBF2; font: inherit; font-size: 13px;">Email customers with pending security updates</button>
+</div>
+</section>
+
+<aside style="flex: 2 1 340px; min-width: 0; display: flex; flex-direction: column; gap: 14px;">
+<section aria-labelledby="po-h" style="padding: 16px; background: #101828; border: 1px solid #1F2A3F; border-radius: 14px; display: flex; flex-direction: column; gap: 10px;">
+<h2 id="po-h" style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 16px; font-weight: 600;">Policy</h2>
+<sc-for list="{{policy}}" as="p" hint-placeholder-count="6"><label style="display: flex; align-items: flex-start; gap: 10px; font-size: 13px;"><input type="checkbox" checked="{{p.on}}" onChange="{{noop}}" style="width: 18px; height: 18px; margin-top: 2px; accent-color: #4C9AFF;"><span style="display: flex; flex-direction: column;"><span>{{p.label}}</span><span style="font-size: 12px; color: #93A0B4;">{{p.note}}</span></span></label></sc-for>
+<label style="display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: #C3CCDA;">Provider maintenance window<input type="text" value="Sun 01:00 to 05:00 WIB · notice 3 days" onChange="{{noop}}" style="min-height: 38px; padding: 0 10px; border: 1px solid #2A3750; border-radius: 8px; background: #0C1322; color: #E6EBF2; font: inherit; font-size: 13px;"></label>
+</section>
+<section aria-labelledby="ro-h" style="padding: 16px; background: #101828; border: 1px solid #1F2A3F; border-radius: 14px; display: flex; flex-direction: column; gap: 10px;">
+<h2 id="ro-h" style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 16px; font-weight: 600;">Rollout · openssl CVE fix</h2>
+<sc-for list="{{rings}}" as="r" hint-placeholder-count="3">
+<div style="display: flex; flex-direction: column; gap: 4px;"><span style="display: flex; justify-content: space-between; font-size: 13px;"><span>{{r.name}}</span><span style="color: {{r.color}};">{{r.state}}</span></span><span style="height: 6px; border-radius: 999px; background: #1C2638; overflow: hidden;"><span style="display: block; width: {{r.pct}}%; height: 100%; background: {{r.color}};"></span></span></div>
+</sc-for>
+<span style="font-size: 12px; color: #93A0B4;">The next ring starts only if fewer than 2% of the ring failed or were rolled back. Paused automatically otherwise.</span>
+</section>
+</aside>
+</div>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1400}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { f: 'all' }; }
+  renderVals() {
+    const R = [
+      ['web-prod-01', 'PT Arunika Digital', 'Ubuntu 24.04', 'lin', '5 security · 9 other', 'sec', 'Today 02:41 · restart pending', 'restart', 'Running'],
+      ['win-office', 'lena@example.com', 'Windows Server 2022', 'win', 'Up to date', 'ok', 'Today 02:58 · done', 'ok', 'Running'],
+      ['db01', 'lena@example.com', 'Debian 12', 'lin', '2 security', 'sec', '37 days ago', 'old', 'Running'],
+      ['erp-app', 'Toko Sinar Jaya', 'Windows Server 2019', 'win', '1 critical (KB5044277)', 'sec', '12 Aug · rolled back', 'fail', 'Running'],
+      ['ml-train-02', 'PT Arunika Digital', 'Rocky Linux 9', 'lin', '22 packages', 'other', '7 Oct · done', 'ok', 'Running'],
+      ['lab01-k8s', 'Universitas Bina', 'Ubuntu 22.04', 'lin', 'unknown', 'none', 'never', 'old', 'Not responding'],
+      ['rdp-farm-01', 'Medialink', 'Windows Server 2025', 'win', '3 security', 'sec', 'running now (2 of 3)', 'run', 'Running'],
+      ['cdn-edge-04', 'Medialink', 'Alma Linux 9', 'lin', 'Up to date', 'ok', '1 Oct · done', 'ok', 'Running']
+    ];
+    const pc = { sec: '#FF9B9B', other: '#F5C46B', ok: '#7EE6B0', none: '#93A0B4' };
+    const lc = { restart: '#F5C46B', ok: '#B8C2D1', old: '#FF9B9B', fail: '#FF9B9B', run: '#9CC8FF' };
+    const F = [['all', 'All 148'], ['sec', 'Security pending 41'], ['restart', 'Restart pending 9'], ['agent', 'No guest agent 6'], ['win', 'Windows'], ['lin', 'Linux']];
+    const keep = (r) => ({ all: true, sec: r[5] === 'sec', restart: r[7] === 'restart', agent: r[8] !== 'Running', win: r[3] === 'win', lin: r[3] === 'lin' })[this.state.f];
+    return {
+      noop: () => {},
+      kpis: [
+        { label: 'Fully patched', value: '72%', sub: '107 of 148 servers', color: '#7EE6B0' },
+        { label: 'Security updates pending', value: '41', sub: '12 older than 30 days', color: '#FF9B9B' },
+        { label: 'Restart pending', value: '9', sub: 'new kernel or Windows', color: '#F5C46B' },
+        { label: 'Guest agent missing', value: '6', sub: 'cannot be patched from the panel', color: '#F5C46B' },
+        { label: 'Runs this week', value: '64', sub: '2 failed · 1 rolled back', color: '#E6EBF2' }
+      ],
+      filters: F.map(([k, l]) => ({ label: l, on: k === this.state.f, border: k === this.state.f ? '#4C9AFF' : '#2A3750', bg: k === this.state.f ? '#17284A' : 'transparent', pick: () => this.setState({ f: k }) })),
+      rows: R.filter(keep).map((r) => ({ name: r[0], cust: r[1], os: r[2], pending: r[4], pColor: pc[r[5]], last: r[6], lColor: lc[r[7]], agent: r[8] === 'Running' ? 'QGA ok' : 'not responding', aColor: r[8] === 'Running' ? '#7EE6B0' : '#FF9B9B' })),
+      policy: [
+        { label: 'Customers can run Windows updates', note: 'Updates tab on Windows servers', on: true },
+        { label: 'Customers can run Linux updates', note: 'apt / dnf; release upgrades never offered', on: true },
+        { label: 'Always snapshot before updating', note: 'kept 3 days, counts toward snapshot quota', on: true },
+        { label: 'Roll out critical security fixes in the provider window', note: 'customers can opt out per server', on: true },
+        { label: 'Weekly check for pending updates', note: 'results shown here and in the customer portal', on: true },
+        { label: 'Include servers assigned by an admin', note: 'off: only servers customers created', on: false }
+      ],
+      rings: [
+        { name: 'Ring 1 · internal and lab (5%)', state: 'Done · 7/7', pct: 100, color: '#7EE6B0' },
+        { name: 'Ring 2 · opted-in customers (40%)', state: 'Running · 31/58', pct: 53, color: '#9CC8FF' },
+        { name: 'Ring 3 · everyone else', state: 'Waiting', pct: 0, color: '#93A0B4' }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

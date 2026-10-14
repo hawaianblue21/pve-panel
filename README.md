@@ -114,6 +114,14 @@ PVE Panel was built with substantial help from an AI assistant (**Claude by Anth
 - Reinstall self-created servers from a template (same name, size and network address)
 - Resize self-created servers within their plan (CPU, memory, disk)
 - Install Windows updates with one click (optional snapshot first, automatic restarts)
+- Install Linux package updates (apt / dnf) the same way: security only or everything, restart reminder after a new kernel
+- Sign in with Google, Microsoft (work or school accounts) or GitHub, and link or unlink them under Account
+- Choose their own color scheme and light / dark mode (when the panel owner allows it)
+- Open **support tickets** (optionally about one of their servers), follow the conversation and get answers by email
+- Search the **help center** (knowledge base) and rate articles
+- Ask the **AI assistant**: answers from the help center and their own servers and tickets, hands over to a ticket
+- **Plans**: create servers from plans (size and monthly price), pay the first period from the wallet, move up to a larger plan for the difference
+- **Billing**: wallet with top-ups, renew servers for 1, 3, 6 or 12 months (with discounts), auto-renew from the wallet, printable invoices with PPN; pay by wallet, **Xendit**, **Midtrans** or bank transfer
 - Delete self-created servers
 - View provisioning progress and actionable failure messages
 - Manage personal VPN devices
@@ -130,11 +138,18 @@ PVE Panel was built with substantial help from an AI assistant (**Claude by Anth
 - Start, stop, restart and delete customer-owned servers
 - Review provisioning jobs and failures
 - Reset passwords and 2FA, require 2FA per user, link/unlink single sign-on
-- Review the activity/audit log
+- Review the activity log: filter by who acted (customer, administrator, the panel itself, unknown sign-ins), by kind of action (created, changed, deleted, power, security) or by text; open any event for its full record
 - Monitor WireGuard and Tailscale usage
 - Delete customers together with their owned infrastructure
 - See the running version and whether an update is available
 - Configure email (SMTP) in the admin portal and invite users by email
+- White-label: product name, logo, browser icon and support link; single sign-on with Google, Microsoft and GitHub
+- **Ticket desk**: queues L1 / L2 / L3, priority, status, assignment, internal notes, the customer's servers and recent activity next to each ticket, matching articles
+- **Knowledge base**: Markdown articles with drafts and visibility (public, customers, agents only), drafts from solved tickets, and a list of help-center searches that found nothing
+- Optional two-way sync with a **Zammad** helpdesk
+- **AI assistant** for customers (Claude, or any OpenAI-compatible API incl. local models): settings, usage, and every conversation with what the assistant looked up
+- **Plans**: sizes (vCPU, memory, disk, optional GPU) with a monthly price; retire plans without touching their servers; optionally require a plan instead of custom sizes
+- **Billing**: invoices with filters (unpaid, transfer reported, overdue), revenue and tax this month, confirm bank transfers, cancel invoices, adjust wallets, fixed prices per server; a *Finance* role
 - Give single customers or servers an expiry date: reminders, automatic stop, grace period, deletion
 - Role-based access for administrators (owner, operator, resource manager, read-only support, custom roles)
 - Datacenters and resource allocation pools: shared caps on vCPU, memory, disk, public IPs, GPUs and object storage
@@ -180,9 +195,13 @@ fails closed.
 | Built-in role | Can |
 | --- | --- |
 | **Owner** | Everything, including administrators and roles |
-| **Operator** | Customers, servers, templates, network; reads everything else |
+| **Operator** | Customers, servers, network, tickets and the knowledge base; reads everything else (OS templates and settings too) |
 | **Resource manager** | Resource pools, datacenters, object storage, GPUs; reads everything else |
+| **Support agent** | Tickets and the knowledge base; reads everything else |
 | **Support (read-only)** | Sees everything, changes nothing |
+
+**OS templates** and **panel settings** (email, sign-in providers, branding, appearance, updates, expiry) can only be
+changed by owners, unless a custom role is given `templates.write` or `settings.write`.
 
 Custom roles are made in **Access**. Administrators created at first start or on the command line are owners;
 administrators made in the panel start as **Operator**. The last owner can't be demoted, removed or deleted.
@@ -775,6 +794,88 @@ Only the panel needs to reach the provider (outbound HTTPS); the provider never 
 
 Once SSO is validated, local password login can optionally be disabled independently for each portal.
 
+### Google, Microsoft and GitHub
+
+Next to the generic OIDC provider above, the panel owner can switch on **Google**, **Microsoft** (Entra ID / Microsoft 365)
+and **GitHub** in the **admin portal → Settings → Single sign-on**: create an app at the provider, enter the redirect
+address shown there (`https://<panel>/api/auth/sso/<provider>/callback`), paste the client ID and secret (stored encrypted,
+never shown again) and choose the portals. `PANEL_PUBLIC_URL` (and `ADMIN_PUBLIC_URL` for the admin portal) must be set.
+
+| | Google | Microsoft | GitHub |
+|---|---|---|---|
+| Protocol | OpenID Connect, PKCE, nonce | OpenID Connect, PKCE, nonce | OAuth 2.0, PKCE, state |
+| Identity kept | issuer + subject | issuer + subject | GitHub user ID |
+| Email trusted for sign-up when | `email_verified` | `xms_edov`, or the tenant is your own organisation | primary email is verified |
+
+Rules:
+
+- **No take-over by email.** An existing panel account is never linked just because the email matches. The user signs in as
+  usual and links the provider under **Account → Sign-in methods**; linking needs a sign-in from the last 15 minutes.
+- **Sign-up** (new customer accounts) is off by default, per provider, and only with an email the provider has verified;
+  optionally limited to email domains. Administrators are never created this way and must link the provider first.
+- The panel's own 2FA still applies after a provider sign-in, unless the provider reports multi-factor (`amr`).
+- The last way to sign in can't be unlinked. Every link, unlink, sign-up and refusal is in the activity log.
+
+---
+
+## 🎧 Support tickets & knowledge base
+
+Customers open tickets under **Support** (or *Problem with this server? Ask support* on a server page). While they type
+the subject, matching help-center articles are suggested. Agents answer in the admin portal under **Tickets**:
+
+| | |
+|---|---|
+| Status | *open* (support's turn) → *waiting* (after an answer: the customer's turn, shown as a badge in the menu) → *solved* / *closed*; a customer reply opens it again |
+| Queues | **L1** first response; **L2** network and storage (or urgent); **L3** security. Changeable per ticket |
+| Next to each ticket | the customer's servers and their state, the last account activity, matching articles (one click adds a link to the reply) |
+| Notes | internal notes are never shown to the customer and never emailed |
+| Email | the customer gets every answer by email (when email is set up), with a link straight to the ticket |
+
+The **knowledge base** (admin portal → **Knowledge base**) holds Markdown articles with a draft / published state and a
+visibility: *everyone* (also before sign-in, via `/api/kb`), *signed-in customers*, or *agents only*. A solved ticket can
+become a draft article in one click (problem + answer; remove personal details before publishing). Help-center searches
+that found nothing are listed, most frequent first, with *Write article*.
+
+Permissions: `support.read`, `support.write`, `kb.write`. The built-in **Support agent** role has them plus read access;
+**Operator** can answer and write articles; **Support (read-only)** only reads.
+
+### AI assistant
+
+Customers can chat with an assistant (menu **AI assistant**) once the owner sets it up in **Settings → AI assistant**:
+
+| Provider | Settings |
+|---|---|
+| **Claude** (Anthropic Messages API) | API key and model (default `claude-sonnet-5-5`); address empty = `https://api.anthropic.com` |
+| **OpenAI-compatible** | Address up to `/v1` (OpenAI, Azure-style gateways, or a model in your own network through vLLM, Ollama, LM Studio; http is allowed there), model, optional key |
+
+What it can do, with tools that always run as the signed-in customer:
+
+- search and read the **help center** (never agents-only articles) and name the articles it used as sources
+- read the customer's **own servers** (state, size, usage, expiry) and **tickets**
+- **propose a ticket** (subject, summary, category, priority, server): the customer sees a *Create ticket* button; the ticket
+  gets the whole conversation attached and is routed like any other
+
+What it can't do: start, stop, change, delete or order anything, or see other customers. Limits: questions per customer
+per day (default 40), tool rounds per answer (5), message length (2,000 characters), answer length. If the provider
+fails, customers get a friendly message and the error is in the activity log.
+
+Administrators (`support.read`) see the usage (conversations, questions, handovers, ratings, tokens) and every
+conversation including the tools the assistant called, in **AI assistant**. Questions and answers are sent to the
+provider configured here: choose it to fit your privacy requirements, e.g. a local model.
+
+### Optional: Zammad
+
+Tickets always work in the panel. To also use a [Zammad](https://zammad.org) helpdesk (email, WhatsApp, phone, SLAs),
+fill in **Settings → Helpdesk: Zammad**: the address, an API token of an agent, and the Zammad group for each queue.
+
+- **Panel → Zammad**: new tickets (customer matched by email, created if needed), customer messages (*on behalf of* the
+  customer), agent replies and notes from the panel, and status / priority / queue changes.
+- **Zammad → panel**: in Zammad, add a **webhook** to the endpoint shown in Settings with the shown **HMAC SHA1 signature
+  token**, and a **trigger** that calls it when a ticket is created or updated. Articles written in Zammad come back to
+  the panel ticket (once each), closed tickets close in the panel. Calls with a wrong signature are refused and logged.
+- If Zammad can't be reached, the panel keeps the ticket, shows the error on it, and retries every two minutes (or now,
+  with *Send waiting items*).
+
 ---
 
 ## ✉️ Email & invitations
@@ -811,7 +912,9 @@ The customer list shows *Invitation pending* or *Invitation expired* until the u
 
 ---
 
-## 🪟 Windows updates
+## 🪟🐧 Operating system updates
+
+### Windows
 
 Customers install the latest Windows updates from the server page — **Updates** tab:
 
@@ -820,9 +923,26 @@ Customers install the latest Windows updates from the server page — **Updates*
 - restarts automatically when needed (or waits for *Restart now*) and continues until Windows is up to date
 - live progress and a list of installed updates; failures explained in plain words
 
-Runs through the QEMU guest agent and Windows' own update API; respects WSUS/group policy. Switch it off under **Settings → Windows updates**.
+Runs through the QEMU guest agent and Windows' own update API; respects WSUS/group policy. Switch it off under **Settings → Operating system updates**.
 
 Details: [Windows updates](https://sebastianflint.github.io/pve-panel/docs/features/windows-updates).
+
+### Linux (apt / dnf)
+
+The same tab on Linux virtual machines installs package updates from the distribution's own repositories:
+
+- **Security updates only** (default; packages from a `*-security` archive on Debian/Ubuntu, `dnf --security` on RHEL,
+  Rocky, Alma, Fedora) or **all package updates**
+- optional **snapshot first**; at least 1 GB free on `/` is checked before starting
+- never: release upgrades (e.g. 24.04 → 26.04), removing packages, held (`apt-mark hold`) or version-locked packages;
+  changed configuration files are kept (`--force-confold`)
+- after a new kernel or system libraries: **restart automatically** (optional) or a *Restart now* reminder until the server
+  has been restarted
+
+How it works: the panel copies `src/guest/linux-update.sh` into the server through the QEMU guest agent and starts it
+detached (`systemd-run`, or `setsid` without systemd), then reads its progress file
+(`/var/lib/pvepanel/update-status.json`). Containers (LXC) have no guest agent and are not offered. Switch Linux updates
+off separately under **Settings → Operating system updates**.
 
 ---
 
@@ -841,6 +961,60 @@ Reminders (7 / 1 days) ──► Expired: stopped ──► Grace period (14 day
 - reminders, notices and a daily admin summary by email
 
 Details: [Server expiry](https://sebastianflint.github.io/pve-panel/docs/administration/expiry).
+
+---
+
+## 📦 Plans
+
+Plans are fixed sizes (vCPU, memory, disk, optionally a GPU) with a monthly price, managed in the admin portal under
+**Plans** (owner or *Finance*). Customers then pick a plan in **New server**; with *Customers must choose a plan* switched
+on, custom sizes are gone.
+
+| | Without billing | With billing and a price |
+|---|---|---|
+| New server | the plan sets the size | 1, 3, 6 or 12 months are paid from the wallet first (discounts and PPN as for renewals); not enough balance: nothing is created |
+| Setup fails | n/a | the order is refunded to the wallet automatically |
+| Renewal | n/a | at the plan's current price (a fixed server price set by an administrator wins) |
+| Larger plan | free | the difference in monthly price for the days already paid, plus tax |
+
+- A server on a plan is resized only by moving to a larger plan (same GPU; disks only grow).
+- A plan's size can't change while servers use it; retire it and add a new one. A price change applies from each server's
+  next invoice; unpaid renewals at the old size or price are replaced.
+- GPU plans are shown only to customers whose resource pool offers that GPU. Customer limits and pools still apply.
+
+---
+
+## 💳 Billing & payments (Xendit, Midtrans)
+
+Off by default. The owner switches it on in **Settings → Billing**; customers then see **Billing** in the menu and a
+**Renew** button on servers with an end date. Billing builds on [server expiry](#-server-expiry): a paid renewal moves
+the end date (and starts an expired server again).
+
+```text
+Customer ── renew 1/3/6/12 months or top up ──► Invoice (PPN) ──► pay:
+   wallet ─────────────────────────────────────────────────────► paid at once
+   Xendit / Midtrans ─► payment page ─► webhook ─► status API check ─► paid
+   bank transfer ─► customer reports reference ─► admin confirms ───► paid
+Paid renewal ──► end date + 30 days per month · paid top-up ──► wallet balance
+Auto-renew ──► N days before the end: one month from the wallet (email if the balance is short)
+```
+
+- **Prices** come from a rate card (per vCPU, GB RAM, GB disk, with a minimum; rounded up to Rp 1.000) or a fixed
+  price per server; discounts for 3, 6 and 12 months; tax name and rate (default PPN 11 %) are settings.
+- **Top-ups** are not taxed: tax is charged on the service the balance pays for.
+- **Invoices** are numbered `PREFIX-YYYYMM-0001`, carry seller and customer details (incl. NPWP) and print as PDF.
+- **Gateways** are never trusted on their notification alone. Xendit: the `x-callback-token` header must match;
+  Midtrans: the SHA-512 `signature_key` must match. Then the panel asks the gateway's API for the status and the paid
+  amount; a smaller amount is not accepted. A payment that arrives twice (two payment pages) goes to the wallet.
+- API keys are stored encrypted and never shown again.
+
+| Gateway | Panel setting | In the gateway dashboard |
+|---|---|---|
+| Xendit (Invoice API) | Secret API key (Money-in write), callback verification token | Webhook *Invoices paid* → `https://portal.example.com/api/billing/webhooks/xendit` |
+| Midtrans (Snap) | Server key, sandbox on/off | Notification URL → `https://portal.example.com/api/billing/webhooks/midtrans` |
+
+Set `PANEL_PUBLIC_URL` (the customer portal address): Settings shows the webhook addresses from it, and customers return
+to their invoice there after paying (without it, the address the browser used). Auto-renew runs every hour (`AUTORENEW_INTERVAL_SECONDS`).
 
 ---
 
@@ -1132,7 +1306,12 @@ npm run db:backup
 
 ## 🔧 Branding
 
-Change the product name through `.env`:
+The panel owner sets the **product name**, a **logo** (SVG, PNG or WebP, up to 512 KB), a **browser tab icon** and a
+**support link** (shown under the sign-in form) in the **admin portal → Settings → Branding**. The name set there
+overrides `PANEL_NAME`. Images are stored in the branding folder (see below) and checked on upload (SVGs with scripts or
+links are refused; all files are served with a script-blocking sandbox policy).
+
+The default product name comes from `.env`:
 
 ```env
 PANEL_NAME=PVE Panel
@@ -1151,6 +1330,9 @@ The configured name is used on:
 ### Color schemes
 
 Five color schemes — **Harbor** (default), **Forest**, **Ember**, **Orchid**, **Graphite** — each with a light and dark variant. Set in **Settings → Appearance** for everyone: admin interface, customer portal, sign-in pages and emails.
+
+Users can also pick their **own** scheme and **light, dark or device** mode under **Account → Appearance** (stored with
+their account, so it follows them to other devices). The owner can switch this off; everyone then sees the panel's scheme.
 
 ![Color schemes](docs/screenshots/color-schemes.png)
 
@@ -1264,11 +1446,11 @@ Only these file names are served, with a strict sandbox policy. Make sure you're
 | `GET (WS)` | `/api/console/:session` | Console WebSocket |
 | `GET` | `/api/account` | Limits, usage, network, panel version |
 | `GET` | `/api/templates` | Available templates |
-| `POST` | `/api/vms` | Provision a server |
+| `POST` | `/api/vms` | Create a server: `templateId`, `hostname`, … and `planId` (+ `months` when billed) or `cores`, `memoryMb`, `diskGb` |
 | `POST` | `/api/vms/:vmid/reinstall` | Reinstall a self-created server from a template |
 | `POST` | `/api/vms/:vmid/resize` | Change CPU cores, memory and disk within the plan |
 | `POST` | `/api/vms/:vmid/extend` | Extend an expiring server (once, if allowed) |
-| `GET/POST` | `/api/vms/:vmid/updates` | Windows updates: status / start |
+| `GET/POST` | `/api/vms/:vmid/updates` | Windows or Linux updates: status / start |
 | `DELETE` | `/api/vms/:vmid` | Delete a self-created server |
 | `GET` | `/api/vpn` | VPN state |
 | `POST` | `/api/vpn/devices` | Add VPN device |
@@ -1276,6 +1458,29 @@ Only these file names are served, with a strict sandbox policy. Make sure you're
 | `GET/POST/DELETE` | `/api/vms/:vmid/tailscale` | Manage Tailscale |
 | `GET/POST` | `/api/account/2fa/...` | Manage 2FA |
 | `GET/POST/PATCH/DELETE` | `/api/account/passkeys/...` | Manage passkeys |
+| `GET/DELETE` | `/api/account/identities[/:provider]` | Linked sign-in providers: list / unlink |
+| `GET/PUT` | `/api/account/appearance` | Own color scheme and light/dark mode |
+| `GET/POST` | `/api/support/tickets` | Own tickets / open a ticket |
+| `GET` | `/api/support/tickets/:number` | A ticket with its messages (no internal notes) |
+| `POST` | `/api/support/tickets/:number/messages`, `/api/support/tickets/:number/close` | Reply / close |
+| `GET` | `/api/kb[?q=]`, `/api/kb/:slug` | Help center: categories, search, article (public articles also without sign-in) |
+| `POST` | `/api/kb/:slug/feedback` | “Did this help?” |
+| `POST` | `/api/support/zammad/webhook` | Zammad → panel (HMAC-SHA1 signed) |
+| `GET` | `/api/assistant` | Is the assistant on; questions used today |
+| `GET/POST` | `/api/assistant/conversations` | Own conversations / start one with a question |
+| `GET/DELETE` | `/api/assistant/conversations/:id` | A conversation / delete it |
+| `POST` | `/api/assistant/conversations/:id/messages` | Ask a follow-up question |
+| `POST` | `/api/assistant/conversations/:id/handover` | Create the proposed ticket |
+| `POST` | `/api/assistant/messages/:id/rating` | Helpful or not |
+| `GET` | `/api/plans` | Plans this customer can use, with the total per period when billed |
+| `GET/POST` | `/api/vms/:vmid/plans`, `/api/vms/:vmid/plan` | Larger plans with their cost now / move to one (`planId`, `restart`) |
+| `GET` | `/api/billing` | Wallet, servers with prices, invoices, payment methods |
+| `GET` | `/api/billing/invoices/:number` | An own invoice |
+| `POST` | `/api/billing/renewals`, `/api/billing/topups` | Invoice to renew a server (`vmid`, `months`) / to top up the wallet |
+| `POST` | `/api/billing/invoices/:number/pay` | Pay: `wallet`, `xendit`, `midtrans` (returns the payment page) or `bank` |
+| `PUT` | `/api/billing/servers/:vmid/auto-renew`, `/api/billing/profile` | Auto-renew on/off / billing details |
+| `POST` | `/api/billing/webhooks/xendit`, `/api/billing/webhooks/midtrans` | Gateway → panel (authenticated, then confirmed with the gateway's API) |
+| `GET` | `/api/auth/sso/:provider/start[?link=1]`, `/api/auth/sso/:provider/callback` | Sign in with (or link) Google, Microsoft, GitHub |
 | `POST` | `/api/auth/passkey/options`, `/api/auth/passkey/verify` | Sign in with a passkey |
 | `POST` | `/api/invite/check`, `/api/invite/accept` | Invitation link: check it, set the password |
 
@@ -1374,6 +1579,11 @@ Every change is tested on GitHub; releases are only published when all tests pas
 | Passkeys | registration and sign-in with a software authenticator; phishing origin, missing user verification, forged signature, replayed counter |
 | Expiry | rules, reminders, stop, self-extension, grace period, deletion, and the safety rules |
 | Windows updates | checks, snapshot, progress, restarts in between, waiting for a restart, error messages, background tracking |
+| Linux updates | apt and dnf, security only or all, snapshot, disk and package-manager checks, kernel restart reminder, errors, per-OS switch |
+| Single sign-on | Google / Microsoft (signed ID tokens) and GitHub against simulated providers: PKCE, state, nonce, no take-over by email, sign-up rules, linking, admins |
+| Platform | personal appearance, branding uploads (SVG checks), activity filters and paging, owner-only templates and settings |
+| Support | tickets (routing, privacy between customers, internal notes, email), knowledge base (visibility, drafts, search, gaps), roles, Zammad sync against a simulated Zammad (signed webhook, retries) |
+| AI assistant | Claude and OpenAI-compatible APIs against a simulated model: tool use, own data only, no agents-only articles, handover only on confirmation, limits, provider errors, review |
 | API | the real panel against a simulated Proxmox: sign-in & 2FA, ownership, provisioning, networks, plan limits, reinstall, resize, email & invitations, VPN, Tailscale, customer deletion |
 | Browser | Playwright: sign-in, overview, server page, creating a server, admin views |
 

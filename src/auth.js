@@ -5,10 +5,14 @@ import { config } from './config.js';
 import { db, audit } from './db.js';
 import * as totp from './totp.js';
 import * as oidc from './oidc.js';
+import * as sso from './sso.js';
+import { userAppearance, setUserAppearance, MODES } from './appearance.js';
 import { checkInvitation, acceptInvitation } from './invite.js';
 import * as passkeys from './passkeys.js';
 
 const SESSION_HOURS = 8;
+// Adding a way to sign in (passkey, linked provider) needs a sign-in this recent.
+const RECENT_SIGN_IN_S = 15 * 60;
 // Compared against when the email is unknown, so response time
 // doesn't reveal which accounts exist.
 const DUMMY_HASH = bcrypt.hashSync('not-a-real-password', 12);
@@ -191,6 +195,7 @@ async function authPlugin(app, { scope }) {
     oidc: ssoHere
       ? { enabled: true, label: config.oidc.label, startUrl: `${config.oidc.publicUrl[scope]}/api/auth/oidc/start` }
       : { enabled: false },
+    providers: sso.providersFor(scope),   // Google, Microsoft, GitHub (Settings → Single sign-on)
   }));
 
   // Which second step is waiting (after single sign-on redirected back)
@@ -303,6 +308,131 @@ async function authPlugin(app, { scope }) {
     });
   }
 
+  // ---- Single sign-on with Google, Microsoft, GitHub (sso.js) -----------------------
+  // Routes exist when the portal has a public address (needed for the callback URL);
+  // whether a provider is switched on is checked on every request (Settings).
+  if (config.oidc.publicUrl[scope]) {
+    const txCookie = `${cookieName}_sso`;
+    const txPath = '/api/auth/sso';
+    const txOpts = { path: txPath, httpOnly: true, secure: config.cookieSecure, sameSite: 'lax', maxAge: 600 };
+    const publicOrigin = new URL(config.oidc.publicUrl[scope]).origin;
+    const known = (id) => sso.PROVIDER_IDS.includes(id);
+
+    const continueTo = (reply, target) => reply
+      .header('Cache-Control', 'no-store')
+      .type('text/html')
+      .send(`<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta http-equiv="refresh" content="0;url=${target}"><title>Signing in…</title></head>
+<body style="font-family:system-ui,sans-serif;padding:40px">Signing in… <a href="${target}">Continue</a></body></html>`);
+
+    const fail = (req, reply, provider, code, detail, linking = false) => {
+      req.log.warn({ provider, code, detail }, 'single sign-on failed');
+      audit(req, null, adminOnly ? 'admin_sso_login_failed' : 'sso_login_failed',
+        { provider, reason: code, detail: String(detail ?? '').slice(0, 300) });
+      const target = linking ? `/?sso_error=${encodeURIComponent(code)}#account` : `/?sso_error=${encodeURIComponent(code)}`;
+      return continueTo(reply.clearCookie(txCookie, { path: txPath }), target);
+    };
+
+    app.get('/api/auth/sso/:provider/start', { config: { rateLimit: { max: 20, timeWindow: '1 minute' } } }, async (req, reply) => {
+      const id = req.params.provider;
+      if (!known(id)) return reply.code(404).send({ error: 'Unknown sign-in provider' });
+      const here = `${req.protocol}://${req.host}`;
+      const linking = req.query.link === '1';
+      if (here.toLowerCase() !== publicOrigin.toLowerCase()) {
+        return reply.redirect(`${publicOrigin}/api/auth/sso/${id}/start${linking ? '?link=1' : ''}`);
+      }
+      // Linking needs the signed-in user (same-site click, so the session cookie
+      // is here) and a recent sign-in, so a stolen session can't add a way in.
+      let link = null;
+      if (linking) {
+        let claim = null;
+        try { claim = app.jwt.verify(req.cookies[cookieName] ?? ''); } catch { /* not signed in */ }
+        if (!claim || claim.scope !== scope) return fail(req, reply, id, 'reauth', 'not signed in', true);
+        if (!claim.iat || Date.now() / 1000 - claim.iat > RECENT_SIGN_IN_S) return fail(req, reply, id, 'reauth', 'sign-in too old', true);
+        link = claim.sub;
+      }
+      try {
+        const { url, tx } = await sso.startLogin(id, scope);
+        const token = app.jwt.sign({ scope: `${scope}:sso`, ...tx, link }, { expiresIn: '10m' });
+        return reply.header('Cache-Control', 'no-store').setCookie(txCookie, token, txOpts).redirect(url);
+      } catch (err) {
+        return fail(req, reply, id, 'unavailable', err.message, linking);
+      }
+    });
+
+    app.get('/api/auth/sso/:provider/callback', { config: { rateLimit: { max: 20, timeWindow: '1 minute' } } }, async (req, reply) => {
+      const id = req.params.provider;
+      if (!known(id)) return reply.code(404).send({ error: 'Unknown sign-in provider' });
+      let tx;
+      try {
+        tx = app.jwt.verify(req.cookies[txCookie] ?? '');
+        if (tx.scope !== `${scope}:sso` || tx.provider !== id) throw new Error('wrong sign-in transaction');
+      } catch (err) {
+        return fail(req, reply, id, 'expired', req.cookies[txCookie] ? err.message : 'the browser brought no sign-in cookie');
+      }
+      reply.clearCookie(txCookie, { path: txPath });
+      const linking = !!tx.link;
+      if (req.query.error) {
+        return fail(req, reply, id, req.query.error === 'access_denied' ? 'denied' : 'failed',
+          `${req.query.error}: ${req.query.error_description ?? ''}`, linking);
+      }
+      let identity;
+      try {
+        identity = await sso.finishLogin(id, scope, req.query, tx);
+      } catch (err) {
+        return fail(req, reply, id, err.code ?? 'failed', err.message, linking);
+      }
+      let result;
+      try {
+        result = sso.resolveAccount(identity, { scope, adminOnly, linkUserId: tx.link ?? null });
+      } catch (err) {
+        return fail(req, reply, id, err.code ?? 'failed', `${err.message} (subject ${identity.subject}, email ${identity.email ?? '-'})`, linking);
+      }
+      const { user, linked, created } = result;
+      const actor = { account: user, ip: req.ip };
+      if (created) audit(actor, null, 'sso_account_created', { provider: id, email: user.email });
+      if (linked) audit(actor, null, 'sso_identity_linked', { provider: id, email: identity.email });
+      if (linking) return continueTo(reply, `/?sso_linked=${encodeURIComponent(id)}#account`);
+
+      // The panel's own 2FA still applies, unless the provider confirmed MFA.
+      const idpMfa = config.oidc.trustIdpMfa && identity.mfa;
+      if (!idpMfa && (user.totp_enabled || user.totp_required)) {
+        const stage = user.totp_enabled ? 'verify' : 'setup';
+        const token = app.jwt.sign({ sub: user.id, scope: `${scope}:2fa`, stage }, { expiresIn: '5m' });
+        reply.setCookie(pendingCookie, token, cookieOpts(300));
+        return continueTo(reply, '/?sso=2fa');
+      }
+      const session = await reply.jwtSign({ sub: user.id, scope });
+      req.account = user;
+      audit(req, null, adminOnly ? 'admin_login' : 'login', { sso: id, idpMfa: identity.mfa });
+      reply.clearCookie(pendingCookie, { path: '/' }).setCookie(cookieName, session, cookieOpts(SESSION_HOURS * 3600));
+      return continueTo(reply, '/');
+    });
+  }
+
+  // Personal color scheme and light/dark mode
+  app.get('/api/account/appearance', { preHandler: app.authenticate }, async (req) => userAppearance(req.account.id));
+  app.put('/api/account/appearance', {
+    preHandler: app.authenticate,
+    schema: {
+      body: {
+        type: 'object', additionalProperties: false, minProperties: 1,
+        properties: { scheme: { type: ['string', 'null'], maxLength: 30 }, mode: { type: 'string', enum: MODES } },
+      },
+    },
+  }, async (req) => setUserAppearance(req.account.id, req.body));
+
+  app.get('/api/account/identities', { preHandler: app.authenticate }, async (req) => ({
+    ...sso.identitiesOf(req.account.id, scope),
+    recent: !!(req.user.iat && Date.now() / 1000 - req.user.iat < RECENT_SIGN_IN_S),
+  }));
+
+  app.delete('/api/account/identities/:provider', { preHandler: app.authenticate }, async (req, reply) => {
+    sso.unlink(req.account.id, req.params.provider, scope);
+    audit(req, null, 'sso_identity_unlinked', { provider: req.params.provider });
+    return reply.code(204).send();
+  });
+
   // ---- Passkeys: sign-in ----------------------------------------------------------
   const keyBody = { type: 'string', minLength: 20, maxLength: 64, pattern: '^[A-Za-z0-9_-]+$' };
 
@@ -333,7 +463,6 @@ async function authPlugin(app, { scope }) {
   // ---- Own account: passkeys -----------------------------------------------------------
   // Adding a passkey needs a recent sign-in (or the password), so a stolen session
   // can't quietly register the attacker's passkey.
-  const RECENT_SIGN_IN_S = 15 * 60;
 
   app.get('/api/account/passkeys', { preHandler: app.authenticate }, async (req) => ({
     available: passkeys.relyingParty(scope, req).usable,

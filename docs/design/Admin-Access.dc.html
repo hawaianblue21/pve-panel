@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Access and roles</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500&amp;family=Space+Grotesk:wght@500;600;700&amp;display=swap">
+<style>
+body{margin:0;background:#0A101C;}
+a{color:#8EC2FF;}a:hover{color:#C5E0FF;}
+</style>
+</helmet>
+<div style="min-height: 100vh; background: #0A101C; color: #E6EBF2; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 14px; line-height: 1.5; display: flex; flex-wrap: wrap; align-items: stretch;">
+
+<div style="flex: 1 1 240px; background: #0D1424; border-right: 1px solid #1C2638;">
+<dc-import name="Sidebar" portal="admin" active="access" hint-size="100%,1100px"></dc-import>
+</div>
+
+<main style="flex: 999 1 560px; min-width: 0; box-sizing: border-box; padding: 28px 32px 48px; display: flex; flex-direction: column; gap: 20px;">
+
+<div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px;">
+<div style="display: flex; flex-direction: column; gap: 2px;">
+<h1 style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 28px; font-weight: 600;">Access &amp; roles</h1>
+<span style="color: #93A0B4;">Role-based access for the admin portal. The server checks the permission of every request.</span>
+</div>
+<div style="display: flex; flex-wrap: wrap; gap: 10px;">
+<button type="button" style="min-height: 44px; padding: 0 14px; border: 1px solid #2A3750; border-radius: 10px; background: #101828; color: #E6EBF2; font: inherit;">+ New role</button>
+<button type="button" style="min-height: 44px; padding: 0 16px; border: 0; border-radius: 10px; background: #4C9AFF; color: #06101F; font: inherit; font-weight: 600;">+ Invite administrator</button>
+</div>
+</div>
+
+<!-- admins -->
+<section aria-labelledby="ad-h" style="background: #101828; border: 1px solid #1F2A3F; border-radius: 14px; overflow: hidden;">
+<div style="padding: 14px 18px; border-bottom: 1px solid #1C2638;"><h2 id="ad-h" style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 18px; font-weight: 600;">Administrators</h2></div>
+<div style="overflow-x: auto;"><div style="min-width: 760px;">
+<div style="display: grid; grid-template-columns: 1.8fr 1.4fr 0.9fr 1fr 1fr 1.2fr; gap: 10px; padding: 10px 18px; color: #8492A8; font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 0.04em;">
+<span>ADMINISTRATOR</span><span>ROLE</span><span>2FA</span><span>SIGN-IN</span><span>LAST ACTIVE</span><span style="text-align: right;">ACTIONS</span>
+</div>
+<sc-for list="{{admins}}" as="a" hint-placeholder-count="5">
+<div style="display: grid; grid-template-columns: 1.8fr 1.4fr 0.9fr 1fr 1fr 1.2fr; gap: 10px; align-items: center; padding: 11px 18px; border-top: 1px solid #1C2638; font-size: 13px;">
+<span style="display: flex; flex-direction: column;"><span style="font-weight: 500;">{{a.name}}</span><span style="font-size: 12px; color: #93A0B4;">{{a.email}}</span></span>
+<label><span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0);">Role of {{a.name}}</span><select style="min-height: 36px; padding: 0 10px; border: 1px solid #2A3750; border-radius: 8px; background: #0C1322; color: #E6EBF2; font: inherit; font-size: 13px;"><option>{{a.role}}</option><option>Owner</option><option>Operator</option><option>Resource manager</option><option>Billing desk</option><option>Support (read-only)</option></select></label>
+<span style="color: {{a.tfaColor}};">{{a.tfa}}</span>
+<span style="color: #B8C2D1;">{{a.signin}}</span>
+<span style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #93A0B4;">{{a.last}}</span>
+<span style="text-align: right;"><button type="button" style="min-height: 32px; padding: 0 10px; border: 1px solid #2A3750; border-radius: 8px; background: transparent; color: #8EC2FF; font: inherit; font-size: 12px;">Audit</button></span>
+</div>
+</sc-for>
+</div></div>
+</section>
+
+<!-- matrix -->
+<section aria-labelledby="mx-h" style="background: #101828; border: 1px solid #1F2A3F; border-radius: 14px; overflow: hidden;">
+<div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px; padding: 14px 18px; border-bottom: 1px solid #1C2638;">
+<h2 id="mx-h" style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 18px; font-weight: 600;">Permission matrix</h2>
+<span style="font-size: 12px; color: #93A0B4;">Built-in roles are fixed. Click a cell of a custom role to change it.</span>
+</div>
+<div style="overflow-x: auto;"><div style="min-width: 860px;">
+<div style="display: grid; grid-template-columns: 2.4fr repeat(5, minmax(0, 1fr)); gap: 6px; padding: 10px 18px; color: #8492A8; font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 0.04em; text-align: center;">
+<span style="text-align: left;">PERMISSION</span>
+<sc-for list="{{roles}}" as="r" hint-placeholder-count="5"><span>{{r.name}}<br><span style="color: #6C7A90;">{{r.members}} admin(s)</span></span></sc-for>
+</div>
+<sc-for list="{{matrix}}" as="m" hint-placeholder-count="12">
+<div style="display: grid; grid-template-columns: 2.4fr repeat(5, minmax(0, 1fr)); gap: 6px; align-items: center; padding: 7px 18px; border-top: 1px solid #1C2638; font-size: 13px;">
+<span style="display: flex; flex-direction: column;"><span>{{m.label}}</span><span style="font-family: 'JetBrains Mono', monospace; font-size: 11px; color: #7D8BA1;">{{m.key}}</span></span>
+<sc-for list="{{m.cells}}" as="c" hint-placeholder-count="5">
+<span style="display: flex; justify-content: center;"><button type="button" onClick="{{c.toggle}}" disabled="{{c.locked}}" aria-pressed="{{c.on}}" aria-label="{{c.aria}}" style="width: 34px; height: 34px; border-radius: 8px; border: 1px solid {{c.border}}; background: {{c.bg}}; color: {{c.fg}}; font: inherit; font-size: 15px; cursor: pointer;">{{c.mark}}</button></span>
+</sc-for>
+</div>
+</sc-for>
+</div></div>
+</section>
+
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px;">
+<div style="padding: 16px 18px; background: #101828; border: 1px solid #1F2A3F; border-radius: 14px; display: flex; flex-direction: column; gap: 6px;"><span style="font-weight: 600;">Fail closed</span><span style="font-size: 13px; color: #93A0B4;">An admin route without a mapped permission is open to owners only.</span></div>
+<div style="padding: 16px 18px; background: #101828; border: 1px solid #1F2A3F; border-radius: 14px; display: flex; flex-direction: column; gap: 6px;"><span style="font-weight: 600;">Last owner protected</span><span style="font-size: 13px; color: #93A0B4;">The last owner can't be demoted, removed or deleted.</span></div>
+<div style="padding: 16px 18px; background: #101828; border: 1px solid #1F2A3F; border-radius: 14px; display: flex; flex-direction: column; gap: 6px;"><span style="font-weight: 600;">Impersonate a customer</span><span style="font-size: 13px; color: #93A0B4;">Support can view a customer portal read-only; every session is in the audit log. (Next release)</span></div>
+</div>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1500}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { custom: { 'customers.read': true, 'audit.read': true } }; }
+  renderVals() {
+    const P = [
+      ['customers.read', 'View customers'], ['customers.write', 'Change customers'], ['servers.manage', 'Power, assign, expire servers'],
+      ['servers.delete', 'Delete servers'], ['templates.write', 'Offer templates'], ['pools.write', 'Resource pools & datacenters'],
+      ['storage.write', 'Object storage (SeaweedFS)'], ['gpu.write', 'GPU profiles & assignments'], ['network.write', 'VPN & network'],
+      ['settings.write', 'Panel settings'], ['audit.read', 'Activity log'], ['rbac.write', 'Administrators & roles']
+    ];
+    const builtin = {
+      Owner: P.map((p) => p[0]),
+      Operator: ['customers.read', 'customers.write', 'servers.manage', 'servers.delete', 'templates.write', 'network.write', 'audit.read'],
+      'Resource manager': ['customers.read', 'pools.write', 'storage.write', 'gpu.write', 'audit.read'],
+      'Support (read-only)': ['customers.read', 'audit.read']
+    };
+    const roles = [
+      { name: 'Owner', members: 2 }, { name: 'Operator', members: 3 }, { name: 'Resource manager', members: 1 },
+      { name: 'Support (read-only)', members: 2 }, { name: 'Billing desk', members: 1 }
+    ];
+    const matrix = P.map(([key, label]) => ({
+      key, label,
+      cells: roles.map((r) => {
+        const custom = r.name === 'Billing desk';
+        const on = custom ? !!this.state.custom[key] : builtin[r.name].includes(key);
+        return {
+          on, locked: !custom, mark: on ? '✓' : '·', aria: `${label} for ${r.name}: ${on ? 'allowed' : 'not allowed'}`,
+          border: on ? '#2B6A4E' : '#2A3750', bg: on ? '#123326' : 'transparent', fg: on ? '#7EE6B0' : '#5D6B80',
+          toggle: () => { if (custom) this.setState({ custom: { ...this.state.custom, [key]: !this.state.custom[key] } }); }
+        };
+      })
+    }));
+    return {
+      roles, matrix,
+      admins: [
+        { name: 'Panel owner', email: 'owner@example.com', role: 'Owner', tfa: 'Passkey', tfaColor: '#7EE6B0', signin: 'SSO (Entra ID)', last: 'now' },
+        { name: 'Operations', email: 'ops@example.com', role: 'Operator', tfa: 'TOTP', tfaColor: '#7EE6B0', signin: 'Password', last: '01:03' },
+        { name: 'Dimas (operations)', email: 'dimas@example.com', role: 'Resource manager', tfa: 'TOTP', tfaColor: '#7EE6B0', signin: 'SSO (Entra ID)', last: '13 Oct' },
+        { name: 'Sari (support)', email: 'sari@example.com', role: 'Support (read-only)', tfa: 'Required, not set', tfaColor: '#F5C46B', signin: 'Invitation pending', last: '—' },
+        { name: 'Finance', email: 'finance@example.com', role: 'Billing desk', tfa: 'TOTP', tfaColor: '#7EE6B0', signin: 'Password', last: '12 Oct' }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

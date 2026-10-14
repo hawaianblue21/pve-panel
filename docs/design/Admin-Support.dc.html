@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Ticket desk</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500&amp;family=Space+Grotesk:wght@500;600;700&amp;display=swap">
+<style>
+body{margin:0;background:#0A101C;}
+a{color:#8EC2FF;}a:hover{color:#C5E0FF;}
+</style>
+</helmet>
+<div style="min-height: 100vh; background: #0A101C; color: #E6EBF2; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 14px; line-height: 1.5; display: flex; flex-wrap: wrap; align-items: stretch;">
+
+<div style="flex: 1 1 240px; background: #0D1424; border-right: 1px solid #1C2638;">
+<dc-import name="Sidebar" portal="admin" active="desk" hint-size="100%,1240px"></dc-import>
+</div>
+
+<main style="flex: 999 1 560px; min-width: 0; box-sizing: border-box; padding: 28px 32px 48px; display: flex; flex-direction: column; gap: 18px;">
+
+<div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px;">
+<div style="display: flex; flex-direction: column; gap: 2px;">
+<h1 style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 28px; font-weight: 600;">Ticket desk</h1>
+<span style="color: #93A0B4;">Built-in ticket desk, optionally synced two-way with Zammad (support.example.com) · panel, email, WhatsApp and phone in one queue</span>
+</div>
+<span style="display: flex; gap: 8px; font-size: 12px; flex-wrap: wrap;"><span style="padding: 6px 10px; border-radius: 999px; background: #123326; color: #7EE6B0;">● Zammad synced 20 s ago</span><span style="padding: 6px 10px; border-radius: 999px; background: #152645; color: #9CC8FF;">2 agents on duty</span></span>
+</div>
+
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px;">
+<sc-for list="{{kpis}}" as="k" hint-placeholder-count="5">
+<div style="display: flex; flex-direction: column; gap: 2px; padding: 12px 14px; background: #101828; border: 1px solid #1F2A3F; border-radius: 12px;"><span style="font-size: 12px; color: #93A0B4;">{{k.label}}</span><span style="font-family: 'Space Grotesk', sans-serif; font-size: 22px; font-weight: 600;">{{k.value}}</span><span style="font-size: 12px; color: {{k.color}};">{{k.sub}}</span></div>
+</sc-for>
+</div>
+
+<div role="tablist" aria-label="Group" style="display: flex; flex-wrap: wrap; gap: 6px;">
+<sc-for list="{{groups}}" as="g" hint-placeholder-count="4"><button type="button" role="tab" aria-selected="{{g.on}}" onClick="{{g.pick}}" style="min-height: 36px; padding: 0 14px; border-radius: 999px; border: 1px solid {{g.border}}; background: {{g.bg}}; color: #E6EBF2; font: inherit; font-size: 13px; cursor: pointer;">{{g.label}} <span style="color: #93A0B4;">{{g.count}}</span></button></sc-for>
+</div>
+
+<div style="display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-start;">
+<nav aria-label="Queue" style="flex: 1 1 320px; min-width: 0; display: flex; flex-direction: column; gap: 8px;">
+<sc-for list="{{queue}}" as="t" hint-placeholder-count="5">
+<button type="button" onClick="{{t.pick}}" aria-pressed="{{t.on}}" style="text-align: left; display: flex; flex-direction: column; gap: 6px; padding: 12px 14px; border-radius: 12px; border: 1px solid {{t.border}}; background: {{t.bg}}; color: #E6EBF2; font: inherit; cursor: pointer;">
+<span style="display: flex; justify-content: space-between; gap: 8px; width: 100%; font-size: 12px;"><span style="font-family: 'JetBrains Mono', monospace; color: #93A0B4;">#{{t.id}} · {{t.channel}}</span><span style="color: {{t.slaColor}}; font-family: 'JetBrains Mono', monospace;">{{t.sla}}</span></span>
+<span style="font-weight: 600;">{{t.title}}</span>
+<span style="display: flex; justify-content: space-between; gap: 8px; width: 100%; font-size: 12px; color: #93A0B4;"><span>{{t.customer}}</span><span>{{t.group}} · {{t.agent}}</span></span>
+</button>
+</sc-for>
+</nav>
+
+<section aria-labelledby="tk-h" style="flex: 3 1 560px; min-width: 0; display: flex; flex-direction: column; gap: 14px;">
+<div style="padding: 16px 18px; background: #101828; border: 1px solid #1F2A3F; border-radius: 14px; display: flex; flex-direction: column; gap: 10px;">
+<div style="display: flex; flex-wrap: wrap; justify-content: space-between; gap: 10px;">
+<span style="display: flex; flex-direction: column;"><h2 id="tk-h" style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 18px; font-weight: 600;">#{{cur.id}} {{cur.title}}</h2><span style="font-size: 13px; color: #93A0B4;">{{cur.customer}} · {{cur.channel}} · {{cur.group}}</span></span>
+<span style="display: flex; gap: 8px; flex-wrap: wrap;"><button type="button" style="min-height: 38px; padding: 0 12px; border: 1px solid #2A3750; border-radius: 10px; background: transparent; color: #E6EBF2; font: inherit; font-size: 13px;">Escalate to L3</button><a href="#" style="display: inline-flex; align-items: center; min-height: 38px; padding: 0 12px; border: 1px solid #2A3750; border-radius: 10px; color: #E6EBF2; text-decoration: none; font-size: 13px;">Open in Zammad</a></span>
+</div>
+<div style="padding: 12px 14px; border-radius: 10px; background: #1A1730; border: 1px solid #3A3366; display: flex; flex-direction: column; gap: 6px;">
+<span style="font-size: 12px; color: #C7B8FF; font-weight: 600;">AI triage · from the panel, not the customer's words</span>
+<span style="font-size: 13px; color: #D7DEE8; white-space: pre-line;">{{cur.triage}}</span>
+</div>
+</div>
+
+<div style="display: flex; flex-wrap: wrap; gap: 14px;">
+<div style="flex: 1 1 280px; padding: 14px 16px; background: #101828; border: 1px solid #1F2A3F; border-radius: 14px; display: flex; flex-direction: column; gap: 8px;">
+<span style="font-weight: 600;">Customer context</span>
+<sc-for list="{{cur.context}}" as="c" hint-placeholder-count="5"><span style="display: flex; justify-content: space-between; gap: 10px; font-size: 13px;"><span style="color: #93A0B4;">{{c.k}}</span><span style="text-align: right; color: {{c.color}};">{{c.v}}</span></span></sc-for>
+<a href="Admin-Customers.dc.html" style="font-size: 13px;">Customer profile and behaviour</a>
+</div>
+<div style="flex: 1 1 280px; padding: 14px 16px; background: #101828; border: 1px solid #1F2A3F; border-radius: 14px; display: flex; flex-direction: column; gap: 8px;">
+<span style="font-weight: 600;">Before the ticket</span>
+<sc-for list="{{cur.before}}" as="b" hint-placeholder-count="3"><span style="font-size: 13px; color: #B8C2D1;">{{b}}</span></sc-for>
+</div>
+</div>
+
+<div style="padding: 16px 18px; background: #101828; border: 1px solid #22314C; border-radius: 14px; display: flex; flex-direction: column; gap: 10px;">
+<span style="display: flex; justify-content: space-between; gap: 10px; align-items: center;"><span style="font-weight: 600;">Reply</span><span style="font-size: 12px; color: #93A0B4;">Suggested from KB article "Network lost after reboot (netplan)" · edit before sending</span></span>
+<label><span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0);">Reply text</span><textarea rows="5" onChange="{{noop}}" style="width: 100%; box-sizing: border-box; padding: 10px 12px; border: 1px solid #2A3750; border-radius: 10px; background: #0C1322; color: #E6EBF2; font: inherit; resize: vertical;">{{cur.reply}}</textarea></label>
+<div style="display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px;">
+<span style="display: flex; gap: 8px; flex-wrap: wrap;"><button type="button" style="min-height: 40px; padding: 0 12px; border: 1px solid #2A3750; border-radius: 10px; background: transparent; color: #E6EBF2; font: inherit; font-size: 13px;">Internal note</button><button type="button" style="min-height: 40px; padding: 0 12px; border: 1px solid #2A3750; border-radius: 10px; background: transparent; color: #E6EBF2; font: inherit; font-size: 13px;">Save as KB draft</button></span>
+<button type="button" style="min-height: 40px; padding: 0 16px; border: 0; border-radius: 10px; background: #4C9AFF; color: #06101F; font: inherit; font-weight: 600;">Send via {{cur.channel}}</button>
+</div>
+</div>
+</section>
+</div>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1500}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { group: 'All', picked: 4821 }; }
+  renderVals() {
+    const T = [
+      { id: 4821, title: 'web-prod-01 unreachable after reboot', customer: 'PT Arunika Digital', channel: 'Panel', group: 'L2 Network', agent: 'Dimas', sla: '12 min left', slaColor: '#F5C46B',
+        triage: 'Server running, guest agent OK, gateway ping OK, firewall allows 443. Default route missing inside the guest after reboot (agent: ip route shows no default).\nLikely cause: netplan. Priority Urgent, routed L1 → L2 automatically.',
+        context: [['Plan', 'Business + 2 IPv4', '#E6EBF2'], ['Pool', 'Arunika Group', '#E6EBF2'], ['Billing', '1 invoice 2 days overdue', '#F5C46B'], ['Sign-in', 'Passkey, 00:40', '#7EE6B0'], ['Last panel action', 'Restart web-prod-01 · 00:38', '#E6EBF2']],
+        before: ['AI assistant chat 00:41: "website down after restart" (2 messages, not solved)', 'KB viewed: "Network lost after reboot"', 'Metrics snapshot and last 20 events attached'],
+        reply: 'Hi Rina, the server lost its default route after the reboot. Please open the console in the panel and run:\n\nsudo netplan apply\n\nThe site should answer within a minute. I am watching the traffic graph and will close this ticket once it is back.' },
+      { id: 4819, title: 'Windows activation after reinstall', customer: 'Klinik Sehat Prima', channel: 'WhatsApp', group: 'L1', agent: 'Sari', sla: '1 h 40 min', slaColor: '#93A0B4',
+        triage: 'win-app-01 creation failed at OOBE (job_7f31). Customer asks about activation, but the server never finished setup.\nSuggest: retry creation; known template issue on 9100.',
+        context: [['Plan', 'Standard', '#E6EBF2'], ['Pool', '—', '#E6EBF2'], ['Billing', 'Paid', '#7EE6B0'], ['Sign-in', 'Password + TOTP', '#7EE6B0'], ['Last panel action', 'Create win-app-01 · failed', '#FF9B9B']],
+        before: ['No AI chat', 'WhatsApp message forwarded by Zammad'],
+        reply: 'Halo, server Windows Anda belum selesai dibuat karena proses setup terhenti. Kami sudah menjalankan ulang; dalam 15 menit server siap dan aktivasi berjalan otomatis.' },
+      { id: 4815, title: 'Need 2 more GPUs for training', customer: 'PT Arunika Digital', channel: 'Email', group: 'L1', agent: 'Unassigned', sla: '6 h left', slaColor: '#93A0B4',
+        triage: 'Pool Arunika Group: GPUs 1 of 2 used. RTX 4090 capacity: 1 free. Upsell: pool limit increase, sales follow-up.',
+        context: [['Plan', 'Business', '#E6EBF2'], ['Pool', 'Arunika Group · GPU 1/2', '#E6EBF2'], ['Billing', 'Overdue', '#F5C46B'], ['Sign-in', '—', '#E6EBF2'], ['Last panel action', 'Created ml-train-02', '#E6EBF2']],
+        before: ['Asked AI "Can I add a GPU to a server?"'],
+        reply: 'Thanks for your interest. Your pool includes 2 GPUs; we can raise it to 4 once invoice INV-2026-10-0142 is paid.' },
+      { id: 4808, title: 'Suspicious CPU on cdn-edge-04', customer: 'Medialink ID', channel: 'System alert', group: 'L3 Security', agent: 'Bayu', sla: 'Breached 20 min', slaColor: '#FF9B9B',
+        triage: '100% CPU 9 days, outbound to known mining pool ports, 4 failed sign-ins without 2FA. Server suspended by traffic rule. Recommend: keep suspended, contact customer, require 2FA.',
+        context: [['Plan', 'Starter × 9', '#E6EBF2'], ['Pool', '—', '#E6EBF2'], ['Billing', 'Paid', '#7EE6B0'], ['Sign-in', 'Failed ×4, no 2FA', '#FF9B9B'], ['Last panel action', 'Suspended by system', '#F5C46B']],
+        before: ['Opened automatically from alert rule "mining pattern"'],
+        reply: 'Dear Medialink team, we suspended cdn-edge-04 because it shows signs of being compromised. Please contact us before restoring it.' }
+    ];
+    const GR = ['All', 'L1', 'L2 Network', 'L3 Security'];
+    const groups = GR.map((g) => ({ label: g, count: g === 'All' ? 12 : ({ L1: 6, 'L2 Network': 4, 'L3 Security': 2 })[g], on: g === this.state.group, border: g === this.state.group ? '#4C9AFF' : '#2A3750', bg: g === this.state.group ? '#17284A' : 'transparent', pick: () => this.setState({ group: g }) }));
+    const queue = T.filter((t) => this.state.group === 'All' || t.group === this.state.group).map((t) => ({ ...t, on: t.id === this.state.picked, border: t.id === this.state.picked ? '#4C9AFF' : '#1F2A3F', bg: t.id === this.state.picked ? '#101C33' : '#101828', pick: () => this.setState({ picked: t.id }) }));
+    const c = T.find((t) => t.id === this.state.picked);
+    return {
+      groups, queue, noop: () => {},
+      cur: { ...c, context: c.context.map(([k, v, color]) => ({ k, v, color })) },
+      kpis: [
+        { label: 'Open tickets', value: '12', sub: '2 urgent', color: '#F5C46B' },
+        { label: 'First response (24 h)', value: '9 min', sub: 'target 30 min', color: '#7EE6B0' },
+        { label: 'Solved by AI first', value: '41%', sub: 'no ticket needed', color: '#7EE6B0' },
+        { label: 'SLA breached', value: '1', sub: 'L3 Security', color: '#FF9B9B' },
+        { label: 'CSAT (7 d)', value: '4.6', sub: 'of 5 · 83 ratings', color: '#93A0B4' }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

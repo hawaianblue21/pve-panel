@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>AI assistant</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500&amp;family=Space+Grotesk:wght@500;600;700&amp;display=swap">
+<style>
+body{margin:0;background:#0A101C;}
+a{color:#8EC2FF;}a:hover{color:#C5E0FF;}
+</style>
+</helmet>
+<div style="min-height: 100vh; background: #0A101C; color: #E6EBF2; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 14px; line-height: 1.5; display: flex; flex-wrap: wrap; align-items: stretch;">
+
+<div style="flex: 1 1 240px; background: #0D1424; border-right: 1px solid #1C2638;">
+<dc-import name="Sidebar" portal="customer" active="assistant" hint-size="100%,1100px"></dc-import>
+</div>
+
+<main style="flex: 999 1 560px; min-width: 0; box-sizing: border-box; padding: 28px 32px 32px; display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-start;">
+
+<!-- chat -->
+<section aria-label="Chat" style="flex: 3 1 560px; min-width: 0; display: flex; flex-direction: column; gap: 14px;">
+<div style="display: flex; flex-direction: column; gap: 2px;">
+<h1 style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 28px; font-weight: 600;">AI assistant</h1>
+<span style="color: #93A0B4;">Answers from the knowledge base and your own servers' status. Hands over to a person when needed.</span>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 14px; padding: 18px; min-height: 620px; background: #101828; border: 1px solid #1F2A3F; border-radius: 16px;">
+<sc-for list="{{messages}}" as="m" hint-placeholder-count="3">
+<article style="display: flex; gap: 12px; align-self: {{m.align}}; max-width: 92%;">
+<sc-if value="{{m.bot}}" hint-placeholder-val="{{true}}"><span style="width: 32px; height: 32px; flex: none; border-radius: 50%; background: #262046; color: #C7B8FF; display: flex; align-items: center; justify-content: center; font-family: 'JetBrains Mono', monospace; font-size: 11px;" aria-hidden="true">AI</span></sc-if>
+<div style="display: flex; flex-direction: column; gap: 8px; padding: 12px 14px; border-radius: 12px; background: {{m.bg}}; border: 1px solid {{m.border}};">
+<span style="font-size: 14px; color: #D7DEE8; white-space: pre-line;">{{m.text}}</span>
+<sc-if value="{{m.hasCheck}}" hint-placeholder-val="{{false}}">
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 6px;">
+<sc-for list="{{m.checks}}" as="c" hint-placeholder-count="4"><span style="padding: 8px 10px; border-radius: 8px; background: #0C1322; font-size: 12px; display: flex; justify-content: space-between; gap: 6px;"><span style="color: #93A0B4;">{{c.k}}</span><span style="color: {{c.color}}; font-family: 'JetBrains Mono', monospace;">{{c.v}}</span></span></sc-for>
+</div>
+</sc-if>
+<sc-if value="{{m.hasSources}}" hint-placeholder-val="{{false}}">
+<span style="display: flex; flex-wrap: wrap; gap: 6px; font-size: 12px;"><span style="color: #93A0B4;">From the knowledge base:</span><sc-for list="{{m.sources}}" as="s" hint-placeholder-count="2"><a href="Customer-KB.dc.html">{{s}}</a></sc-for></span>
+</sc-if>
+<sc-if value="{{m.hasActions}}" hint-placeholder-val="{{false}}">
+<span style="display: flex; flex-wrap: wrap; gap: 8px;">
+<a href="Customer-Tickets.dc.html" style="display: inline-flex; align-items: center; min-height: 36px; padding: 0 12px; border-radius: 8px; border: 1px solid #2A3750; color: #E6EBF2; text-decoration: none; font-size: 13px;">Open a ticket with this conversation</a>
+<a href="Customer-Server.dc.html" style="display: inline-flex; align-items: center; min-height: 36px; padding: 0 12px; border-radius: 8px; border: 1px solid #2A3750; color: #E6EBF2; text-decoration: none; font-size: 13px;">Open web-prod-01</a>
+</span>
+</sc-if>
+</div>
+</article>
+</sc-for>
+<sc-if value="{{typing}}" hint-placeholder-val="{{false}}"><span style="font-size: 13px; color: #93A0B4;">Assistant is checking…</span></sc-if>
+</div>
+
+<div style="display: flex; flex-wrap: wrap; gap: 8px;">
+<sc-for list="{{suggestions}}" as="s" hint-placeholder-count="4">
+<button type="button" onClick="{{s.ask}}" style="min-height: 38px; padding: 0 12px; border-radius: 999px; border: 1px solid #2A3750; background: #101828; color: #C3CCDA; font: inherit; font-size: 13px; cursor: pointer;">{{s.text}}</button>
+</sc-for>
+</div>
+<form style="display: flex; gap: 10px; align-items: stretch;">
+<label style="flex: 1; display: flex;"><span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0);">Message</span><input type="text" placeholder="Ask about your servers, storage, network or billing…" onChange="{{noop}}" style="flex: 1; min-width: 0; min-height: 48px; padding: 0 14px; border: 1px solid #2A3750; border-radius: 12px; background: #101828; color: #E6EBF2; font: inherit;"></label>
+<button type="button" style="min-height: 48px; padding: 0 18px; border: 0; border-radius: 12px; background: #4C9AFF; color: #06101F; font: inherit; font-weight: 600;">Send</button>
+</form>
+<span style="font-size: 12px; color: #93A0B4;">The assistant can make mistakes. It reads status and metrics only; it never changes your servers or shares your data with other customers.</span>
+</section>
+
+<!-- context -->
+<aside aria-labelledby="cx-h" style="flex: 1 1 280px; min-width: 0; display: flex; flex-direction: column; gap: 14px; padding: 18px; background: #101828; border: 1px solid #1F2A3F; border-radius: 14px; margin-top: 62px;">
+<h2 id="cx-h" style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 16px; font-weight: 600;">What the assistant can see</h2>
+<sc-for list="{{scopes}}" as="s" hint-placeholder-count="5">
+<label style="display: flex; gap: 10px; align-items: flex-start; font-size: 13px;"><input type="checkbox" checked="{{s.on}}" onChange="{{s.toggle}}" style="width: 18px; height: 18px; margin-top: 2px; accent-color: #4C9AFF;"><span style="display: flex; flex-direction: column;"><span style="font-weight: 500;">{{s.label}}</span><span style="font-size: 12px; color: #93A0B4;">{{s.desc}}</span></span></label>
+</sc-for>
+<div style="padding-top: 12px; border-top: 1px solid #1C2638; display: flex; flex-direction: column; gap: 6px; font-size: 13px;">
+<span style="color: #93A0B4;">Past conversations</span>
+<a href="#">Website slow since 22:00 · today</a>
+<a href="#">Mount a block volume on Windows · 11 Oct</a>
+<a href="#">rclone to object storage · 05 Oct</a>
+</div>
+</aside>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1500}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { extra: [], scopes: { servers: true, metrics: true, billing: true, network: true, tickets: false } }; }
+  renderVals() {
+    const me = (text) => ({ text, bot: false, align: 'flex-end', bg: '#12213D', border: '#2B4A80', hasCheck: false, hasSources: false, hasActions: false, checks: [], sources: [] });
+    const bot = (text, extra = {}) => ({ text, bot: true, align: 'flex-start', bg: '#0C1322', border: '#1F2A3F', hasCheck: !!extra.checks, hasSources: !!extra.sources, hasActions: !!extra.actions, checks: extra.checks ?? [], sources: extra.sources ?? [] });
+    const base = [
+      me('My website on web-prod-01 has been slow since around 22:00. What is going on?'),
+      bot('I checked web-prod-01 for the last 4 hours:', {
+        checks: [
+          { k: 'CPU', v: '31%', color: '#7EE6B0' }, { k: 'Memory', v: '64%', color: '#7EE6B0' },
+          { k: 'Disk wait', v: '42 ms', color: '#F5C46B' }, { k: 'Traffic', v: '2,1 / 5 TB', color: '#7EE6B0' }
+        ]
+      }),
+      bot('CPU and memory look fine, but disk wait time rose from about 3 ms to 42 ms at 21:58, the moment your backup job started writing to the same disk.\n\nWhat usually helps:\n1. Move the backup to the block volume backup-vol or to object storage (pp12-backups).\n2. Or schedule it outside business hours.\n\nIf pages stay slow after the backup ends (about 23:30), I can open a ticket for the support team with these numbers.', {
+        sources: ['Why is my website slow?', 'Back up to object storage with restic'], actions: true
+      })
+    ];
+    const canned = {
+      'Why was I charged a memory add-on?': 'ad-dc-01 was resized from 8 to 12 GB on 20 Sep. The 11 remaining days of September are on invoice INV-2026-10-0142 as a pro-rated line (Rp 58.667). From November the add-on is Rp 160.000 per month.',
+      'How do I connect with WireGuard?': 'Go to Network & VPN > WireGuard VPN, add a device and scan the QR code in the WireGuard app. Your device gets an address in 10.101.7.0/24 and can reach your servers in 10.100.1.0/24 only.',
+      'Can I add a GPU to a server?': 'Yes. Your pool includes 1 more GPU (RTX 4090 or A16 vGPU). Shut the server down, then choose Change plan > GPU, or create a new server with a GPU. A support person can also attach one for you.',
+      'Bucket pp12-media is read-only': 'pp12-media holds 51,4 GB with a 50 GB quota, so SeaweedFS made it read-only. Delete files you no longer need or raise the quota (your pool has 850 GB unallocated). Writes work again within 10 minutes.'
+    };
+    const messages = [...base];
+    for (const q of this.state.extra) { messages.push(me(q)); messages.push(bot(canned[q], { sources: ['Billing and invoices', 'Network & VPN'] })); }
+    const scopeDefs = [
+      ['servers', 'My servers', 'Names, status, OS and size'], ['metrics', 'Metrics', 'CPU, memory, disk and network graphs'],
+      ['billing', 'Billing', 'Invoices, plan and wallet balance'], ['network', 'Network', 'IPs, firewall rules, VPN devices'],
+      ['tickets', 'My tickets', 'Earlier support conversations']
+    ];
+    return {
+      messages, typing: false, noop: () => {},
+      suggestions: Object.keys(canned).filter((q) => !this.state.extra.includes(q)).map((text) => ({ text, ask: () => this.setState({ extra: [...this.state.extra, text] }) })),
+      scopes: scopeDefs.map(([id, label, desc]) => ({ label, desc, on: !!this.state.scopes[id], toggle: () => this.setState({ scopes: { ...this.state.scopes, [id]: !this.state.scopes[id] } }) }))
+    };
+  }
+}
+</script>
+</body>
+</html>

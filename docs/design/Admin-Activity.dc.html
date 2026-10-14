@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Activity log</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500&amp;family=Space+Grotesk:wght@500;600;700&amp;display=swap">
+<style>
+body{margin:0;background:#0A101C;}
+a{color:#8EC2FF;}a:hover{color:#C5E0FF;}
+</style>
+</helmet>
+<div style="min-height: 100vh; background: #0A101C; color: #E6EBF2; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 14px; line-height: 1.5; display: flex; flex-wrap: wrap; align-items: stretch;">
+
+<div style="flex: 1 1 240px; background: #0D1424; border-right: 1px solid #1C2638;">
+<dc-import name="Sidebar" portal="admin" active="activity" hint-size="100%,1240px"></dc-import>
+</div>
+
+<main style="flex: 999 1 560px; min-width: 0; box-sizing: border-box; padding: 28px 32px 48px; display: flex; flex-direction: column; gap: 18px;">
+
+<div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px;">
+<div style="display: flex; flex-direction: column; gap: 2px;">
+<h1 style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 28px; font-weight: 600;">Activity log</h1>
+<span style="color: #93A0B4;">Every create, change, delete and sign-in by customers, administrators, the API and the system. Append-only.</span>
+</div>
+<div style="display: flex; flex-wrap: wrap; gap: 10px;">
+<button type="button" style="min-height: 44px; padding: 0 14px; border: 1px solid #2A3750; border-radius: 10px; background: #101828; color: #E6EBF2; font: inherit;">Export CSV</button>
+<button type="button" style="min-height: 44px; padding: 0 14px; border: 1px solid #2A3750; border-radius: 10px; background: #101828; color: #E6EBF2; font: inherit;">Forward to SIEM</button>
+</div>
+</div>
+
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center;">
+<label style="display: flex; align-items: center; gap: 8px; min-height: 40px; padding: 0 12px; border: 1px solid #2A3750; border-radius: 10px; background: #101828; flex: 1 1 260px; max-width: 380px;">
+<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#93A0B4" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-4-4"></path></svg>
+<span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0);">Search activity</span>
+<input type="search" placeholder="Customer, server, IP, action…" onChange="{{noop}}" style="flex: 1; min-width: 0; background: transparent; border: 0; outline: none; color: #E6EBF2; font: inherit;">
+</label>
+<div role="tablist" aria-label="Who" style="display: flex; flex-wrap: wrap; gap: 6px;">
+<sc-for list="{{actors}}" as="a" hint-placeholder-count="5"><button type="button" role="tab" aria-selected="{{a.on}}" onClick="{{a.pick}}" style="min-height: 36px; padding: 0 12px; border-radius: 999px; border: 1px solid {{a.border}}; background: {{a.bg}}; color: #E6EBF2; font: inherit; font-size: 13px; cursor: pointer;">{{a.label}}</button></sc-for>
+</div>
+<button type="button" style="min-height: 36px; padding: 0 12px; border: 1px solid #2A3750; border-radius: 10px; background: #101828; color: #C3CCDA; font: inherit; font-size: 13px;">Action: Any ▾</button>
+<button type="button" style="min-height: 36px; padding: 0 12px; border: 1px solid #2A3750; border-radius: 10px; background: #101828; color: #C3CCDA; font: inherit; font-size: 13px;">Last 24 hours ▾</button>
+</div>
+
+<div style="display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-start;">
+<section aria-label="Events" style="flex: 3 1 560px; min-width: 0; background: #101828; border: 1px solid #1F2A3F; border-radius: 14px; overflow: hidden;">
+<sc-for list="{{events}}" as="e" hint-placeholder-count="10">
+<button type="button" onClick="{{e.pick}}" aria-pressed="{{e.on}}" style="width: 100%; display: grid; grid-template-columns: 0.7fr 0.9fr 2.6fr 1.3fr; gap: 10px; align-items: center; padding: 11px 16px; border: 0; border-top: 1px solid #1C2638; background: {{e.bg}}; color: #E6EBF2; font: inherit; text-align: left; cursor: pointer;">
+<span style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #93A0B4;">{{e.time}}</span>
+<span style="justify-self: start; padding: 2px 8px; border-radius: 6px; font-size: 11px; background: {{e.kindBg}}; color: {{e.kindFg}};">{{e.kind}}</span>
+<span style="display: flex; flex-direction: column;"><span style="font-weight: 500;">{{e.text}}</span><span style="font-size: 12px; color: #93A0B4;">{{e.target}}</span></span>
+<span style="font-size: 12px; color: #B8C2D1;">{{e.who}}</span>
+</button>
+</sc-for>
+</section>
+
+<aside aria-labelledby="ev-h" style="flex: 2 1 340px; min-width: 0; padding: 18px; background: #101828; border: 1px solid #1F2A3F; border-radius: 14px; display: flex; flex-direction: column; gap: 10px;">
+<h2 id="ev-h" style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 18px; font-weight: 600;">{{cur.text}}</h2>
+<sc-for list="{{cur.facts}}" as="f" hint-placeholder-count="6">
+<span style="display: flex; justify-content: space-between; gap: 10px; font-size: 13px;"><span style="color: #93A0B4;">{{f.k}}</span><span style="font-family: 'JetBrains Mono', monospace; text-align: right; word-break: break-all;">{{f.v}}</span></span>
+</sc-for>
+<span style="font-size: 13px; font-weight: 600; padding-top: 8px; border-top: 1px solid #1C2638;">Change</span>
+<pre style="margin: 0; padding: 12px; border-radius: 10px; background: #070C16; font-family: 'JetBrains Mono', monospace; font-size: 12px; line-height: 1.6; color: #C3CCDA; white-space: pre-wrap;">{{cur.diff}}</pre>
+<div style="display: flex; gap: 8px; flex-wrap: wrap;"><a href="Admin-Customers.dc.html" style="display: inline-flex; align-items: center; min-height: 40px; padding: 0 12px; border: 1px solid #2A3750; border-radius: 10px; color: #E6EBF2; text-decoration: none; font-size: 13px;">Open customer</a><button type="button" style="min-height: 40px; padding: 0 12px; border: 1px solid #2A3750; border-radius: 10px; background: transparent; color: #E6EBF2; font: inherit; font-size: 13px;">All events of this server</button></div>
+</aside>
+</div>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1500}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { actor: 'All', picked: 1 }; }
+  renderVals() {
+    const K = { Create: ['#123326', '#7EE6B0'], Delete: ['#3A1C1C', '#FF9B9B'], Change: ['#152645', '#9CC8FF'], Power: ['#1C2638', '#C3CCDA'], Security: ['#262046', '#C7B8FF'], Billing: ['#3A2E10', '#F5C46B'], Support: ['#10302E', '#7FE3D6'] };
+    const E = [
+      ['01:02', 'Create', 'Created server ml-train-02', 'Business · RTX 4090 · Jakarta DC1 · VMID 1201', 'rina@arunika.id', 'Customer', '182.253.x.x · Chrome', '+ server ml-train-02\n+ plan: business\n+ gpu: rtx4090 (slot reserved)\n+ datacenter: jkt-dc1'],
+      ['01:01', 'Delete', 'Deleted bucket pp31-tmp', 'Object storage · 0 objects', 'lab01@bina.ac.id', 'Customer', '36.71.x.x · API token "lab-cli"', '- bucket pp31-tmp (quota 5 GB, empty)'],
+      ['00:58', 'Change', 'Resized web-shop-02', '4 → 8 vCPU, 8 → 16 GB · pending restart', 'tokosinar@jaya.id', 'Customer', '114.124.x.x · Safari', '  cores: 4 → 8\n  memory: 8192 → 16384 MB\n  billing: +Rp 260.000 /mo (pro-rated)'],
+      ['00:55', 'Power', 'Bulk reboot · 12 guests', 'pve-jkt2-01 maintenance', 'ops@example.com', 'Admin', 'Admin portal · Operator role', '  12 × reboot (job_7f37)'],
+      ['00:52', 'Billing', 'Payment received INV-2026-10-0139', 'Rp 1.287.600 · QRIS', 'Payment gateway', 'System', 'Webhook · signature verified', '  invoice: due → paid\n  wallet: unchanged'],
+      ['00:44', 'Support', 'Ticket #4821 opened · Urgent', 'web-prod-01 unreachable after reboot', 'rina@arunika.id', 'Customer', 'Panel → Zammad', '+ ticket 4821 → group L1\n  AI triage: network, escalate L2'],
+      ['00:40', 'Security', 'Signed in with a passkey', 'Customer portal', 'rina@arunika.id', 'Customer', '182.253.x.x · Chrome', '  method: passkey (counts as 2FA)'],
+      ['00:20', 'Power', 'Suspended cdn-edge-04', 'Traffic limit reached (2 TB)', 'Traffic rule', 'System', 'Scheduler', '  state: running → suspended\n  notify: email to ops@medialink.id'],
+      ['00:05', 'Change', 'Role changed: Dimas → Resource manager', 'Access & roles', 'owner@example.com', 'Admin', 'Admin portal · Owner', '  role: operator → resources'],
+      ['23:55', 'Create', 'Imported 6 guests from pve-jkt2-02', 'Discovery', 'Discovery agent', 'API', 'SSH key panel-discovery', '+ 6 guests (no owner yet)']
+    ];
+    const actors = ['All', 'Customer', 'Admin', 'System', 'API'].map((a) => ({ label: a === 'All' ? 'Everyone' : a, on: a === this.state.actor, border: a === this.state.actor ? '#4C9AFF' : '#2A3750', bg: a === this.state.actor ? '#17284A' : 'transparent', pick: () => this.setState({ actor: a }) }));
+    const events = E.map((e, i) => ({ e, i })).filter(({ e }) => this.state.actor === 'All' || e[5] === this.state.actor).map(({ e, i }) => ({
+      time: e[0], kind: e[1], kindBg: K[e[1]][0], kindFg: K[e[1]][1], text: e[2], target: e[3], who: `${e[4]} · ${e[5]}`,
+      on: i === this.state.picked, bg: i === this.state.picked ? '#121F38' : 'transparent', pick: () => this.setState({ picked: i })
+    }));
+    const c = E[this.state.picked];
+    return {
+      actors, events, noop: () => {},
+      cur: {
+        text: c[2], diff: c[7],
+        facts: [{ k: 'When', v: `14 Oct 2026 ${c[0]} WIB` }, { k: 'Who', v: c[4] }, { k: 'Actor type', v: c[5] }, { k: 'Where', v: c[6] }, { k: 'Target', v: c[3] }, { k: 'Event id', v: `evt_${(9000 + this.state.picked * 37).toString(16)}` }]
+      }
+    };
+  }
+}
+</script>
+</body>
+</html>

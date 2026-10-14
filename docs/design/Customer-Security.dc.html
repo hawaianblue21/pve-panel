@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Security and 2FA</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500&amp;family=Space+Grotesk:wght@500;600;700&amp;display=swap">
+<style>
+body{margin:0;background:#0A101C;}
+a{color:#8EC2FF;}a:hover{color:#C5E0FF;}
+</style>
+</helmet>
+<div style="min-height: 100vh; background: #0A101C; color: #E6EBF2; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 14px; line-height: 1.5; display: flex; flex-wrap: wrap; align-items: stretch;">
+
+<div style="flex: 1 1 240px; background: #0D1424; border-right: 1px solid #1C2638;">
+<dc-import name="Sidebar" portal="customer" active="security" hint-size="100%,1100px"></dc-import>
+</div>
+
+<main style="flex: 999 1 560px; min-width: 0; box-sizing: border-box; padding: 28px 32px 48px; display: flex; flex-direction: column; gap: 20px;">
+
+<div style="display: flex; flex-direction: column; gap: 2px;">
+<h1 style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 28px; font-weight: 600;">Security &amp; 2FA</h1>
+<span style="color: #93A0B4;">rina@arunika.id · sign-in methods, sessions and API tokens</span>
+</div>
+
+<!-- score -->
+<section aria-label="Security status" style="display: flex; flex-wrap: wrap; align-items: center; gap: 18px; padding: 18px; background: #101828; border: 1px solid #2B6A4E; border-radius: 14px;">
+<svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="#7EE6B0" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"></path><path d="M8.5 12l2.5 2.5 4.5-5"></path></svg>
+<span style="flex: 1 1 300px; display: flex; flex-direction: column;"><span style="font-family: 'Space Grotesk', sans-serif; font-size: 18px; font-weight: 600;">Your account is well protected</span><span style="font-size: 13px; color: #93A0B4;">Two-factor authentication and a passkey are on. 6 of 10 recovery codes left.</span></span>
+<button type="button" style="min-height: 44px; padding: 0 14px; border: 1px solid #2A3750; border-radius: 10px; background: transparent; color: #E6EBF2; font: inherit;">Change password</button>
+</section>
+
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px;">
+
+<section aria-labelledby="tf-h" style="padding: 18px; background: #101828; border: 1px solid #1F2A3F; border-radius: 14px; display: flex; flex-direction: column; gap: 12px;">
+<div style="display: flex; justify-content: space-between; align-items: center; gap: 10px;"><h2 id="tf-h" style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 18px; font-weight: 600;">Authenticator app (TOTP)</h2><span style="padding: 3px 10px; border-radius: 999px; background: #123326; color: #7EE6B0; font-size: 12px;">On</span></div>
+<span style="font-size: 13px; color: #B8C2D1;">Codes from 1Password, Google or Microsoft Authenticator, Authy. Required by your provider for this account.</span>
+<span style="display: flex; justify-content: space-between; font-size: 13px;"><span style="color: #93A0B4;">Recovery codes</span><span style="font-family: 'JetBrains Mono', monospace;">6 of 10 left</span></span>
+<div style="display: flex; gap: 8px; flex-wrap: wrap;"><button type="button" style="min-height: 40px; padding: 0 12px; border: 1px solid #2A3750; border-radius: 10px; background: transparent; color: #E6EBF2; font: inherit; font-size: 13px;">New recovery codes</button><button type="button" style="min-height: 40px; padding: 0 12px; border: 1px solid #2A3750; border-radius: 10px; background: transparent; color: #E6EBF2; font: inherit; font-size: 13px;">Move to a new phone</button></div>
+</section>
+
+<section aria-labelledby="pk-h" style="padding: 18px; background: #101828; border: 1px solid #1F2A3F; border-radius: 14px; display: flex; flex-direction: column; gap: 10px;">
+<div style="display: flex; justify-content: space-between; align-items: center; gap: 10px;"><h2 id="pk-h" style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 18px; font-weight: 600;">Passkeys</h2><button type="button" style="min-height: 36px; padding: 0 12px; border: 0; border-radius: 8px; background: #4C9AFF; color: #06101F; font: inherit; font-size: 13px; font-weight: 600;">+ Add passkey</button></div>
+<sc-for list="{{passkeys}}" as="p" hint-placeholder-count="2">
+<div style="display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 10px; background: #0C1322; font-size: 13px;">
+<span style="display: flex; flex-direction: column;"><span style="font-weight: 500;">{{p.name}}</span><span style="font-size: 12px; color: #93A0B4;">{{p.meta}}</span></span>
+<button type="button" style="min-height: 32px; padding: 0 10px; border: 1px solid #2A3750; border-radius: 8px; background: transparent; color: #B8C2D1; font: inherit; font-size: 12px;">Remove</button>
+</div>
+</sc-for>
+<span style="font-size: 12px; color: #93A0B4;">Fingerprint, face, device PIN or a security key. Phishing-resistant and counts as two-factor.</span>
+</section>
+</div>
+
+<section aria-labelledby="ss-h" style="background: #101828; border: 1px solid #1F2A3F; border-radius: 14px; overflow: hidden;">
+<div style="display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 14px 18px; border-bottom: 1px solid #1C2638;"><h2 id="ss-h" style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 18px; font-weight: 600;">Active sessions</h2><button type="button" style="min-height: 36px; padding: 0 12px; border: 1px solid #4A2A2A; border-radius: 8px; background: transparent; color: #FF8A8A; font: inherit; font-size: 13px;">Sign out everywhere else</button></div>
+<sc-for list="{{sessions}}" as="s" hint-placeholder-count="3">
+<div style="display: grid; grid-template-columns: 1.6fr 1.2fr 1fr 1fr 0.8fr; gap: 10px; align-items: center; padding: 10px 18px; border-top: 1px solid #1C2638; font-size: 13px;">
+<span style="font-weight: 500;">{{s.device}}</span><span style="color: #B8C2D1;">{{s.where}}</span><span style="color: #93A0B4;">{{s.how}}</span><span style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: {{s.color}};">{{s.when}}</span>
+<span style="text-align: right;"><button type="button" disabled="{{s.current}}" style="min-height: 30px; padding: 0 10px; border: 1px solid #2A3750; border-radius: 8px; background: transparent; color: #B8C2D1; font: inherit; font-size: 12px;">{{s.btn}}</button></span>
+</div>
+</sc-for>
+</section>
+
+<section aria-labelledby="at-h" style="background: #101828; border: 1px solid #1F2A3F; border-radius: 14px; overflow: hidden;">
+<div style="display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 14px 18px; border-bottom: 1px solid #1C2638;"><h2 id="at-h" style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 18px; font-weight: 600;">API tokens</h2><button type="button" style="min-height: 36px; padding: 0 12px; border: 1px solid #2A3750; border-radius: 8px; background: transparent; color: #E6EBF2; font: inherit; font-size: 13px;">+ New token</button></div>
+<sc-for list="{{tokens}}" as="t" hint-placeholder-count="2">
+<div style="display: grid; grid-template-columns: 1.4fr 1.8fr 1fr 0.8fr; gap: 10px; align-items: center; padding: 10px 18px; border-top: 1px solid #1C2638; font-size: 13px;">
+<span style="font-weight: 500;">{{t.name}}</span><span style="display: flex; flex-wrap: wrap; gap: 4px;"><sc-for list="{{t.scopes}}" as="sc" hint-placeholder-count="2"><span style="padding: 2px 7px; border-radius: 5px; background: #16223A; font-family: 'JetBrains Mono', monospace; font-size: 11px;">{{sc}}</span></sc-for></span><span style="font-size: 12px; color: #93A0B4;">{{t.used}}</span>
+<span style="text-align: right;"><button type="button" style="min-height: 30px; padding: 0 10px; border: 1px solid #4A2A2A; border-radius: 8px; background: transparent; color: #FF8A8A; font: inherit; font-size: 12px;">Revoke</button></span>
+</div>
+</sc-for>
+</section>
+
+<section aria-labelledby="ac-h" style="background: #101828; border: 1px solid #1F2A3F; border-radius: 14px; overflow: hidden;">
+<div style="padding: 14px 18px; border-bottom: 1px solid #1C2638;"><h2 id="ac-h" style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 18px; font-weight: 600;">Sign-in activity</h2></div>
+<sc-for list="{{activity}}" as="a" hint-placeholder-count="4">
+<div style="display: flex; flex-wrap: wrap; justify-content: space-between; gap: 10px; padding: 10px 18px; border-top: 1px solid #1C2638; font-size: 13px;"><span style="color: {{a.color}};">{{a.text}}</span><span style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #93A0B4;">{{a.when}}</span></div>
+</sc-for>
+</section>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1500}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {
+      passkeys: [
+        { name: 'MacBook Touch ID', meta: 'Synced passkey · last used today 00:40' },
+        { name: 'YubiKey 5C', meta: 'Security key · last used 08 Oct' }
+      ],
+      sessions: [
+        { device: 'Chrome on macOS', where: 'Jakarta, ID · 182.253.x.x', how: 'Passkey', when: 'This session', color: '#7EE6B0', current: true, btn: 'Current' },
+        { device: 'Safari on iPhone', where: 'Jakarta, ID · 114.124.x.x', how: 'Password + TOTP', when: '13 Oct 21:12', color: '#93A0B4', current: false, btn: 'Sign out' },
+        { device: 'Firefox on Windows', where: 'Bandung, ID · 36.71.x.x', how: 'Password + TOTP', when: '11 Oct 09:30', color: '#93A0B4', current: false, btn: 'Sign out' }
+      ],
+      tokens: [
+        { name: 'terraform-prod', scopes: ['servers:read', 'servers:write', 'storage:write'], used: 'Used 2 h ago · expires 31 Dec' },
+        { name: 'monitoring', scopes: ['servers:read'], used: 'Used 4 min ago · no expiry' }
+      ],
+      activity: [
+        { text: 'Signed in with a passkey', when: '14 Oct 00:40', color: '#E6EBF2' },
+        { text: 'New access key created for object storage', when: '13 Oct 22:05', color: '#E6EBF2' },
+        { text: 'Failed sign-in: wrong 2FA code (from 36.71.x.x)', when: '12 Oct 03:12', color: '#F5C46B' },
+        { text: 'Recovery codes regenerated', when: '01 Oct 10:00', color: '#E6EBF2' }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

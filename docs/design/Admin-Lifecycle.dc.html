@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Server lifecycle</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500&amp;family=Space+Grotesk:wght@500;600;700&amp;display=swap">
+<style>
+body{margin:0;background:#0A101C;}
+a{color:#8EC2FF;}a:hover{color:#C5E0FF;}
+</style>
+</helmet>
+<div style="min-height: 100vh; background: #0A101C; color: #E6EBF2; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 14px; line-height: 1.5; display: flex; flex-wrap: wrap; align-items: stretch;">
+
+<div style="flex: 1 1 240px; background: #0D1424; border-right: 1px solid #1C2638;">
+<dc-import name="Sidebar" portal="admin" active="lifecycle" hint-size="100%,1240px"></dc-import>
+</div>
+
+<main style="flex: 999 1 560px; min-width: 0; box-sizing: border-box; padding: 28px 32px 48px; display: flex; flex-direction: column; gap: 18px;">
+
+<div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px;">
+<div style="display: flex; flex-direction: column; gap: 2px;">
+<h1 style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 28px; font-weight: 600;">Server lifecycle</h1>
+<span style="color: #93A0B4;">End dates, reminders, stop and deletion of servers that are not renewed. Checked every hour.</span>
+</div>
+<div style="display: flex; flex-wrap: wrap; gap: 10px;">
+<button type="button" style="min-height: 44px; padding: 0 14px; border: 1px solid #2A3750; border-radius: 10px; background: #101828; color: #E6EBF2; font: inherit;">Check now</button>
+<button type="button" onClick="{{togglePause}}" aria-pressed="{{paused}}" style="min-height: 44px; padding: 0 14px; border: 1px solid {{pauseBorder}}; border-radius: 10px; background: {{pauseBg}}; color: {{pauseFg}}; font: inherit; font-weight: 600;">{{pauseLabel}}</button>
+</div>
+</div>
+
+<sc-if value="{{paused}}" hint-placeholder-val="{{false}}">
+<div role="status" style="padding: 12px 16px; border-radius: 12px; background: #2E2410; border: 1px solid #5A4618; color: #F8DFA6; font-size: 13px;">Deletions are paused for everyone. Servers are still stopped at their end date, but nothing is deleted until you resume. 3 servers are waiting.</div>
+</sc-if>
+
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px;">
+<sc-for list="{{kpis}}" as="k" hint-placeholder-count="5">
+<button type="button" onClick="{{k.pick}}" aria-pressed="{{k.on}}" style="display: flex; flex-direction: column; gap: 2px; padding: 12px 14px; background: #101828; border: 1px solid {{k.border}}; border-radius: 12px; color: #E6EBF2; font: inherit; text-align: left; cursor: pointer;"><span style="font-size: 12px; color: #93A0B4;">{{k.label}}</span><span style="font-family: 'Space Grotesk', sans-serif; font-size: 22px; font-weight: 600; color: {{k.color}};">{{k.value}}</span><span style="font-size: 12px; color: #93A0B4;">{{k.sub}}</span></button>
+</sc-for>
+</div>
+
+<div style="display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-start;">
+<section aria-label="Servers" style="flex: 3 1 600px; min-width: 0; background: #101828; border: 1px solid #1F2A3F; border-radius: 14px; overflow: hidden;">
+<div style="display: grid; grid-template-columns: 1.4fr 1.3fr 1fr 1.6fr 1.3fr; gap: 10px; padding: 10px 16px; font-size: 11px; color: #93A0B4; text-transform: uppercase; letter-spacing: 0.04em;"><span>Server · customer</span><span>Source</span><span>End date</span><span>Next step</span><span></span></div>
+<sc-for list="{{rows}}" as="r" hint-placeholder-count="7">
+<div style="display: grid; grid-template-columns: 1.4fr 1.3fr 1fr 1.6fr 1.3fr; gap: 10px; align-items: center; padding: 11px 16px; border-top: 1px solid #1C2638; font-size: 13px;">
+<span style="display: flex; flex-direction: column;"><span style="font-weight: 500;">{{r.name}}</span><span style="font-size: 12px; color: #93A0B4;">{{r.cust}}</span></span>
+<span style="font-size: 12px; color: #B8C2D1;">{{r.source}}</span>
+<span style="font-family: 'JetBrains Mono', monospace; font-size: 12px;">{{r.end}}</span>
+<span style="display: flex; flex-direction: column;"><span style="color: {{r.color}};">{{r.next}}</span><span style="font-size: 12px; color: #93A0B4;">{{r.sent}}</span></span>
+<span style="display: flex; gap: 6px; flex-wrap: wrap;"><button type="button" style="min-height: 32px; padding: 0 10px; border: 1px solid #2A3750; border-radius: 8px; background: transparent; color: #E6EBF2; font: inherit; font-size: 12px;">Extend…</button><button type="button" style="min-height: 32px; padding: 0 10px; border: 1px solid #2A3750; border-radius: 8px; background: transparent; color: #E6EBF2; font: inherit; font-size: 12px;">{{r.alt}}</button></span>
+</div>
+</sc-for>
+</section>
+
+<aside style="flex: 2 1 340px; min-width: 0; display: flex; flex-direction: column; gap: 14px;">
+<section aria-labelledby="ru-h" style="padding: 16px; background: #101828; border: 1px solid #1F2A3F; border-radius: 14px; display: flex; flex-direction: column; gap: 10px;">
+<h2 id="ru-h" style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 16px; font-weight: 600;">Rules</h2>
+<sc-for list="{{rules}}" as="f" hint-placeholder-count="5"><label style="display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: #C3CCDA;">{{f.k}}<input type="text" value="{{f.v}}" onChange="{{noop}}" style="min-height: 38px; padding: 0 10px; border: 1px solid #2A3750; border-radius: 8px; background: #0C1322; color: #E6EBF2; font-family: 'JetBrains Mono', monospace; font-size: 12px;"></label></sc-for>
+<sc-for list="{{toggles}}" as="t" hint-placeholder-count="3"><label style="display: flex; align-items: flex-start; gap: 10px; font-size: 13px;"><input type="checkbox" checked="{{t.on}}" onChange="{{noop}}" style="width: 18px; height: 18px; margin-top: 2px; accent-color: #4C9AFF;"><span style="display: flex; flex-direction: column;"><span>{{t.label}}</span><span style="font-size: 12px; color: #93A0B4;">{{t.note}}</span></span></label></sc-for>
+<button type="button" style="align-self: flex-start; min-height: 40px; padding: 0 16px; border: 0; border-radius: 10px; background: #4C9AFF; color: #06101F; font: inherit; font-weight: 600;">Save rules</button>
+</section>
+<section style="padding: 14px 16px; background: #101828; border: 1px solid #1F2A3F; border-radius: 14px; font-size: 12px; color: #93A0B4; display: flex; flex-direction: column; gap: 4px;">
+<span style="font-weight: 600; color: #C3CCDA;">Safety built in</span>
+<span>Servers an admin assigned are only stopped, never deleted automatically. Nothing is deleted unless the deletion warning email was delivered. Every step is stored per server, so a restart of the panel never repeats or skips one. Every stop, extension and deletion appears in the Activity log.</span>
+</section>
+</aside>
+</div>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1300}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { paused: false, f: 'all' }; }
+  renderVals() {
+    const R = [
+      ['db01', 'lena@example.com', 'Created by customer', '03 Oct', 'Deleted 17 Oct (3 d)', '#FF9B9B', 'grace', 'Reminders D-7, D-1, stop · final warning due 14 Oct', 'Stop only'],
+      ['web-shop', 'lena@example.com', 'Created by customer', '16 Oct', 'Stopped in 2 d', '#F5C46B', 'soon', 'Reminder D-7 sent', 'Remove end date'],
+      ['tmp-build-7', 'Universitas Bina', 'Created by customer', '28 Sep', 'Deletion due now', '#FF6B6B', 'delete', 'Final warning delivered 11 Oct', 'Delete now'],
+      ['lab-k8s-03', 'Universitas Bina', 'Assigned by admin', '30 Nov', 'Stop only (never deleted)', '#B8C2D1', 'later', 'Nothing sent yet', 'Remove end date'],
+      ['erp-app', 'Toko Sinar Jaya', 'Unpaid invoice', '07 Oct', 'Awaiting admin decision', '#C7B8FF', 'admin', 'Invoice INV-0131 overdue 7 d', 'Stop only'],
+      ['win-office', 'lena@example.com', 'Created by customer', '08 Dec', 'Auto-renew from wallet', '#7EE6B0', 'later', '—', 'Remove end date'],
+      ['qa-runner', 'PT Arunika Digital', 'Trial (14 d)', '20 Oct', 'Stopped in 6 d', '#F5C46B', 'soon', 'Trial reminder D-7 sent', 'Convert to paid']
+    ];
+    const K = [['all', 'With an end date', '62', 'customers 18', '#E6EBF2'], ['soon', 'Ending in 7 days', '11', '8 reminders sent today', '#F5C46B'], ['grace', 'Stopped, in grace', '5', 'data kept', '#FF9B9B'], ['delete', 'Deletion due', '1', this.state.paused ? 'paused' : 'runs at next check', '#FF6B6B'], ['admin', 'Need a decision', '1', 'admin-assigned or unpaid', '#C7B8FF']];
+    return {
+      noop: () => {},
+      paused: this.state.paused,
+      pauseLabel: this.state.paused ? 'Resume deletions' : 'Pause all deletions',
+      pauseBorder: this.state.paused ? '#5A4618' : '#4A2A2A', pauseBg: this.state.paused ? '#3A2E10' : '#101828', pauseFg: this.state.paused ? '#F5C46B' : '#FF9B9B',
+      togglePause: () => this.setState({ paused: !this.state.paused }),
+      kpis: K.map(([k, l, v, s, c]) => ({ label: l, value: v, sub: s, color: c, on: k === this.state.f, border: k === this.state.f ? '#4C9AFF' : '#1F2A3F', pick: () => this.setState({ f: k }) })),
+      rows: R.filter((r) => this.state.f === 'all' || r[6] === this.state.f).map((r) => ({ name: r[0], cust: r[1], source: r[2], end: r[3], next: r[4], color: r[5], sent: r[7], alt: r[8] })),
+      rules: [
+        { k: 'Reminders (days before end date)', v: '7, 1' },
+        { k: 'Grace period after stop (days)', v: '14' },
+        { k: 'Free self-extension for customers (days, once)', v: '14' },
+        { k: 'Final deletion warning (days before)', v: '3' },
+        { k: 'Unpaid invoice → stop after (days overdue)', v: '7' }
+      ],
+      toggles: [
+        { label: 'Daily summary email to administrators', note: 'what was stopped, deleted and is coming up', on: true },
+        { label: 'WhatsApp reminders through Zammad', note: 'in addition to email and the portal banner', on: true },
+        { label: 'Auto-renew from wallet when the balance is enough', note: 'customers can turn it off per server', on: true }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

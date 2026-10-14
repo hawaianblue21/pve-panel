@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Invoice and pay</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500&amp;family=Space+Grotesk:wght@500;600;700&amp;display=swap">
+<style>
+body{margin:0;background:#0A101C;}
+a{color:#8EC2FF;}a:hover{color:#C5E0FF;}
+</style>
+</helmet>
+<div style="min-height: 100vh; background: #0A101C; color: #E6EBF2; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 14px; line-height: 1.5; display: flex; flex-wrap: wrap; align-items: stretch;">
+
+<div style="flex: 1 1 240px; background: #0D1424; border-right: 1px solid #1C2638;">
+<dc-import name="Sidebar" portal="customer" active="invoices" hint-size="100%,960px"></dc-import>
+</div>
+
+<main style="flex: 999 1 560px; min-width: 0; box-sizing: border-box; padding: 28px 32px 48px; display: flex; flex-direction: column; gap: 20px;">
+
+<a href="Customer-Billing.dc.html" style="font-size: 13px; text-decoration: none;">‹ Billing &amp; wallet</a>
+
+<div style="display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 16px;">
+<div style="display: flex; flex-direction: column; gap: 6px;">
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px;">
+<h1 style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 28px; font-weight: 600;">INV-2026-10-0142</h1>
+<span style="padding: 3px 10px; border-radius: 999px; background: #3A2E10; color: #F5C46B; font-size: 13px; font-weight: 500;">Overdue since 12 Oct</span>
+</div>
+<span style="color: #93A0B4;">Pay before 15 Oct 2026, 00:00 WIB to avoid suspension of web-prod-01 and ad-dc-01.</span>
+</div>
+<button type="button" style="min-height: 44px; padding: 0 14px; border: 1px solid #2A3750; border-radius: 10px; background: #101828; color: #E6EBF2; font: inherit;">Download PDF</button>
+</div>
+
+<div style="display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-start;">
+
+<!-- invoice lines -->
+<section aria-label="Invoice lines" style="flex: 3 1 560px; min-width: 0; background: #101828; border: 1px solid #1F2A3F; border-radius: 14px; overflow: hidden;">
+<div style="display: flex; flex-wrap: wrap; justify-content: space-between; gap: 16px; padding: 18px 22px; border-bottom: 1px solid #1C2638; font-size: 13px;">
+<span style="display: flex; flex-direction: column;"><span style="color: #93A0B4;">Billed to</span><span style="font-weight: 600;">PT Arunika Digital</span></span>
+<span style="display: flex; flex-direction: column;"><span style="color: #93A0B4;">Period</span><span style="font-weight: 600;">1 – 31 Oct 2026</span></span>
+<span style="display: flex; flex-direction: column;"><span style="color: #93A0B4;">Issued</span><span style="font-weight: 600;">05 Oct 2026</span></span>
+<span style="display: flex; flex-direction: column;"><span style="color: #93A0B4;">Due</span><span style="font-weight: 600; color: #F5C46B;">12 Oct 2026</span></span>
+</div>
+<sc-for list="{{lines}}" as="l" hint-placeholder-count="5">
+<div style="display: flex; flex-wrap: wrap; justify-content: space-between; gap: 10px; padding: 12px 22px; border-top: 1px solid #1C2638; font-size: 13px;">
+<span style="display: flex; flex-direction: column; flex: 1 1 260px;"><span style="font-weight: 500;">{{l.title}}</span><span style="font-size: 12px; color: #93A0B4;">{{l.sub}}</span></span>
+<span style="font-family: 'JetBrains Mono', monospace;">{{l.amount}}</span>
+</div>
+</sc-for>
+<div style="display: flex; justify-content: flex-end; padding: 16px 22px 20px; border-top: 1px solid #1C2638;">
+<div style="width: 100%; max-width: 340px; display: flex; flex-direction: column; gap: 8px; font-size: 14px;">
+<span style="display: flex; justify-content: space-between;"><span style="color: #B8C2D1;">Subtotal</span><span style="font-family: 'JetBrains Mono', monospace;">Rp 1.058.667</span></span>
+<span style="display: flex; justify-content: space-between;"><span style="color: #B8C2D1;">PPN 11%</span><span style="font-family: 'JetBrains Mono', monospace;">Rp 116.453</span></span>
+<span style="display: flex; justify-content: space-between;"><span style="color: #B8C2D1;">Coupon WELCOME100</span><span style="font-family: 'JetBrains Mono', monospace; color: #7EE6B0;">−Rp 100.000</span></span>
+<span style="display: flex; justify-content: space-between; padding-top: 10px; border-top: 1px solid #2A3750; font-weight: 600; font-size: 16px;"><span>Amount due</span><span style="font-family: 'JetBrains Mono', monospace;">Rp 1.075.120</span></span>
+</div>
+</div>
+</section>
+
+<!-- pay panel -->
+<aside aria-labelledby="pay-h" style="flex: 2 1 360px; min-width: 0; display: flex; flex-direction: column; gap: 14px; padding: 18px; background: #101828; border: 1px solid #22314C; border-radius: 16px;">
+<h2 id="pay-h" style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 20px; font-weight: 600;">Pay this invoice</h2>
+
+<label style="display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 12px 14px; border: 1px solid #2A3750; border-radius: 12px; cursor: pointer;">
+<span style="display: flex; flex-direction: column;"><span style="font-weight: 500;">Use wallet balance</span><span style="font-size: 12px; color: #93A0B4;">Rp 250.000 available</span></span>
+<input type="checkbox" checked="{{useWallet}}" onChange="{{toggleWallet}}" style="width: 20px; height: 20px; margin-top: 2px; accent-color: #4C9AFF;">
+</label>
+
+<span style="display: flex; justify-content: space-between; align-items: baseline;"><span style="color: #B8C2D1;">Left to pay</span><span style="font-family: 'Space Grotesk', sans-serif; font-size: 26px; font-weight: 700;">{{left}}</span></span>
+
+<div role="radiogroup" aria-label="Payment method" style="display: flex; flex-direction: column; gap: 8px;">
+<sc-for list="{{methods}}" as="m" hint-placeholder-count="2">
+<button type="button" role="radio" aria-checked="{{m.on}}" onClick="{{m.pick}}" style="display: flex; flex-direction: column; align-items: flex-start; gap: 2px; min-height: 52px; padding: 10px 14px; border-radius: 12px; border: 1px solid {{m.border}}; background: {{m.bg}}; color: #E6EBF2; font: inherit; text-align: left; cursor: pointer;"><span style="font-weight: 600;">{{m.title}}</span><span style="font-size: 12px; color: #93A0B4;">{{m.sub}}</span></button>
+</sc-for>
+</div>
+
+<sc-if value="{{isVA}}" hint-placeholder-val="{{true}}">
+<div style="display: flex; flex-direction: column; gap: 8px; padding: 14px; border-radius: 12px; background: #0C1322; border: 1px solid #1F2A3F;">
+<span style="font-size: 12px; color: #93A0B4;">Transfer exactly {{left}} to</span>
+<span style="font-family: 'JetBrains Mono', monospace; font-size: 20px; letter-spacing: 0.04em;">[VA NUMBER]</span>
+<span style="font-size: 12px; color: #93A0B4;">[BANK] virtual account · valid until 19 Oct · confirmed automatically within minutes</span>
+<button type="button" style="align-self: flex-start; min-height: 40px; padding: 0 12px; border: 1px solid #2A3750; border-radius: 10px; background: transparent; color: #E6EBF2; font: inherit; font-size: 13px;">Copy number</button>
+</div>
+</sc-if>
+<sc-if value="{{isQR}}" hint-placeholder-val="{{false}}">
+<div style="display: flex; align-items: center; gap: 14px; padding: 14px; border-radius: 12px; background: #0C1322; border: 1px solid #1F2A3F;">
+<span role="img" aria-label="QRIS code placeholder" style="width: 120px; height: 120px; flex: none; border-radius: 8px; background: #E6EBF2; color: #0A101C; display: flex; align-items: center; justify-content: center; font-family: 'JetBrains Mono', monospace; font-size: 11px; text-align: center;">[QRIS CODE]</span>
+<span style="display: flex; flex-direction: column; gap: 4px; font-size: 13px;"><span style="font-weight: 500;">Scan with any banking or e-wallet app</span><span style="color: #93A0B4;">Code valid 30 minutes. This page updates when payment arrives.</span></span>
+</div>
+</sc-if>
+
+<button type="button" style="min-height: 48px; border: 0; border-radius: 12px; background: #4C9AFF; color: #06101F; font: inherit; font-weight: 600;">{{cta}}</button>
+<span style="font-size: 12px; color: #93A0B4;">Paid after suspension? Your servers start again automatically once the payment is confirmed.</span>
+</aside>
+</div>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1500}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { wallet: true, method: 'va' }; }
+  renderVals() {
+    const rp = (n) => 'Rp ' + n.toLocaleString('id-ID');
+    const due = 1075120;
+    const left = this.state.wallet ? due - 250000 : due;
+    const M = [
+      { id: 'va', title: 'Bank transfer (virtual account)', sub: 'No fee · confirmed automatically' },
+      { id: 'qr', title: 'QRIS / e-wallet', sub: 'Instant · any QRIS app' }
+    ];
+    const methods = M.map((m) => ({ ...m, on: m.id === this.state.method, border: m.id === this.state.method ? '#4C9AFF' : '#2A3750', bg: m.id === this.state.method ? '#101C33' : 'transparent', pick: () => this.setState({ method: m.id }) }));
+    return {
+      methods, left: rp(left), useWallet: this.state.wallet,
+      toggleWallet: () => this.setState({ wallet: !this.state.wallet }),
+      isVA: this.state.method === 'va', isQR: this.state.method === 'qr',
+      cta: this.state.method === 'va' ? 'I have transferred ' + rp(left) : 'Generate QRIS for ' + rp(left),
+      lines: [
+        { title: 'Business plan · web-prod-01', sub: '8 vCPU · 16 GB · 250 GB · 5 TB · 1–31 Oct', amount: 'Rp 550.000' },
+        { title: 'Standard plan · ad-dc-01', sub: '4 vCPU · 8 GB · 120 GB · 3 TB · 1–31 Oct', amount: 'Rp 290.000' },
+        { title: 'Memory +4 GB · ad-dc-01 (pro-rated)', sub: 'Resized 20 Sep · 11 of 30 days at Rp 40.000 per GB', amount: 'Rp 58.667' },
+        { title: '2 extra public IPv4 · web-prod-01', sub: '103.28.14.22, 103.28.14.23 · Rp 50.000 each', amount: 'Rp 100.000' },
+        { title: 'Traffic overage · web-prod-01', sub: 'September: 300 GB over 5 TB at Rp 200 per GB', amount: 'Rp 60.000' }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

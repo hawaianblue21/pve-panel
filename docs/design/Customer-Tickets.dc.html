@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Support tickets</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500&amp;family=Space+Grotesk:wght@500;600;700&amp;display=swap">
+<style>
+body{margin:0;background:#0A101C;}
+a{color:#8EC2FF;}a:hover{color:#C5E0FF;}
+</style>
+</helmet>
+<div style="min-height: 100vh; background: #0A101C; color: #E6EBF2; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 14px; line-height: 1.5; display: flex; flex-wrap: wrap; align-items: stretch;">
+
+<div style="flex: 1 1 240px; background: #0D1424; border-right: 1px solid #1C2638;">
+<dc-import name="Sidebar" portal="customer" active="tickets" hint-size="100%,1100px"></dc-import>
+</div>
+
+<main style="flex: 999 1 560px; min-width: 0; box-sizing: border-box; padding: 28px 32px 48px; display: flex; flex-direction: column; gap: 20px;">
+
+<div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px;">
+<div style="display: flex; flex-direction: column; gap: 2px;">
+<h1 style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 28px; font-weight: 600;">Support tickets</h1>
+<span style="color: #93A0B4;">24/7 support · replies by email and here · urgent outages answered within 30 minutes</span>
+</div>
+<button type="button" onClick="{{newTicket}}" style="min-height: 44px; padding: 0 16px; border: 0; border-radius: 10px; background: #4C9AFF; color: #06101F; font: inherit; font-weight: 600;">+ New ticket</button>
+</div>
+
+<div style="display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-start;">
+
+<nav aria-label="Tickets" style="flex: 1 1 300px; min-width: 0; display: flex; flex-direction: column; gap: 10px;">
+<sc-for list="{{tickets}}" as="t" hint-placeholder-count="4">
+<button type="button" onClick="{{t.pick}}" aria-pressed="{{t.on}}" style="text-align: left; display: flex; flex-direction: column; gap: 6px; padding: 14px 16px; border-radius: 12px; border: 1px solid {{t.border}}; background: {{t.bg}}; color: #E6EBF2; font: inherit; cursor: pointer;">
+<span style="display: flex; justify-content: space-between; gap: 8px; width: 100%;"><span style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #93A0B4;">#{{t.id}}</span><span style="padding: 2px 8px; border-radius: 6px; font-size: 11px; background: {{t.stBg}}; color: {{t.stFg}};">{{t.status}}</span></span>
+<span style="font-weight: 600;">{{t.title}}</span>
+<span style="font-size: 12px; color: #93A0B4;">{{t.meta}}</span>
+</button>
+</sc-for>
+</nav>
+
+<!-- thread -->
+<sc-if value="{{showThread}}" hint-placeholder-val="{{true}}">
+<section aria-labelledby="th-h" style="flex: 3 1 520px; min-width: 0; background: #101828; border: 1px solid #1F2A3F; border-radius: 14px; overflow: hidden;">
+<div style="display: flex; flex-wrap: wrap; justify-content: space-between; gap: 10px; padding: 16px 20px; border-bottom: 1px solid #1C2638;">
+<span style="display: flex; flex-direction: column;"><h2 id="th-h" style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 18px; font-weight: 600;">{{cur.title}}</h2><span style="font-size: 13px; color: #93A0B4;">#{{cur.id}} · {{cur.meta}}</span></span>
+<span style="display: flex; gap: 6px; align-items: flex-start; flex-wrap: wrap;"><span style="padding: 4px 10px; border-radius: 999px; font-size: 12px; background: #16223A; color: #C3CCDA;">{{cur.priority}}</span><span style="padding: 4px 10px; border-radius: 999px; font-size: 12px; background: #16223A; color: #C3CCDA;">{{cur.server}}</span></span>
+</div>
+<div style="padding: 18px 20px; display: flex; flex-direction: column; gap: 14px;">
+<sc-for list="{{cur.messages}}" as="m" hint-placeholder-count="3">
+<article style="display: flex; flex-direction: column; gap: 6px; padding: 14px 16px; border-radius: 12px; background: {{m.bg}}; border: 1px solid {{m.border}}; align-self: {{m.align}}; max-width: 88%;">
+<span style="display: flex; justify-content: space-between; gap: 16px; font-size: 12px;"><span style="font-weight: 600; color: {{m.whoColor}};">{{m.who}}</span><span style="color: #93A0B4; font-family: 'JetBrains Mono', monospace;">{{m.when}}</span></span>
+<span style="font-size: 14px; color: #D7DEE8; white-space: pre-line;">{{m.text}}</span>
+</article>
+</sc-for>
+</div>
+<div style="padding: 14px 20px 18px; border-top: 1px solid #1C2638; display: flex; flex-direction: column; gap: 10px;">
+<label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: #C3CCDA;">Reply<textarea rows="3" placeholder="Write a reply…" onChange="{{noop}}" style="padding: 10px 12px; border: 1px solid #2A3750; border-radius: 10px; background: #0C1322; color: #E6EBF2; font: inherit; resize: vertical;"></textarea></label>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; justify-content: space-between;"><button type="button" style="min-height: 40px; padding: 0 12px; border: 1px solid #2A3750; border-radius: 10px; background: transparent; color: #E6EBF2; font: inherit; font-size: 13px;">Attach file</button><span style="display: flex; gap: 8px;"><button type="button" style="min-height: 40px; padding: 0 12px; border: 1px solid #2A3750; border-radius: 10px; background: transparent; color: #E6EBF2; font: inherit; font-size: 13px;">Mark solved</button><button type="button" style="min-height: 40px; padding: 0 16px; border: 0; border-radius: 10px; background: #4C9AFF; color: #06101F; font: inherit; font-weight: 600;">Send reply</button></span></div>
+</div>
+</section>
+</sc-if>
+
+<!-- new ticket -->
+<sc-if value="{{showNew}}" hint-placeholder-val="{{false}}">
+<section aria-labelledby="nt-h" style="flex: 3 1 520px; min-width: 0; padding: 20px; background: #101828; border: 1px solid #22314C; border-radius: 14px; display: flex; flex-direction: column; gap: 14px;">
+<h2 id="nt-h" style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 18px; font-weight: 600;">New ticket</h2>
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px;">
+<label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: #C3CCDA;">Topic<select style="min-height: 44px; padding: 0 12px; border: 1px solid #2A3750; border-radius: 10px; background: #0C1322; color: #E6EBF2; font: inherit;"><option>Server down or unreachable</option><option>Performance</option><option>Network &amp; VPN</option><option>Storage</option><option>Billing &amp; invoices</option><option>Other question</option></select></label>
+<label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: #C3CCDA;">Affected server<select style="min-height: 44px; padding: 0 12px; border: 1px solid #2A3750; border-radius: 10px; background: #0C1322; color: #E6EBF2; font: inherit;"><option>web-prod-01</option><option>ad-dc-01</option><option>redis-cache</option><option>None</option></select></label>
+</div>
+<div role="radiogroup" aria-label="Priority" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px;">
+<sc-for list="{{priorities}}" as="p" hint-placeholder-count="4">
+<button type="button" role="radio" aria-checked="{{p.on}}" onClick="{{p.pick}}" style="display: flex; flex-direction: column; align-items: flex-start; gap: 2px; min-height: 56px; padding: 10px 12px; border-radius: 10px; border: 1px solid {{p.border}}; background: {{p.bg}}; color: #E6EBF2; font: inherit; text-align: left; cursor: pointer;"><span style="font-weight: 600; color: {{p.color}};">{{p.label}}</span><span style="font-size: 12px; color: #93A0B4;">{{p.sla}}</span></button>
+</sc-for>
+</div>
+<label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: #C3CCDA;">Subject<input type="text" value="Website slow since 22:00" onChange="{{noop}}" style="min-height: 44px; padding: 0 12px; border: 1px solid #2A3750; border-radius: 10px; background: #0C1322; color: #E6EBF2; font: inherit;"></label>
+<label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: #C3CCDA;">What happened?<textarea rows="5" onChange="{{noop}}" style="padding: 10px 12px; border: 1px solid #2A3750; border-radius: 10px; background: #0C1322; color: #E6EBF2; font: inherit; resize: vertical;">Pages take 6-8 seconds since about 22:00. CPU on web-prod-01 looks normal in the panel.</textarea></label>
+<label style="display: flex; gap: 10px; align-items: flex-start; font-size: 13px; color: #C3CCDA;"><input type="checkbox" checked="{{yes}}" onChange="{{noop}}" style="width: 18px; height: 18px; margin-top: 2px; accent-color: #4C9AFF;"><span>Attach the last 24 h of metrics and recent events for this server <span style="color: #93A0B4;">(no passwords or files from inside the server)</span></span></label>
+<div style="padding: 12px 14px; border-radius: 10px; background: #0C1322; border: 1px solid #1F2A3F; display: flex; flex-direction: column; gap: 6px; font-size: 13px;">
+<span style="color: #93A0B4;">These articles might solve it right away</span>
+<a href="Customer-KB.dc.html">Why is my website slow? Checking CPU steal, disk I/O and network</a>
+<a href="Customer-KB.dc.html">Reading the traffic graph and the monthly limit</a>
+</div>
+<div style="display: flex; gap: 8px; flex-wrap: wrap;"><button type="button" onClick="{{submit}}" style="min-height: 44px; padding: 0 16px; border: 0; border-radius: 10px; background: #4C9AFF; color: #06101F; font: inherit; font-weight: 600;">Submit ticket</button><a href="Customer-Assistant.dc.html" style="display: inline-flex; align-items: center; min-height: 44px; padding: 0 14px; border: 1px solid #2A3750; border-radius: 10px; color: #E6EBF2; text-decoration: none;">Ask the AI assistant first</a></div>
+</section>
+</sc-if>
+</div>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1500}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { picked: 4821, mode: 'thread', prio: 'high' }; }
+  renderVals() {
+    const ST = { Open: ['#152645', '#9CC8FF'], 'Waiting for you': ['#3A2E10', '#F5C46B'], Solved: ['#123326', '#7EE6B0'] };
+    const T = [
+      [4821, 'web-prod-01 unreachable after reboot', 'Open', 'Urgent · web-prod-01 · updated 01:01', 'Urgent · response within 30 min', 'web-prod-01', [
+        ['Rina Wijaya', '00:44', 'After restarting from the panel, web-prod-01 does not answer on 103.28.14.21. Console shows the login prompt.', 'me'],
+        ['AI triage', '00:44', 'Collected: server running, guest agent up, ping from gateway OK, firewall rule for 443 present. Routed to L2 network team.', 'bot'],
+        ['Dimas · Support L2', '01:01', 'Thanks Rina. The netplan file on the server lost its default route after the reboot. Please run:\nsudo netplan apply\nfrom the console. I am watching the traffic graph with you.', 'agent']
+      ]],
+      [4790, 'Invoice INV-2026-10-0142 question', 'Waiting for you', 'Billing · updated 13 Oct', 'Normal · response within 8 h', 'No server', [
+        ['Rina Wijaya', '12 Oct 10:15', 'Why is there a memory add-on on the October invoice?', 'me'],
+        ['Finance', '12 Oct 14:02', 'ad-dc-01 was resized to 12 GB on 20 Sep. The 11 days in September are charged pro-rated. Does that answer it?', 'agent']
+      ]],
+      [4702, 'Set reverse DNS for mail', 'Solved', 'Network · solved 03 Oct', 'Low', 'web-prod-01', [
+        ['Rina Wijaya', '03 Oct 09:40', 'How do I set reverse DNS?', 'me'],
+        ['Sari · Support L1', '03 Oct 09:58', 'Network & VPN > IP addresses lets you set it yourself now.', 'agent']
+      ]]
+    ];
+    const tickets = T.map((t) => ({ id: t[0], title: t[1], status: t[2], meta: t[3], stBg: ST[t[2]][0], stFg: ST[t[2]][1], on: this.state.mode === 'thread' && t[0] === this.state.picked, border: this.state.mode === 'thread' && t[0] === this.state.picked ? '#4C9AFF' : '#1F2A3F', bg: this.state.mode === 'thread' && t[0] === this.state.picked ? '#101C33' : '#101828', pick: () => this.setState({ picked: t[0], mode: 'thread' }) }));
+    const c = T.find((t) => t[0] === this.state.picked);
+    const style = { me: ['#12213D', '#2B4A80', 'flex-end', '#9CC8FF'], bot: ['#1A1730', '#3A3366', 'flex-start', '#C7B8FF'], agent: ['#0C1322', '#1F2A3F', 'flex-start', '#7EE6B0'] };
+    const P = [['low', 'Low', 'Next business day', '#B8C2D1'], ['normal', 'Normal', 'Within 8 hours', '#9CC8FF'], ['high', 'High', 'Within 2 hours', '#F5C46B'], ['urgent', 'Urgent · outage', 'Within 30 min, 24/7', '#FF9B9B']];
+    return {
+      tickets, noop: () => {}, yes: true,
+      showThread: this.state.mode === 'thread', showNew: this.state.mode === 'new',
+      newTicket: () => this.setState({ mode: 'new' }), submit: () => this.setState({ mode: 'thread' }),
+      priorities: P.map((p) => ({ label: p[1], sla: p[2], color: p[3], on: p[0] === this.state.prio, border: p[0] === this.state.prio ? '#4C9AFF' : '#2A3750', bg: p[0] === this.state.prio ? '#101C33' : 'transparent', pick: () => this.setState({ prio: p[0] }) })),
+      cur: { id: c[0], title: c[1], meta: c[3], priority: c[4], server: c[5], messages: c[6].map((m) => ({ who: m[0], when: m[1], text: m[2], bg: style[m[3]][0], border: style[m[3]][1], align: style[m[3]][2], whoColor: style[m[3]][3] })) }
+    };
+  }
+}
+</script>
+</body>
+</html>

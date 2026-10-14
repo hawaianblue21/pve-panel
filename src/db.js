@@ -266,6 +266,238 @@ db.exec(`
 `);
 addColumn('users', 'resource_pool_id', 'INTEGER REFERENCES resource_pools(id) ON DELETE SET NULL');
 addColumn('vms', 'datacenter_id', 'INTEGER');
+// Package updates on Linux servers share the update-run table with Windows
+addColumn('winupdates', 'os', "TEXT NOT NULL DEFAULT 'windows'");
+
+// Personal appearance (Account → Appearance): NULL = the panel's scheme / the device's mode
+addColumn('users', 'ui_scheme', 'TEXT');
+addColumn('users', 'ui_mode', 'TEXT');
+
+// ---- Support: tickets, messages and the knowledge base (support.js, kb.js) --------
+// Tickets live in the panel; zammad_* columns are only used when the optional
+// Zammad sync is set up (zammad.js). A customer's tickets go with the customer.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS tickets (
+    id               INTEGER PRIMARY KEY,
+    number           INTEGER UNIQUE NOT NULL,
+    user_id          INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    vmid             INTEGER,
+    subject          TEXT NOT NULL,
+    category         TEXT NOT NULL,
+    priority         TEXT NOT NULL DEFAULT 'normal' CHECK (priority IN ('low', 'normal', 'high', 'urgent')),
+    status           TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'waiting', 'resolved', 'closed')),
+    queue            TEXT NOT NULL DEFAULT 'L1' CHECK (queue IN ('L1', 'L2', 'L3')),
+    assignee_id      INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    context          TEXT,
+    created_at       TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at       TEXT NOT NULL DEFAULT (datetime('now')),
+    zammad_id        INTEGER UNIQUE,
+    zammad_error     TEXT,
+    zammad_synced_at TEXT
+  );
+  CREATE INDEX IF NOT EXISTS tickets_user ON tickets(user_id);
+  CREATE INDEX IF NOT EXISTS tickets_status ON tickets(status, queue);
+
+  CREATE TABLE IF NOT EXISTS ticket_messages (
+    id                INTEGER PRIMARY KEY,
+    ticket_id         INTEGER NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
+    author            TEXT NOT NULL CHECK (author IN ('customer', 'agent', 'system')),
+    author_id         INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    author_name       TEXT,
+    body              TEXT NOT NULL,
+    internal          INTEGER NOT NULL DEFAULT 0,
+    created_at        TEXT NOT NULL DEFAULT (datetime('now')),
+    zammad_article_id INTEGER UNIQUE,
+    zammad_pending    INTEGER NOT NULL DEFAULT 0
+  );
+  CREATE INDEX IF NOT EXISTS ticket_messages_ticket ON ticket_messages(ticket_id);
+
+  CREATE TABLE IF NOT EXISTS kb_articles (
+    id            INTEGER PRIMARY KEY,
+    slug          TEXT UNIQUE NOT NULL,
+    title         TEXT NOT NULL,
+    category      TEXT NOT NULL DEFAULT 'General',
+    body          TEXT NOT NULL DEFAULT '',
+    visibility    TEXT NOT NULL DEFAULT 'customers' CHECK (visibility IN ('public', 'customers', 'internal')),
+    status        TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'published')),
+    source_ticket INTEGER,
+    created_by    INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    updated_by    INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    created_at    TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at    TEXT NOT NULL DEFAULT (datetime('now')),
+    published_at  TEXT,
+    views         INTEGER NOT NULL DEFAULT 0,
+    helpful       INTEGER NOT NULL DEFAULT 0,
+    not_helpful   INTEGER NOT NULL DEFAULT 0
+  );
+
+  -- What people searched in the help center, to find missing articles
+  CREATE TABLE IF NOT EXISTS kb_searches (
+    id         INTEGER PRIMARY KEY,
+    query      TEXT NOT NULL,
+    results    INTEGER NOT NULL,
+    signed_in  INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+`);
+
+// ---- AI assistant (ai.js): conversations of customers with the assistant ----------
+db.exec(`
+  CREATE TABLE IF NOT EXISTS ai_conversations (
+    id            INTEGER PRIMARY KEY,
+    user_id       INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    title         TEXT NOT NULL DEFAULT 'New conversation',
+    ticket_number INTEGER,
+    created_at    TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at    TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE INDEX IF NOT EXISTS ai_conversations_user ON ai_conversations(user_id);
+
+  -- role: user | assistant | tool. Assistant rows may carry tool calls (JSON),
+  -- tool rows the result given to the model; sources = articles the answer used.
+  CREATE TABLE IF NOT EXISTS ai_messages (
+    id              INTEGER PRIMARY KEY,
+    conversation_id INTEGER NOT NULL REFERENCES ai_conversations(id) ON DELETE CASCADE,
+    role            TEXT NOT NULL CHECK (role IN ('user', 'assistant', 'tool')),
+    content         TEXT NOT NULL DEFAULT '',
+    tool_calls      TEXT,
+    tool_call_id    TEXT,
+    tool_name       TEXT,
+    sources         TEXT,
+    handover        TEXT,
+    rating          INTEGER,
+    tokens_in       INTEGER NOT NULL DEFAULT 0,
+    tokens_out      INTEGER NOT NULL DEFAULT 0,
+    created_at      TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE INDEX IF NOT EXISTS ai_messages_conversation ON ai_messages(conversation_id);
+`);
+
+// ---- Billing (billing.js): invoices in whole rupiah, payments, wallet ----------------
+db.exec(`
+  CREATE TABLE IF NOT EXISTS invoices (
+    id            INTEGER PRIMARY KEY,
+    number        TEXT UNIQUE NOT NULL,
+    user_id       INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    purpose       TEXT NOT NULL CHECK (purpose IN ('renewal', 'topup', 'manual', 'order', 'upgrade')),
+    vmid          INTEGER,
+    months        INTEGER,
+    lines         TEXT NOT NULL,
+    subtotal      INTEGER NOT NULL,
+    tax_name      TEXT NOT NULL DEFAULT 'PPN',
+    tax_rate      REAL NOT NULL,
+    tax           INTEGER NOT NULL,
+    total         INTEGER NOT NULL,
+    currency      TEXT NOT NULL DEFAULT 'IDR',
+    status        TEXT NOT NULL DEFAULT 'unpaid' CHECK (status IN ('unpaid', 'paid', 'void', 'refunded')),
+    due_at        TEXT NOT NULL,
+    paid_at       TEXT,
+    paid_via      TEXT,
+    fulfilled_at  TEXT,
+    auto          INTEGER NOT NULL DEFAULT 0,
+    customer_ref  TEXT,
+    note          TEXT,
+    bill_to       TEXT,
+    created_at    TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE INDEX IF NOT EXISTS invoices_user ON invoices(user_id, status);
+
+  -- One checkout at a payment gateway (an invoice can have several attempts)
+  CREATE TABLE IF NOT EXISTS checkouts (
+    id          INTEGER PRIMARY KEY,
+    invoice_id  INTEGER NOT NULL REFERENCES invoices(id) ON DELETE CASCADE,
+    gateway     TEXT NOT NULL CHECK (gateway IN ('xendit', 'midtrans')),
+    order_id    TEXT UNIQUE NOT NULL,
+    gateway_id  TEXT,
+    url         TEXT,
+    amount      INTEGER NOT NULL,
+    status      TEXT NOT NULL DEFAULT 'pending',
+    expires_at  TEXT,
+    created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+
+  CREATE TABLE IF NOT EXISTS payments (
+    id          INTEGER PRIMARY KEY,
+    invoice_id  INTEGER NOT NULL REFERENCES invoices(id) ON DELETE CASCADE,
+    method      TEXT NOT NULL,
+    reference   TEXT,
+    amount      INTEGER NOT NULL,
+    admin_id    INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+
+  CREATE TABLE IF NOT EXISTS wallet_entries (
+    id            INTEGER PRIMARY KEY,
+    user_id       INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    amount        INTEGER NOT NULL,
+    balance_after INTEGER NOT NULL,
+    reason        TEXT NOT NULL,
+    invoice_id    INTEGER REFERENCES invoices(id) ON DELETE SET NULL,
+    admin_id      INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    created_at    TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE INDEX IF NOT EXISTS wallet_user ON wallet_entries(user_id);
+`);
+addColumn('vms', 'auto_renew', 'INTEGER NOT NULL DEFAULT 0');
+addColumn('vms', 'price_monthly', 'INTEGER');            // fixed price; NULL = from the rate card
+addColumn('users', 'billing_profile', 'TEXT');           // JSON: name, address, tax ID on invoices
+
+// Invoices from before plans: widen the allowed kinds and states (SQLite can't change a CHECK in place)
+{
+  const sql = db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'invoices'").get()?.sql ?? '';
+  if (sql && !sql.includes("'order'")) {
+    db.exec('PRAGMA foreign_keys = OFF');
+    db.exec('BEGIN IMMEDIATE');
+    try {
+      const widened = sql
+        .replace("('renewal', 'topup', 'manual')", "('renewal', 'topup', 'manual', 'order', 'upgrade')")
+        .replace("('unpaid', 'paid', 'void')", "('unpaid', 'paid', 'void', 'refunded')")
+        .replace(/CREATE TABLE "?invoices"?/, 'CREATE TABLE invoices_new');
+      db.exec(widened);
+      db.exec('INSERT INTO invoices_new SELECT * FROM invoices');
+      db.exec('DROP TABLE invoices');
+      db.exec('ALTER TABLE invoices_new RENAME TO invoices');
+      db.exec('CREATE INDEX IF NOT EXISTS invoices_user ON invoices(user_id, status)');
+      db.exec('COMMIT');
+    } catch (err) { db.exec('ROLLBACK'); throw err; } finally { db.exec('PRAGMA foreign_keys = ON'); }
+  }
+}
+
+// ---- Plans (plans.js): sizes customers create servers from, with a monthly price --------
+db.exec(`
+  CREATE TABLE IF NOT EXISTS plans (
+    id              INTEGER PRIMARY KEY,
+    name            TEXT NOT NULL,
+    description     TEXT NOT NULL DEFAULT '',
+    cores           INTEGER NOT NULL,
+    memory_mb       INTEGER NOT NULL,
+    disk_gb         INTEGER NOT NULL,
+    gpu_profile_id  INTEGER REFERENCES gpu_profiles(id),
+    price_monthly   INTEGER,                   -- whole rupiah before tax; NULL = no charge
+    active          INTEGER NOT NULL DEFAULT 1,
+    sort            INTEGER NOT NULL DEFAULT 0,
+    created_at      TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+`);
+addColumn('vms', 'plan_id', 'INTEGER REFERENCES plans(id)');
+
+// ---- Single sign-on identities (Google, Microsoft, GitHub; see sso.js) ------------
+// One identity per provider per account; found by provider + issuer + subject.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS user_identities (
+    id INTEGER PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    provider TEXT NOT NULL,
+    issuer TEXT NOT NULL,
+    subject TEXT NOT NULL,
+    email TEXT,
+    name TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    last_used_at TEXT,
+    UNIQUE (provider, issuer, subject),
+    UNIQUE (user_id, provider)
+  );
+`);
 
 // ---- GPUs ------------------------------------------------------------------------
 // A GPU profile points at a Proxmox PCI resource mapping (Datacenter > Resource

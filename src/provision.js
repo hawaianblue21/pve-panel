@@ -10,7 +10,7 @@ import { agentExec } from './agent.js';
 import { expiryForNewServer } from './expiry.js';
 import { activeRun } from './winupdate.js';
 import { checkPoolCapacity, placement, datacenterById } from './pools.js';
-import { profilesForUser, profileCapacity, applyRecordedGpus } from './gpu.js';
+import { profilesForUser, claimGpu, applyRecordedGpus } from './gpu.js';
 
 const MB = 1024 ** 2;
 const GB = 1024 ** 3;
@@ -137,7 +137,16 @@ function applySetupRules(spec, offered) {
  * right away; configuration, disk resize and first start continue in the
  * background, tracked through the `state` column.
  */
-export async function createServer(req, spec) {
+// Called with the server ID when setting up a new server failed (billing refunds a paid order)
+const createFailedHooks = [];
+export const onCreateFailed = (fn) => { createFailedHooks.push(fn); };
+
+/**
+ * spec: hostname, templateId, cores, memoryMb, diskGb, … (planId: the plan it was made from).
+ * options.charge(): called after every check and before anything is created; it
+ * may throw (e.g. not enough balance) and returns { done(vmid), undo(reason) }.
+ */
+export async function createServer(req, spec, { charge = null } = {}) {
   const account = req.account;
   if (!account.can_create) throw new ProvisionError(403, 'Creating servers is not enabled for your account');
   if (creatingFor.has(account.id)) {
@@ -146,6 +155,7 @@ export async function createServer(req, spec) {
   creatingFor.add(account.id);
 
   let background = false;
+  let releaseGpu = null;
   try {
     const tplRow = db.prepare('SELECT * FROM templates WHERE vmid = ?').get(spec.templateId);
     if (!tplRow) throw new ProvisionError(400, 'That image is not available');
@@ -175,8 +185,8 @@ export async function createServer(req, spec) {
     if (spec.gpuProfileId) {
       gpu = profilesForUser(account.id).find((p) => p.id === spec.gpuProfileId);
       if (!gpu) throw new ProvisionError(403, 'That GPU is not available for your account');
-      const cap = await profileCapacity(gpu);
-      if (cap.free < 1) throw new ProvisionError(409, `No ${gpu.name} is free right now. Try again later or choose another GPU.`);
+      releaseGpu = await claimGpu(gpu);
+      if (!releaseGpu) throw new ProvisionError(409, `No ${gpu.name} is free right now. Try again later or choose another GPU.`);
     }
 
     // Resource pool (shared by several customers) and the datacenter it may use
@@ -188,41 +198,52 @@ export async function createServer(req, spec) {
     // The customer's private network (created with their first server)
     const net = config.network.enabled ? await ensureNetwork(account.id) : null;
 
+    // Pay for it (plans with a price), last thing before anything is created
+    const order = charge ? await charge() : null;
+
     // Reserve ID + start clone, serialised against other creations
-    const { vmid, upid } = await serial(async () => {
-      // Proxmox's next free ID, skipping IDs the panel still has records for
-      // (e.g. a VM that was deleted directly in Proxmox but is still assigned here).
-      const known = db.prepare('SELECT 1 FROM vms WHERE vmid = ?');
-      let id = Number(await pve.get('/cluster/nextid'));
-      for (let tries = 0; ; tries += 1, id += 1) {
-        if (tries > 1000) throw new Error('No free VM ID found');
-        if (known.get(id)) continue;
-        try {
-          await pve.get('/cluster/nextid', { vmid: id }); // errors if the ID is taken in Proxmox
-          break;
-        } catch {
-          // taken in Proxmox, try the next one
+    let reserved;
+    try {
+      reserved = await serial(async () => {
+        // Proxmox's next free ID, skipping IDs the panel still has records for
+        // (e.g. a VM that was deleted directly in Proxmox but is still assigned here).
+        const known = db.prepare('SELECT 1 FROM vms WHERE vmid = ?');
+        let id = Number(await pve.get('/cluster/nextid'));
+        for (let tries = 0; ; tries += 1, id += 1) {
+          if (tries > 1000) throw new Error('No free VM ID found');
+          if (known.get(id)) continue;
+          try {
+            await pve.get('/cluster/nextid', { vmid: id }); // errors if the ID is taken in Proxmox
+            break;
+          } catch {
+            // taken in Proxmox, try the next one
+          }
         }
-      }
-      const task = await pve.post(`/nodes/${encodeURIComponent(tpl.node)}/qemu/${tpl.vmid}/clone`, {
-        newid: id,
-        name: spec.hostname,
-        full: 1,
-        // Another node of the datacenter: Proxmox clones there (full clone)
-        target: place && place.node !== tpl.node ? place.node : undefined,
-        storage: place?.storage || tplRow.storage || undefined,
-        pool: config.pve.pool,
+        const task = await pve.post(`/nodes/${encodeURIComponent(tpl.node)}/qemu/${tpl.vmid}/clone`, {
+          newid: id,
+          name: spec.hostname,
+          full: 1,
+          // Another node of the datacenter: Proxmox clones there (full clone)
+          target: place && place.node !== tpl.node ? place.node : undefined,
+          storage: place?.storage || tplRow.storage || undefined,
+          pool: config.pve.pool,
+        });
+        return { vmid: id, upid: task };
       });
-      return { vmid: id, upid: task };
-    });
+    } catch (err) {
+      order?.undo('the server could not be set up');
+      throw err;
+    }
+    const { vmid, upid } = reserved;
 
     db.prepare(`
-      INSERT INTO vms (vmid, user_id, type, label, state, created_by_customer, spec, progress, expires_at, expiry_set_at, datacenter_id)
-      VALUES (?, ?, 'qemu', NULL, 'creating', 1, ?, 'Copying the image', ?, ?, ?)
+      INSERT INTO vms (vmid, user_id, type, label, state, created_by_customer, spec, progress, expires_at, expiry_set_at, datacenter_id, plan_id)
+      VALUES (?, ?, 'qemu', NULL, 'creating', 1, ?, 'Copying the image', ?, ?, ?, ?)
     `).run(vmid, account.id, JSON.stringify({
       cores: spec.cores, memoryMb: spec.memoryMb, diskGb: spec.diskGb, template: tpl.vmid,
       hostname: spec.hostname, gpu: gpu?.key ?? undefined,
-    }), expiryForNewServer(account.id), new Date().toISOString(), place?.datacenter.id ?? null);
+    }), expiryForNewServer(account.id), new Date().toISOString(), place?.datacenter.id ?? null, spec.planId ?? null);
+    order?.done(vmid);
     // The GPU is reserved now (slot -1) and written into the config before first start
     if (gpu) {
       db.prepare('INSERT INTO gpu_assignments (vmid, slot, profile_id, user_id) VALUES (?, -1, ?, ?)').run(vmid, gpu.id, account.id);
@@ -236,6 +257,8 @@ export async function createServer(req, spec) {
 
     return vmid;
   } finally {
+    // From here the reservation row counts the GPU (or creation failed)
+    releaseGpu?.();
     if (!background) creatingFor.delete(account.id);
   }
 }
@@ -301,6 +324,9 @@ async function finishCreate(actor, node, vmid, cloneUpid, spec, tplRow, net, {
     db.prepare("UPDATE vms SET state = 'failed', error = ?, progress = NULL WHERE vmid = ?")
       .run(String(err.message).slice(0, 500), vmid);
     audit(actor, vmid, failed, { error: err.message });
+    if (failed === 'server_create_failed') {
+      for (const fn of createFailedHooks) { try { fn(vmid); } catch { /* best effort */ } }
+    }
   } finally {
     invalidateGuestCache();
   }
@@ -432,9 +458,10 @@ else { 'nothing' }
  * within the plan. CPU/memory on a running server take effect at the next
  * restart by Proxmox (optionally right away); disks only grow.
  */
-export async function resizeServer(req, row, { cores, memoryMb, diskGb, restart = false }) {
+export async function resizeServer(req, row, { cores, memoryMb, diskGb, restart = false }, { planChange = false } = {}) {
   const account = req.account;
   if (!row.created_by_customer) throw new ProvisionError(403, 'Only servers you created yourself can be resized');
+  if (row.plan_id && !planChange) throw new ProvisionError(409, 'This server is on a plan. Move it to a larger plan instead.');
   if (!account.can_create) throw new ProvisionError(403, 'Resizing is not enabled for your account');
   if (activeRun(row.vmid)) throw new ProvisionError(409, 'Windows updates are being installed on this server. Wait until they have finished.');
   if (row.expired_at) throw new ProvisionError(403, 'This server has expired. Extend it first.');

@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Support integration flow</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500&amp;family=Space+Grotesk:wght@500;600;700&amp;display=swap">
+<style>body{margin:0;background:#0A101C;}</style>
+</helmet>
+<div style="min-height: 100vh; box-sizing: border-box; padding: 36px 40px 48px; background: #0A101C; color: #E6EBF2; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 14px; line-height: 1.5; display: flex; flex-direction: column; gap: 24px;">
+
+<div style="display: flex; flex-direction: column; gap: 4px;">
+<h1 style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 30px; font-weight: 600;">Support integration · customer ↔ AI ↔ Zammad ↔ KB</h1>
+<span style="color: #93A0B4; max-width: 980px;">One loop: customers try the KB and the AI first, unresolved questions become Zammad tickets with full context, agents answer with KB-suggested replies, and repeated tickets or failed searches come back as KB drafts.</span>
+</div>
+
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 18px; align-items: stretch;">
+<sc-for list="{{lanes}}" as="l" hint-placeholder-count="4">
+<section style="display: flex; flex-direction: column; gap: 10px; padding: 16px; border-radius: 16px; background: #0D1424; border: 1px solid {{l.border}};">
+<span style="display: flex; align-items: center; gap: 8px;"><span style="width: 26px; height: 26px; border-radius: 8px; background: {{l.color}}; color: #06101F; display: inline-flex; align-items: center; justify-content: center; font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 13px;">{{l.n}}</span><span style="font-family: 'Space Grotesk', sans-serif; font-size: 17px; font-weight: 600;">{{l.title}}</span></span>
+<span style="font-size: 12px; color: #93A0B4;">{{l.where}}</span>
+<sc-for list="{{l.steps}}" as="s" hint-placeholder-count="4">
+<div style="padding: 10px 12px; border-radius: 10px; background: #101828; border: 1px solid #1F2A3F; font-size: 13px; display: flex; flex-direction: column; gap: 2px;"><span style="font-weight: 500;">{{s.t}}</span><span style="color: #93A0B4; font-size: 12px;">{{s.d}}</span></div>
+</sc-for>
+<span style="margin-top: auto; padding-top: 6px; font-size: 12px; color: {{l.color}}; font-weight: 600;">{{l.out}}</span>
+</section>
+</sc-for>
+</div>
+
+<div style="display: flex; flex-wrap: wrap; gap: 18px;">
+<section style="flex: 1 1 460px; padding: 16px 18px; border-radius: 16px; background: #0D1424; border: 1px solid #1F2A3F; display: flex; flex-direction: column; gap: 8px;">
+<h2 style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 17px; font-weight: 600;">Context passed on handover</h2>
+<sc-for list="{{context}}" as="c" hint-placeholder-count="6"><span style="display: flex; gap: 10px; font-size: 13px;"><span style="flex: none; width: 150px; color: #93A0B4;">{{c.k}}</span><span>{{c.v}}</span></span></sc-for>
+</section>
+<section style="flex: 1 1 460px; padding: 16px 18px; border-radius: 16px; background: #0D1424; border: 1px solid #1F2A3F; display: flex; flex-direction: column; gap: 8px;">
+<h2 style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 17px; font-weight: 600;">Screens involved</h2>
+<sc-for list="{{screens}}" as="s" hint-placeholder-count="8"><span style="display: flex; gap: 10px; font-size: 13px;"><span style="flex: none; width: 150px; font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #8EC2FF;">{{s.k}}</span><span>{{s.v}}</span></span></sc-for>
+</section>
+</div>
+
+<section style="padding: 16px 18px; border-radius: 16px; background: #1A1730; border: 1px solid #3A3366; display: flex; flex-direction: column; gap: 6px;">
+<h2 style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 17px; font-weight: 600; color: #D7D0FF;">Guardrails</h2>
+<sc-for list="{{rules}}" as="r" hint-placeholder-count="5"><span style="font-size: 13px; color: #D7D0FF;">• {{r}}</span></sc-for>
+</section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1600,"height":1200}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {
+      lanes: [
+        { n: '1', title: 'Self-service', where: 'Customer portal · Knowledge base', color: '#7EE6B0', border: '#1E4A3A',
+          steps: [{ t: 'Search KB', d: 'ID + EN, ranked by helpful votes' }, { t: 'Contextual articles', d: 'shown on server, storage and billing pages' }, { t: 'No good result', d: 'query logged as a KB gap' }],
+          out: 'Resolved → helpful vote · else → AI' },
+        { n: '2', title: 'AI assistant', where: 'Customer portal · Chat AI', color: '#C7B8FF', border: '#3A3366',
+          steps: [{ t: 'Answer from KB', d: 'cites articles, never invents steps' }, { t: 'Read-only tools', d: 'server status, graphs, invoices of this customer only' }, { t: 'Safe actions with confirm', d: 'reboot, open console; never delete' }, { t: 'Handover', d: 'customer asks, low confidence, or security topic' }],
+          out: 'Handover → ticket with transcript' },
+        { n: '3', title: 'Ticket · Zammad', where: 'support.example.com · portal, WhatsApp, phone', color: '#9CC8FF', border: '#21406E',
+          steps: [{ t: 'AI triage', d: 'category, priority, target group' }, { t: 'L1 service desk', d: 'first response, all channels' }, { t: 'L2 Network / Compute', d: 'performance, network, storage' }, { t: 'L3 Security', d: 'abuse, compromise, 2FA reset' }],
+          out: 'Reply → portal + WhatsApp, synced by webhook' },
+        { n: '4', title: 'Learn', where: 'Admin · Knowledge base · AI', color: '#F5C46B', border: '#4A3A14',
+          steps: [{ t: 'Repeated tickets', d: '3+ similar → AI drafts an article' }, { t: 'KB gaps', d: 'failed searches and AI handovers' }, { t: 'Human review', d: 'agent or owner publishes, never auto' }, { t: 'Measure', d: 'tickets avoided, AI citations, helpful %' }],
+          out: 'Published → back to step 1' }
+      ],
+      context: [
+        { k: 'Customer', v: 'name, plan, pool usage, open invoices, 2FA on/off' },
+        { k: 'Server', v: 'VMID, node, datacenter, state, last 24 h graphs' },
+        { k: 'Recent activity', v: 'last 20 Activity log events of this customer' },
+        { k: 'AI transcript', v: 'full chat, articles cited, tools called' },
+        { k: 'Triage', v: 'category, priority, suggested group, confidence' },
+        { k: 'KB suggestion', v: 'top 3 articles for the agent reply' }
+      ],
+      screens: [
+        { k: 'Customer-KB', v: 'search and articles' },
+        { k: 'Customer-Assistant', v: 'chat AI with handover' },
+        { k: 'Customer-Tickets', v: 'create and follow tickets' },
+        { k: 'Admin-Support', v: 'ticket desk mirrored from Zammad' },
+        { k: 'Admin-AI', v: 'behaviour, conversations, gaps' },
+        { k: 'Admin-KB', v: 'editor, AI drafts, failed searches' },
+        { k: 'Admin-Integrations', v: 'Zammad, AI provider, webhooks' },
+        { k: 'Admin-Activity', v: 'every step logged' }
+      ],
+      rules: [
+        'The AI only sees data of the signed-in customer; admin data and other customers are out of its tools.',
+        'Destructive actions (delete server, delete bucket, cancel plan) are never done by the AI; it links to the page instead.',
+        'Security topics and 2FA resets always go to a human (L3), with identity check by phone.',
+        'AI drafts in the KB are never published without a human review.',
+        'Every AI tool call and every handover is written to the Activity log.'
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

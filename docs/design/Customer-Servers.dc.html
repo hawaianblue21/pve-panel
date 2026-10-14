@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>My servers</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500&amp;family=Space+Grotesk:wght@500;600;700&amp;display=swap">
+<style>
+body{margin:0;background:#0A101C;}
+a{color:#8EC2FF;}a:hover{color:#C5E0FF;}
+</style>
+</helmet>
+<div style="min-height: 100vh; background: #0A101C; color: #E6EBF2; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 14px; line-height: 1.5; display: flex; flex-wrap: wrap; align-items: stretch;">
+
+<div style="flex: 1 1 240px; background: #0D1424; border-right: 1px solid #1C2638;">
+<dc-import name="Sidebar" portal="customer" active="servers" hint-size="100%,960px"></dc-import>
+</div>
+
+<main style="flex: 999 1 560px; min-width: 0; box-sizing: border-box; padding: 28px 32px 48px; display: flex; flex-direction: column; gap: 20px;">
+
+<!-- overdue banner -->
+<div role="alert" style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 14px 16px; border: 1px solid #5A4618; background: #221B0C; border-radius: 12px;">
+<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#F5C46B" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l9 16H3z"></path><path d="M12 10v4M12 17h.01"></path></svg>
+<span style="flex: 1 1 320px;"><strong style="font-weight: 600;">Invoice INV-2026-10-0142 is 2 days overdue.</strong> <span style="color: #D9C8A0;">Pay Rp 1.075.120 before 15 Oct to keep web-prod-01 and ad-dc-01 running.</span></span>
+<a href="Customer-Invoice.dc.html" style="display: inline-flex; align-items: center; min-height: 40px; padding: 0 16px; border-radius: 10px; background: #F5B94C; color: #1A1406; text-decoration: none; font-weight: 600;">Pay now</a>
+</div>
+
+<div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px;">
+<div style="display: flex; flex-direction: column; gap: 2px;">
+<h1 style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 28px; font-weight: 600;">My servers</h1>
+<span style="color: #93A0B4;">PT Arunika Digital · private network 10.100.1.0/24</span>
+</div>
+<a href="Customer-Create.dc.html" style="display: inline-flex; align-items: center; min-height: 44px; padding: 0 16px; border-radius: 10px; background: #4C9AFF; color: #06101F; text-decoration: none; font-weight: 600;">+ Create server</a>
+</div>
+
+<!-- account limits + balance -->
+<div style="display: flex; flex-wrap: wrap; gap: 16px;">
+<section aria-labelledby="lim-h" style="flex: 2 1 520px; min-width: 0; padding: 16px 18px; background: #101828; border: 1px solid #1F2A3F; border-radius: 14px; display: flex; flex-direction: column; gap: 12px;">
+<h2 id="lim-h" style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 16px; font-weight: 600;">Account limits</h2>
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 16px;">
+<sc-for list="{{limits}}" as="l" hint-placeholder-count="4">
+<div style="display: flex; flex-direction: column; gap: 6px;">
+<span style="display: flex; justify-content: space-between; font-size: 13px;"><span style="color: #93A0B4;">{{l.label}}</span><span style="font-family: 'JetBrains Mono', monospace;">{{l.value}}</span></span>
+<span style="height: 6px; border-radius: 3px; background: #1C2638; overflow: hidden;"><span style="display: block; height: 6px; width: {{l.pct}}; background: #4C9AFF;"></span></span>
+</div>
+</sc-for>
+</div>
+</section>
+<section aria-labelledby="bal-h" style="flex: 1 1 280px; min-width: 0; padding: 16px 18px; background: #101828; border: 1px solid #1F2A3F; border-radius: 14px; display: flex; flex-direction: column; gap: 6px;">
+<h2 id="bal-h" style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 16px; font-weight: 600;">Wallet</h2>
+<span style="font-family: 'Space Grotesk', sans-serif; font-size: 26px; font-weight: 600;">Rp 250.000</span>
+<span style="font-size: 13px; color: #93A0B4;">Next invoice 05 Nov · estimated Rp 1.387.500</span>
+<a href="Customer-Billing.dc.html" style="font-size: 13px;">Top up or view billing</a>
+</section>
+</div>
+
+<!-- servers -->
+<section aria-label="Servers" style="display: flex; flex-direction: column; gap: 12px;">
+<sc-for list="{{servers}}" as="s" hint-placeholder-count="3">
+<article style="display: flex; flex-wrap: wrap; align-items: center; gap: 18px; padding: 16px 18px; background: #101828; border: 1px solid #1F2A3F; border-radius: 14px;">
+<span style="width: 40px; height: 40px; flex: none; border-radius: 10px; background: #16223A; color: #8EC2FF; display: flex; align-items: center; justify-content: center; font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 500;" aria-hidden="true">{{s.badge}}</span>
+<span style="flex: 2 1 220px; min-width: 0; display: flex; flex-direction: column;">
+<a href="{{s.href}}" style="font-family: 'Space Grotesk', sans-serif; font-size: 17px; font-weight: 600; color: #E6EBF2; text-decoration: none;">{{s.name}}</a>
+<span style="font-size: 13px; color: #93A0B4;">{{s.os}} · {{s.plan}} · {{s.loc}}</span>
+</span>
+<span style="flex: 1 1 140px; display: flex; flex-direction: column; font-size: 13px;"><span style="color: #93A0B4;">Address</span><span style="font-family: 'JetBrains Mono', monospace;">{{s.ip}}</span></span>
+<span style="flex: 1 1 150px; display: flex; flex-direction: column; gap: 4px; font-size: 13px;"><span style="display: flex; justify-content: space-between;"><span style="color: #93A0B4;">Traffic (Oct)</span><span style="font-family: 'JetBrains Mono', monospace;">{{s.traffic}}</span></span><span style="height: 5px; border-radius: 3px; background: #1C2638; overflow: hidden;"><span style="display: block; height: 5px; width: {{s.tpct}}; background: #4C9AFF;"></span></span></span>
+<span style="flex: 1 1 120px; color: {{s.color}}; font-weight: 500;">● {{s.status}}</span>
+<span style="display: flex; gap: 8px;">
+<button type="button" style="min-height: 40px; padding: 0 12px; border: 1px solid #2A3750; border-radius: 10px; background: transparent; color: #E6EBF2; font: inherit; font-size: 13px;">Console</button>
+<a href="{{s.href}}" style="display: inline-flex; align-items: center; min-height: 40px; padding: 0 12px; border: 1px solid #2A3750; border-radius: 10px; color: #E6EBF2; text-decoration: none; font-size: 13px;">Manage</a>
+</span>
+</article>
+</sc-for>
+</section>
+
+<!-- network map -->
+<section aria-labelledby="map-h" style="padding: 16px 18px; background: #101828; border: 1px solid #1F2A3F; border-radius: 14px; display: flex; flex-direction: column; gap: 14px;">
+<div style="display: flex; justify-content: space-between; align-items: center; gap: 10px;"><h2 id="map-h" style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 16px; font-weight: 600;">Private network</h2><a href="#" style="font-size: 13px;">Network &amp; VPN</a></div>
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px; font-size: 13px;">
+<span style="padding: 10px 14px; border: 1px solid #2A3750; border-radius: 10px; display: flex; flex-direction: column;"><span style="font-weight: 500;">Internet</span><span style="color: #93A0B4;">NAT + 2 public IPs</span></span>
+<span style="color: #4C9AFF;" aria-hidden="true">→</span>
+<span style="padding: 10px 14px; border: 1px solid #4C9AFF; background: #101C33; border-radius: 10px; display: flex; flex-direction: column;"><span style="font-weight: 500;">cu0007 · 10.100.1.0/24</span><span style="color: #93A0B4;">Gateway 10.100.1.1 · isolated</span></span>
+<span style="color: #4C9AFF;" aria-hidden="true">→</span>
+<span style="display: flex; flex-wrap: wrap; gap: 8px;">
+<span style="padding: 8px 12px; border-radius: 8px; background: #16223A;">web-prod-01 · .11</span>
+<span style="padding: 8px 12px; border-radius: 8px; background: #16223A;">ad-dc-01 · .12</span>
+<span style="padding: 8px 12px; border-radius: 8px; background: #16223A;">redis-cache · .20</span>
+<span style="padding: 8px 12px; border-radius: 8px; border: 1px dashed #3A4760; color: #B8C2D1;">2 WireGuard devices</span>
+</span>
+</div>
+</section>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1500}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {
+      limits: [
+        { label: 'Servers', value: '3 / 5', pct: '60%' },
+        { label: 'vCPU', value: '14 / 24', pct: '58%' },
+        { label: 'Memory', value: '32 / 48 GB', pct: '67%' },
+        { label: 'Disk', value: '430 / 1000 GB', pct: '43%' }
+      ],
+      servers: [
+        { name: 'web-prod-01', badge: 'LNX', os: 'Ubuntu 24.04', plan: 'Business', loc: 'Jakarta DC1', ip: '103.28.14.21', traffic: '2,1 / 5 TB', tpct: '42%', status: 'Running', color: '#3DD68C', href: 'Customer-Server.dc.html' },
+        { name: 'ad-dc-01', badge: 'WIN', os: 'Windows Server 2022', plan: 'Standard', loc: 'Jakarta DC1', ip: '10.100.1.12', traffic: '0,3 / 3 TB', tpct: '10%', status: 'Running', color: '#3DD68C', href: 'Customer-Server.dc.html' },
+        { name: 'redis-cache', badge: 'LXC', os: 'Debian 12', plan: 'Starter', loc: 'Jakarta DC1', ip: '10.100.1.20', traffic: '0 / 2 TB', tpct: '1%', status: 'Provisioning 70%', color: '#F5B94C', href: 'Customer-Server.dc.html' }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

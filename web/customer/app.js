@@ -2,11 +2,17 @@ import {
   $, esc, api, toast, fail, confirmAction, promptText, generatePassword,
   bytes, pct, duration, SignedOut, setUnauthorizedHandler,
 } from '/shared/ui.js';
-import { icon, osIcon, brandMark, applyBrand } from '/shared/icons.js';
+import { icon, osIcon, brandMark, applyBrand, applyPersonal } from '/shared/icons.js';
 import { netMap } from '/netmap.js';
 import { signInSecondStep, renderSecurity } from '/shared/twofa.js';
 import { prepareSignIn, resumeSso } from '/shared/signin.js';
 import { renderPasskeys } from '/shared/passkeys.js';
+import { renderIdentities } from '/shared/identities.js';
+import { renderAppearance, loadPersonalAppearance } from '/shared/appearance.js';
+import { createSupport } from '/support.js';
+import { createAssistant } from '/assistant.js';
+import { createBilling } from '/billing.js';
+import { planFieldset, updatePlanChoice, planBody, openUpgrade } from '/plans.js';
 
 const brandReady = applyBrand();
 document.querySelectorAll('[data-brand-mark]').forEach((el) => { el.innerHTML = brandMark(30); });
@@ -101,6 +107,7 @@ $('#login-form').addEventListener('submit', async (e) => {
 
 $('#logout').addEventListener('click', async () => {
   await api('/api/auth/logout', { method: 'POST' }).catch(() => {});
+  applyPersonal(null);
   state.selected = null;
   state.view = 'overview';
   state.mapAnimated = false;
@@ -125,13 +132,58 @@ function statusOf(vm) {
 const statusWord = (vm) => STATE_TEXT[vm.state]
   ?? (state.busy.has(vm.vmid) ? 'Working…' : vm.status === 'running' ? 'Running' : 'Stopped');
 
+// Support tickets and the help center (own module)
+const support = createSupport({
+  state,
+  renderList: () => renderList(),
+  setView(view, hash) {
+    state.view = view;
+    state.selected = null;
+    history.replaceState(null, '', hash);
+    renderList();
+  },
+});
+// AI assistant (own module; shown when the provider has set it up)
+const assistant = createAssistant({
+  state,
+  renderList: () => renderList(),
+  setView(view, hash) {
+    state.view = view;
+    state.selected = null;
+    history.replaceState(null, '', hash);
+    renderList();
+  },
+  openTicket: (number) => support.openSupport(String(number)),
+});
+// Billing (own module; shown when the provider bills through the panel)
+const billing = createBilling({
+  state,
+  renderList: () => renderList(),
+  setView(view, hash) {
+    state.view = view;
+    state.selected = null;
+    history.replaceState(null, '', hash);
+    renderList();
+  },
+});
+window.addEventListener('hashchange', () => {
+  if (state.me && !assistant.route(location.hash) && !billing.route(location.hash)) support.route(location.hash);
+});
+
 function renderList() {
+  const supportViews = ['support', 'support-new', 'ticket'];
   $('#rack-actions').innerHTML = [
     `<button class="nav-item" id="nav-overview" aria-current="${state.view === 'overview'}">${icon('overview')}<span>Overview</span></button>`,
     state.account.canCreate
       ? `<button class="nav-item" id="new-server" aria-current="${state.view === 'create'}">${icon('plus')}<span>New server</span></button>` : '',
     state.account.vpn?.enabled
       ? `<button class="nav-item" id="vpn-access" aria-current="${state.view === 'vpn'}">${icon('shield')}<span>VPN access</span></button>` : '',
+    state.assistantEnabled
+      ? `<button class="nav-item" id="nav-assistant" aria-current="${state.view === 'assistant'}">${icon('spark')}<span>AI assistant</span></button>` : '',
+    state.billingEnabled
+      ? `<button class="nav-item" id="nav-billing" aria-current="${['billing', 'invoice'].includes(state.view)}">${icon('wallet')}<span>Billing</span></button>` : '',
+    `<button class="nav-item" id="nav-support" aria-current="${supportViews.includes(state.view)}">${icon('chat')}<span>Support</span>${state.supportWaiting ? `<span class="nav-badge" title="Tickets waiting for your reply">${state.supportWaiting}</span>` : ''}</button>`,
+    `<button class="nav-item" id="nav-help" aria-current="${['help', 'article'].includes(state.view)}">${icon('book')}<span>Help center</span></button>`,
   ].join('');
 
   $('#vm-count').textContent = state.vms.length ? String(state.vms.length) : '';
@@ -321,7 +373,8 @@ function renderDetail() {
   ].filter(Boolean).join(', ');
   const tabs = [['overview', 'Overview', 'chart'], ['snapshots', 'Snapshots', 'camera'], ['console', 'Console', 'terminal']];
   if (state.account.tailscale) tabs.push(['remote', 'Remote access', 'link']);
-  if (vm.osFamily === 'windows') tabs.push(['updates', 'Updates', 'download']);
+  // through the QEMU guest agent: virtual machines only, not containers
+  if (vm.type !== 'lxc' && (vm.osFamily === 'windows' || vm.osFamily === 'linux')) tabs.push(['updates', 'Updates', 'download']);
 
   $('#detail').innerHTML = `
     <div class="page">
@@ -340,6 +393,7 @@ function renderDetail() {
         </div>
       </header>
       ${expiryBanner(vm)}
+      <p class="server-help"><button type="button" class="link-btn" data-help-server>${icon('chat', { size: 15 })}<span>Problem with this server? Ask support</span></button></p>
 
       <div class="tabs" role="tablist">
         ${tabs.map(([id, label, ic]) => `
@@ -384,6 +438,9 @@ function renderOverview(body) {
       </div>` : ''}
     ${vm.resizable && state.account.canCreate ? `
       <div class="row size-row"><button class="btn" data-resize>${icon('server')}<span>Change size…</span></button></div>` : ''}
+    ${vm.plan ? `
+      <div class="row size-row"><span class="muted">Plan <strong>${esc(vm.plan.name)}</strong></span>
+        ${vm.upgradable && state.account.canCreate ? `<button class="btn" data-upgrade>${icon('server')}<span>Change plan…</span></button>` : ''}</div>` : ''}
 
     <div class="section-head">
       <h2>Usage</h2>
@@ -637,6 +694,12 @@ $('#detail').addEventListener('submit', async (e) => {
   }
 });
 
+$('#detail').addEventListener('click', (e) => {
+  if (e.target.closest('[data-help-server]') && state.view === 'server') {
+    support.openNew({ vmid: state.selected, category: 'server' });
+  }
+});
+
 $('#detail').addEventListener('click', async (e) => {
   const t = e.target.closest('[data-ts-disconnect]');
   if (!t) return;
@@ -764,9 +827,10 @@ async function openCreate() {
   renderList();
   $('#detail').innerHTML = '<div class="detail-inner"><p class="muted">Loading…</p></div>';
   try {
-    const [account, templates] = await Promise.all([api('/api/account'), api('/api/templates')]);
+    const [account, templates, plans] = await Promise.all([api('/api/account'), api('/api/templates'), api('/api/plans').catch(() => null)]);
     state.account = account;
     state.templates = templates;
+    state.plans = plans?.plans?.length ? plans : null;
     if (state.view === 'create') renderCreate();
   } catch (err) { fail(err); }
 }
@@ -811,6 +875,22 @@ function renderCreate() {
   const memOptions = MEMORY_STEPS_MB.filter((m) => m <= left.memoryMb);
   const defaultMem = memOptions.includes(2048) ? 2048 : memOptions[memOptions.length - 1];
 
+  const sizeFields = `
+          <div class="grid-3">
+            <label>CPU cores
+              <input name="cores" type="number" min="1" max="${left.cores}" value="${Math.min(2, left.cores)}" required>
+            </label>
+            <label>Memory
+              <select name="memoryMb">
+                ${memOptions.map((m) => `<option value="${m}" ${m === defaultMem ? 'selected' : ''}>${gb(m)}</option>`).join('')}
+              </select>
+            </label>
+            <label>Disk (GB)
+              <input name="diskGb" type="number" min="${first.minDiskGb}" max="${left.diskGb}"
+                     value="${Math.min(Math.max(first.minDiskGb, 20), left.diskGb)}" required>
+            </label>
+          </div>`;
+
   $('#detail').innerHTML = `
     <div class="detail-inner">${head}
       <form id="create-form" class="create-form" novalidate>
@@ -827,23 +907,7 @@ function renderCreate() {
           </div>
         </fieldset>
 
-        <fieldset>
-          <legend>Size</legend>
-          <div class="grid-3">
-            <label>CPU cores
-              <input name="cores" type="number" min="1" max="${left.cores}" value="${Math.min(2, left.cores)}" required>
-            </label>
-            <label>Memory
-              <select name="memoryMb">
-                ${memOptions.map((m) => `<option value="${m}" ${m === defaultMem ? 'selected' : ''}>${gb(m)}</option>`).join('')}
-              </select>
-            </label>
-            <label>Disk (GB)
-              <input name="diskGb" type="number" min="${first.minDiskGb}" max="${left.diskGb}"
-                     value="${Math.min(Math.max(first.minDiskGb, 20), left.diskGb)}" required>
-            </label>
-          </div>
-        </fieldset>
+        ${state.plans ? planFieldset(state.plans, left, sizeFields) : `<fieldset><legend>Size</legend>${sizeFields}</fieldset>`}
 
         <fieldset>
           <legend>Name and sign-in</legend>
@@ -884,6 +948,7 @@ function renderCreate() {
       </form>
     </div>`;
   applyTemplateMode($('#create-form'), first);
+  if (state.plans) updatePlanChoice($('#create-form'), state.plans);
 }
 
 /** Shows the fields that apply to the chosen image (cloud-init vs Windows). */
@@ -911,19 +976,41 @@ function onTemplateChange(form) {
   const tpl = state.templates.find((t) => t.id === Number(form.templateId.value));
   if (!tpl) return;
   const disk = form.diskGb;
-  disk.min = tpl.minDiskGb;
-  if (Number(disk.value) < tpl.minDiskGb) disk.value = tpl.minDiskGb;
+  if (disk) {
+    disk.min = tpl.minDiskGb;
+    if (Number(disk.value) < tpl.minDiskGb) disk.value = tpl.minDiskGb;
+  }
   if (!form.username.dataset.edited && tpl.setup !== 'windows') form.username.value = tpl.defaultUser || 'admin';
   applyTemplateMode(form, tpl);
 }
 
-// ---------- Windows updates --------------------------------------------------
+// ---------- Operating system updates (Windows and Linux) ---------------------
 const UPDATE_STEPS = {
   starting: 'Starting…', searching: 'Searching for updates…', downloading: 'Downloading updates…',
   installing: 'Installing updates…', restarting: 'Restarting to finish the updates…',
   'restart-required': 'Restart required', done: 'Finished', failed: 'Failed',
 };
 const ACTIVE_UPDATE = ['starting', 'searching', 'downloading', 'installing', 'restarting', 'restart-required'];
+
+// Text that differs between Windows and Linux servers
+const UPDATE_TEXT = {
+  windows: {
+    title: 'Windows updates', what: 'Windows',
+    lede: 'Install the latest updates from Microsoft. Feature upgrades to a new Windows version and preview updates are never installed.',
+    security: ['Security and critical updates', 'Recommended. Includes the monthly cumulative update and Defender updates.'],
+    all: ['All quality updates', 'Also optional updates such as .NET improvements.'],
+    restart: ['Restart automatically when needed', 'Otherwise the panel asks you to restart, and continues afterwards.'],
+    upToDate: 'Windows was already up to date.', failed: 'Windows Update failed.', unit: 'update',
+  },
+  linux: {
+    title: 'Linux updates', what: 'Linux',
+    lede: "Install package updates from your distribution's repositories (apt or dnf). Release upgrades, removing packages and held packages are never touched; your changed configuration files are kept.",
+    security: ['Security updates only', 'Recommended for servers in production.'],
+    all: ['All package updates', 'Every package that has a newer version.'],
+    restart: ['Restart automatically if a new kernel was installed', 'Otherwise the panel shows that a restart is needed.'],
+    upToDate: 'The server was already up to date.', failed: 'The package update failed.', unit: 'package',
+  },
+};
 
 function updateList(items) {
   if (!items?.length) return '';
@@ -940,10 +1027,11 @@ async function renderUpdates(body) {
   const r = info.run;
   clearTimeout(state.updTimer);
 
+  const T = UPDATE_TEXT[info.os] ?? UPDATE_TEXT.windows;
   if (!info.available) {
-    body.innerHTML = `<div class="updates"><p class="muted">${info.enabled
-      ? 'Updates through the panel are available for Windows servers.'
-      : 'Installing Windows updates through the panel is switched off by your provider.'}</p></div>`;
+    body.innerHTML = `<div class="updates"><p class="muted">${info.os
+      ? `Installing ${T.what} updates through the panel is switched off by your provider.`
+      : 'Updates through the panel are available for Windows and Linux servers.'}</p></div>`;
     return;
   }
 
@@ -958,7 +1046,7 @@ async function renderUpdates(body) {
           <p class="muted small">${esc(r.message ?? '')}</p>` : r.message && r.state !== 'restart-required' ? `<p class="muted small">${esc(r.message)}</p>` : ''}
         ${r.state === 'restart-required' ? `
           <div class="notice warn update-restart">
-            <p>Windows needs a restart to finish installing. The panel continues automatically after the restart.</p>
+            <p>${info.os === 'linux' ? 'A restart is needed to finish.' : 'Windows needs a restart to finish installing. The panel continues automatically after the restart.'}</p>
             <button class="btn" data-power="reboot">${icon('restart')}<span>Restart now</span></button>
           </div>` : `<p class="muted small">This can take 30 minutes or more. You can leave this page; the updates continue${r.autoRestart ? ', and the server restarts by itself when needed' : ''}.</p>`}
         ${r.installed?.length ? `<details class="update-details"><summary>Installed so far (${r.installed.length})</summary>${updateList(r.installed)}</details>` : ''}
@@ -970,30 +1058,36 @@ async function renderUpdates(body) {
   const last = r ? `
     <div class="notice ${r.state === 'failed' ? 'warn' : ''} update-last">
       <p><strong>Last run ${esc(new Date(`${(r.finishedAt || r.startedAt).replace(' ', 'T')}Z`).toLocaleString())}:</strong>
-        ${r.state === 'failed' ? esc(r.error || 'Windows Update failed.')
-          : r.installed.length ? `${r.installed.length} update${r.installed.length === 1 ? '' : 's'} installed.` : 'Windows was already up to date.'}
+        ${r.state === 'failed' ? esc(r.error || T.failed)
+          : r.installed.length ? `${r.installed.length} ${T.unit}${r.installed.length === 1 ? '' : 's'} ${info.os === 'linux' ? 'updated' : 'installed'}.` : T.upToDate}
         ${r.failed?.length ? ` ${r.failed.length} could not be installed.` : ''}
         ${r.snapshot ? ` Snapshot before updating: <span class="mono">${esc(r.snapshot)}</span>.` : ''}</p>
       ${r.installed.length || r.failed?.length ? `<details class="update-details"><summary>Details</summary>${updateList(r.installed)}${r.failed?.length ? `<p class="small warn-text">Not installed:</p>${updateList(r.failed)}` : ''}</details>` : ''}
     </div>` : '';
   const running = vm.status === 'running';
+  const reboot = info.rebootPending ? `
+    <div class="notice warn update-restart">
+      <p>Updates were installed that need a restart (new kernel or system libraries). The server keeps running on the old versions until you restart it.</p>
+      <button class="btn" data-power="reboot">${icon('restart')}<span>Restart now</span></button>
+    </div>` : '';
   body.innerHTML = `
     <div class="updates">
-      <h2 class="h2">Windows updates</h2>
-      <p class="muted updates-lede">Install the latest updates from Microsoft. Feature upgrades to a new Windows version and preview updates are never installed.</p>
+      <h2 class="h2">${T.title}</h2>
+      <p class="muted updates-lede">${esc(T.lede)}</p>
+      ${reboot}
       ${last}
       ${running ? '' : '<div class="notice warn"><p>Start the server to install updates.</p></div>'}
       <form id="update-form" class="update-form">
         <div class="choices" role="radiogroup" aria-label="Which updates">
           <label class="choice"><input type="radio" name="scope" value="security" checked>
-            <span><strong>Security and critical updates</strong><span class="muted">Recommended. Includes the monthly cumulative update and Defender updates.</span></span></label>
+            <span><strong>${T.security[0]}</strong><span class="muted">${T.security[1]}</span></span></label>
           <label class="choice"><input type="radio" name="scope" value="all">
-            <span><strong>All quality updates</strong><span class="muted">Also optional updates such as .NET improvements.</span></span></label>
+            <span><strong>${T.all[0]}</strong><span class="muted">${T.all[1]}</span></span></label>
         </div>
         <label class="check"><input type="checkbox" name="snapshot" checked>
           <span>Take a snapshot first <span class="muted">If an update causes problems, roll back to it under Snapshots.</span></span></label>
-        <label class="check"><input type="checkbox" name="autoRestart" checked>
-          <span>Restart automatically when needed <span class="muted">Otherwise the panel asks you to restart, and continues afterwards.</span></span></label>
+        <label class="check"><input type="checkbox" name="autoRestart" ${info.os === 'linux' ? '' : 'checked'}>
+          <span>${T.restart[0]} <span class="muted">${T.restart[1]}</span></span></label>
         <div class="row">
           <button class="btn primary" ${running ? '' : 'disabled'}>${icon('download')}<span>Install updates</span></button>
         </div>
@@ -1012,7 +1106,7 @@ $('#detail').addEventListener('submit', async (e) => {
       method: 'POST',
       body: { scope: f.scope.value, snapshot: f.snapshot.checked, autoRestart: f.autoRestart.checked },
     });
-    toast('Installing Windows updates');
+    toast(state.detail?.osFamily === 'linux' ? 'Installing package updates' : 'Installing Windows updates');
     renderUpdates($('#tab-body'));
   } catch (err) { fail(err); b.disabled = false; }
 });
@@ -1033,14 +1127,16 @@ function expiryBadge(e) {
 function expiryBanner(vm) {
   const e = vm.expiry;
   if (!e) return '';
-  const extend = e.canExtend
-    ? `<button class="btn" data-extend>${icon('clock')}<span>Extend by ${e.extendDays} days</span></button>` : '';
+  const extend = [
+    state.billingEnabled ? `<button class="btn primary" data-renew-server>${icon('wallet')}<span>Renew</span></button>` : '',
+    e.canExtend ? `<button class="btn" data-extend>${icon('clock')}<span>Extend by ${e.extendDays} days</span></button>` : '',
+  ].join(' ');
   if (e.expired) {
     return `
       <div class="notice warn expiry-banner">
         <p><strong>This server expired on ${esc(fmtDay(e.expiredAt))} and was stopped.</strong>
           ${e.deleteAt ? `It will be deleted with all its data on <strong>${esc(fmtDay(e.deleteAt))}</strong>.` : 'Its data is kept until your provider decides.'}
-          ${e.canExtend ? '' : 'Contact your provider if you still need it.'}</p>
+          ${e.canExtend || state.billingEnabled ? '' : 'Contact your provider if you still need it.'}</p>
         ${extend}
       </div>`;
   }
@@ -1048,7 +1144,7 @@ function expiryBanner(vm) {
   return `
     <div class="notice ${d <= 7 ? 'warn' : ''} expiry-banner">
       <p>${icon('clock', { size: 16 })} This server expires on <strong>${esc(fmtDay(e.expiresAt))}</strong>
-        (in ${d} day${d === 1 ? '' : 's'}). It is then stopped${e.canExtend ? '' : '; contact your provider to extend it'}.</p>
+        (in ${d} day${d === 1 ? '' : 's'}). It is then stopped${e.canExtend || state.billingEnabled ? '' : '; contact your provider to extend it'}.</p>
       ${extend}
     </div>`;
 }
@@ -1321,13 +1417,12 @@ async function submitCreate(form) {
       : 'Set a password or add an SSH key so you can sign in to the server.';
     return;
   }
+  const plan = state.plans ? planBody(form, state.plans) : {};
   const body = {
     templateId: Number(form.templateId.value),
     hostname: form.hostname.value.trim(),
     ...(windows ? {} : { username: form.username.value.trim() }),
-    cores: Number(form.cores.value),
-    memoryMb: Number(form.memoryMb.value),
-    diskGb: Number(form.diskGb.value),
+    ...(plan.planId ? plan : { cores: Number(form.cores.value), memoryMb: Number(form.memoryMb.value), diskGb: Number(form.diskGb.value) }),
     ...(password ? { password } : {}),
     ...(sshKeys ? { sshKeys } : {}),
   };
@@ -1401,6 +1496,10 @@ $('#rack-actions').addEventListener('click', (e) => {
   if (e.target.closest('#nav-overview')) openHome();
   if (e.target.closest('#new-server')) openCreate();
   if (e.target.closest('#vpn-access')) openVpn();
+  if (e.target.closest('#nav-support')) support.openSupport();
+  if (e.target.closest('#nav-assistant')) assistant.open();
+  if (e.target.closest('#nav-billing')) billing.open();
+  if (e.target.closest('#nav-help')) support.openHelp();
 });
 
 // ---------- VPN access -------------------------------------------------------
@@ -1561,8 +1660,19 @@ $('#detail').addEventListener('click', (e) => {
     input.type = 'text';
   }
   if (t.hasAttribute('data-extend')) { extendExpiry(); return; }
+  if (t.hasAttribute('data-renew-server') && state.detail) { billing.open({ focus: state.detail.vmid }); return; }
   if (t.hasAttribute('data-reinstall')) openReinstall();
   if (t.hasAttribute('data-resize')) openResize();
+  if (t.hasAttribute('data-upgrade') && state.detail) {
+    const vmid = state.detail.vmid;
+    state.view = 'upgrade';
+    openUpgrade(state.detail, { back: async () => { await loadList(); select(vmid); } }).catch(fail);
+  }
+  if (t.dataset.planMonths) {
+    const form = t.closest('#create-form');
+    form.dataset.months = t.dataset.planMonths;
+    updatePlanChoice(form, state.plans);
+  }
   if (t.hasAttribute('data-back-to-server') && state.detail) select(state.detail.vmid);
   if (t.hasAttribute('data-delete-server')) {
     const vm = state.vms.find((v) => v.vmid === state.selected);
@@ -1581,6 +1691,7 @@ $('#detail').addEventListener('change', (e) => {
   const form = e.target.closest('#create-form');
   if (!form) return;
   if (e.target.name === 'templateId') onTemplateChange(form);
+  if (e.target.name === 'planId') updatePlanChoice(form, state.plans);
 });
 $('#detail').addEventListener('input', (e) => {
   if (e.target.name === 'username') e.target.dataset.edited = '1';
@@ -1617,6 +1728,8 @@ function openAccount() {
       </header>
       <div id="security"></div>
       <div id="passkeys" class="account-section"></div>
+      <div id="identities" class="account-section"></div>
+      <div id="appearance" class="account-section"></div>
       ${state.account.panelVersion ? `
         <section class="security-card about-panel">
           <div>
@@ -1627,6 +1740,8 @@ function openAccount() {
     </div>`;
   renderSecurity($('#security'), { email: state.me.email });
   renderPasskeys($('#passkeys'));
+  renderIdentities($('#identities'));
+  renderAppearance($('#appearance'));
 }
 $('#nav-account').addEventListener('click', openAccount);
 
@@ -1634,6 +1749,7 @@ $('#nav-account').addEventListener('click', openAccount);
 async function startApp(me) {
   await brandReady; // product name and own OS icons before the first render
   state.me = me;
+  loadPersonalAppearance();
   $('#login-view').hidden = true;
   $('#app-view').hidden = false;
   $('#account-email').textContent = me.email;
@@ -1650,11 +1766,16 @@ async function startApp(me) {
     openAccount();
   } else if (location.hash === '#vpn' && state.account.vpn?.enabled) {
     await openVpn();
+  } else if (assistant.route(location.hash) || billing.route(location.hash) || support.route(location.hash)) {
+    // support ticket or help-center article (e.g. a link from an email)
   } else {
     const fromHash = Number(location.hash.slice(1));
     if (state.vms.some((v) => v.vmid === fromHash)) await select(fromHash);
     else await openHome();
   }
+  support.refreshBadge();
+  assistant.loadStatus().then(() => renderList());
+  billing.loadStatus().then(() => renderList());
 
   // Every 10 s normally, every 5 s while a server is being created or deleted.
   clearInterval(state.poll);

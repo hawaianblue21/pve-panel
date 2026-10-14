@@ -56,6 +56,12 @@ test('RBAC: support is read-only, operator is the default for new administrators
   // An operator can't make administrators or change one
   assert.equal((await operator.post('/api/admin/users', { email: 'y@example.com', password: 'abcdefghijkl', isAdmin: true })).status, 403);
   assert.equal((await operator.patch(`/api/admin/users/${support.userId}`, { password: 'a-new-password-123' })).status, 403);
+  // OS templates and panel settings: owners only
+  assert.equal((await operator.get('/api/admin/templates')).status, 200);
+  assert.equal((await operator.put('/api/admin/templates/9000', { label: 'Debian' })).status, 403);
+  assert.equal((await operator.get('/api/admin/settings/sso')).status, 200);
+  assert.equal((await operator.put('/api/admin/settings/sso/google', { enabled: false })).status, 403);
+  assert.equal((await operator.put('/api/admin/settings/appearance', { scheme: 'forest' })).status, 403);
 });
 
 test('RBAC: custom roles, assignment, and the last owner is protected', async () => {

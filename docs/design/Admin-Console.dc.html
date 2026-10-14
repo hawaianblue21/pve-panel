@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>In-browser console</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500&amp;family=Space+Grotesk:wght@500;600;700&amp;display=swap">
+<style>
+body{margin:0;background:#0A101C;}
+a{color:#8EC2FF;}a:hover{color:#C5E0FF;}
+</style>
+</helmet>
+<div style="min-height: 100vh; background: #0A101C; color: #E6EBF2; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 14px; line-height: 1.5; display: flex; flex-wrap: wrap; align-items: stretch;">
+
+<div style="flex: 1 1 240px; background: #0D1424; border-right: 1px solid #1C2638;">
+<dc-import name="Sidebar" portal="admin" active="guests" hint-size="100%,1100px"></dc-import>
+</div>
+
+<main style="flex: 999 1 560px; min-width: 0; box-sizing: border-box; padding: 28px 32px 48px; display: flex; flex-direction: column; gap: 18px;">
+
+<a href="Admin-Guests.dc.html" style="font-size: 13px; text-decoration: none;">‹ Guests</a>
+<div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px;">
+<div style="display: flex; flex-direction: column; gap: 2px;">
+<h1 style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 28px; font-weight: 600;">Console · ml-train-01</h1>
+<span style="color: #93A0B4; font-family: 'JetBrains Mono', monospace; font-size: 13px;">VMID 1188 · pve-jkt1-03 · Ubuntu 24.04 + CUDA · RTX 4090 on hostpci0</span>
+</div>
+<div role="radiogroup" aria-label="Console type" style="display: flex; padding: 3px; border: 1px solid #2A3750; border-radius: 10px;">
+<sc-for list="{{modes}}" as="m" hint-placeholder-count="2">
+<button type="button" role="radio" aria-checked="{{m.on}}" onClick="{{m.pick}}" style="min-height: 38px; padding: 0 14px; border: 0; border-radius: 8px; background: {{m.bg}}; color: {{m.fg}}; font: inherit; font-size: 13px; font-weight: 500; cursor: pointer;">{{m.label}}</button>
+</sc-for>
+</div>
+</div>
+
+<section aria-label="Console" style="background: #05080F; border: 1px solid #1F2A3F; border-radius: 14px; overflow: hidden;">
+<div style="display: flex; flex-wrap: wrap; justify-content: space-between; gap: 10px; padding: 10px 14px; border-bottom: 1px solid #1C2638; font-size: 12px; color: #93A0B4; font-family: 'JetBrains Mono', monospace;">
+<span><span style="color: #3DD68C;">●</span> Connected · single-use ticket, expires on close · session recorded in the audit log</span>
+<span style="display: flex; gap: 8px;"><button type="button" style="min-height: 30px; padding: 0 10px; border: 1px solid #2A3750; border-radius: 6px; background: transparent; color: #C3CCDA; font: inherit; font-size: 12px;">Paste</button><button type="button" style="min-height: 30px; padding: 0 10px; border: 1px solid #2A3750; border-radius: 6px; background: transparent; color: #C3CCDA; font: inherit; font-size: 12px;">Ctrl+Alt+Del</button><button type="button" style="min-height: 30px; padding: 0 10px; border: 1px solid #2A3750; border-radius: 6px; background: transparent; color: #C3CCDA; font: inherit; font-size: 12px;">Full screen</button></span>
+</div>
+<sc-if value="{{serial}}" hint-placeholder-val="{{true}}">
+<pre style="margin: 0; min-height: 560px; padding: 16px 18px; font-family: 'JetBrains Mono', monospace; font-size: 13px; line-height: 1.65; color: #D7DEE8; white-space: pre-wrap;">Ubuntu 24.04.1 LTS ml-train-01 ttyS0
+
+ml-train-01 login: ubuntu
+Password:
+Welcome to Ubuntu 24.04.1 LTS (GNU/Linux 6.8.0-45-generic x86_64)
+
+ubuntu@ml-train-01:~$ nvidia-smi --query-gpu=name,memory.total,utilization.gpu --format=csv
+name, memory.total [MiB], utilization.gpu [%]
+NVIDIA GeForce RTX 4090, 24564 MiB, 87 %
+ubuntu@ml-train-01:~$ df -h /
+Filesystem      Size  Used Avail Use% Mounted on
+/dev/sda1       247G  118G  129G  48% /
+ubuntu@ml-train-01:~$ <span style="background: #D7DEE8; color: #05080F;"> </span></pre>
+</sc-if>
+<sc-if value="{{vnc}}" hint-placeholder-val="{{false}}">
+<div style="min-height: 560px; display: flex; align-items: center; justify-content: center; background: #0E1A2E;">
+<div style="width: min(720px, 90%); aspect-ratio: 16 / 10; border-radius: 8px; background: #1C3A5E; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; color: #DCE8F5;">
+<span style="font-family: 'Space Grotesk', sans-serif; font-size: 22px;">Graphical console (noVNC)</span>
+<span style="font-size: 13px; color: #A9C1DC;">Shown when the guest has no serial console, e.g. Windows setup screens</span>
+</div>
+</div>
+</sc-if>
+</section>
+
+<section aria-labelledby="ses-h" style="background: #101828; border: 1px solid #1F2A3F; border-radius: 14px; overflow: hidden;">
+<div style="padding: 14px 18px; border-bottom: 1px solid #1C2638;"><h2 id="ses-h" style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 16px; font-weight: 600;">Recent console sessions on this guest</h2></div>
+<sc-for list="{{sessions}}" as="s" hint-placeholder-count="3">
+<div style="display: flex; flex-wrap: wrap; justify-content: space-between; gap: 10px; padding: 10px 18px; border-top: 1px solid #1C2638; font-size: 13px;"><span>{{s.who}}</span><span style="color: #93A0B4;">{{s.type}}</span><span style="font-family: 'JetBrains Mono', monospace; color: #B8C2D1;">{{s.when}}</span></div>
+</sc-for>
+</section>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1500}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { mode: 'serial' }; }
+  renderVals() {
+    const modes = [{ id: 'serial', label: 'Serial (xterm)' }, { id: 'vnc', label: 'Graphical (noVNC)' }].map((m) => ({
+      label: m.label, on: m.id === this.state.mode, bg: m.id === this.state.mode ? '#17284A' : 'transparent', fg: m.id === this.state.mode ? '#FFFFFF' : '#B8C2D1',
+      pick: () => this.setState({ mode: m.id })
+    }));
+    return {
+      modes, serial: this.state.mode === 'serial', vnc: this.state.mode === 'vnc',
+      sessions: [
+        { who: 'ops@example.com (admin)', type: 'Serial · 6 min', when: '14 Oct 01:03' },
+        { who: 'rina@arunika.id (customer)', type: 'Serial · 41 min', when: '13 Oct 22:10' },
+        { who: 'rina@arunika.id (customer)', type: 'Graphical · 3 min', when: '12 Oct 09:15' }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

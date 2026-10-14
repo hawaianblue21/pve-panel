@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Admin plans</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500&amp;family=Space+Grotesk:wght@500;600;700&amp;display=swap">
+<style>
+body{margin:0;background:#0A101C;}
+a{color:#8EC2FF;}a:hover{color:#C5E0FF;}
+</style>
+</helmet>
+<div style="min-height: 100vh; background: #0A101C; color: #E6EBF2; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 14px; line-height: 1.5; display: flex; flex-wrap: wrap; align-items: stretch;">
+
+<div style="flex: 1 1 240px; background: #0D1424; border-right: 1px solid #1C2638;">
+<dc-import name="Sidebar" portal="admin" active="plans" hint-size="100%,960px"></dc-import>
+</div>
+
+<main style="flex: 999 1 560px; min-width: 0; box-sizing: border-box; padding: 28px 32px 48px; display: flex; flex-direction: column; gap: 20px;">
+
+<div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px;">
+<div style="display: flex; flex-direction: column; gap: 2px;">
+<h1 style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 28px; font-weight: 600;">Plans</h1>
+<span style="color: #93A0B4;">Plans set the limits the panel enforces and the price the billing engine charges.</span>
+</div>
+<button type="button" style="min-height: 44px; padding: 0 16px; border: 0; border-radius: 10px; background: #4C9AFF; color: #06101F; font: inherit; font-weight: 600;">+ New plan</button>
+</div>
+
+<div style="display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-start;">
+
+<!-- plan list -->
+<nav aria-label="Plans" style="flex: 1 1 260px; min-width: 0; display: flex; flex-direction: column; gap: 10px;">
+<sc-for list="{{plans}}" as="p" hint-placeholder-count="4">
+<button type="button" onClick="{{p.pick}}" aria-pressed="{{p.on}}" style="text-align: left; display: flex; flex-direction: column; gap: 4px; padding: 14px 16px; border-radius: 12px; border: 1px solid {{p.border}}; background: {{p.bg}}; color: #E6EBF2; font: inherit; cursor: pointer;">
+<span style="display: flex; justify-content: space-between; gap: 8px; width: 100%;"><span style="font-family: 'Space Grotesk', sans-serif; font-size: 16px; font-weight: 600;">{{p.title}}</span><span style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: {{p.stateColor}};">{{p.state}}</span></span>
+<span style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #93A0B4;">{{p.spec}}</span>
+<span style="display: flex; justify-content: space-between; gap: 8px; width: 100%; font-size: 13px;"><span style="color: #C3CCDA;">{{p.priceLabel}}</span><span style="color: #93A0B4;">{{p.guests}} guests</span></span>
+</button>
+</sc-for>
+</nav>
+
+<!-- editor -->
+<section aria-labelledby="edit-h" style="flex: 3 1 560px; min-width: 0; background: #101828; border: 1px solid #1F2A3F; border-radius: 14px; display: flex; flex-direction: column;">
+<div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px; padding: 16px 20px; border-bottom: 1px solid #1C2638;">
+<h2 id="edit-h" style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 20px; font-weight: 600;">Edit plan · {{cur.title}}</h2>
+<div style="display: flex; gap: 8px;">
+<button type="button" style="min-height: 40px; padding: 0 14px; border: 1px solid #2A3750; border-radius: 10px; background: transparent; color: #E6EBF2; font: inherit;">Duplicate</button>
+<button type="button" style="min-height: 40px; padding: 0 16px; border: 0; border-radius: 10px; background: #4C9AFF; color: #06101F; font: inherit; font-weight: 600;">Save changes</button>
+</div>
+</div>
+
+<div style="padding: 20px; display: flex; flex-direction: column; gap: 26px;">
+
+<!-- pricing -->
+<fieldset style="margin: 0; padding: 0; border: 0; display: flex; flex-direction: column; gap: 12px;">
+<legend style="padding: 0 0 10px; font-family: 'JetBrains Mono', monospace; font-size: 12px; letter-spacing: 0.06em; color: #8EC2FF;">PRICING (IDR, BEFORE TAX)</legend>
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px;">
+<sc-for list="{{cur.prices}}" as="pr" hint-placeholder-count="4">
+<label style="display: flex; flex-direction: column; gap: 6px; padding: 12px; border: 1px solid {{pr.border}}; border-radius: 10px; background: #0C1322;">
+<span style="display: flex; justify-content: space-between; align-items: center; gap: 6px; font-size: 13px; color: #C3CCDA;">{{pr.cycle}}<span style="font-family: 'JetBrains Mono', monospace; font-size: 11px; color: {{pr.tagColor}};">{{pr.tag}}</span></span>
+<input type="text" value="{{pr.value}}" onChange="{{noop}}" style="min-height: 38px; padding: 0 10px; border: 1px solid #2A3750; border-radius: 8px; background: #0A101C; color: #E6EBF2; font-family: 'JetBrains Mono', monospace; font-size: 14px;">
+</label>
+</sc-for>
+</div>
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px;">
+<label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: #C3CCDA;">Setup fee<input type="text" value="Rp 0" onChange="{{noop}}" style="min-height: 40px; padding: 0 10px; border: 1px solid #2A3750; border-radius: 8px; background: #0A101C; color: #E6EBF2; font-family: 'JetBrains Mono', monospace;"></label>
+<label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: #C3CCDA;">Tax class<select style="min-height: 40px; padding: 0 10px; border: 1px solid #2A3750; border-radius: 8px; background: #0A101C; color: #E6EBF2; font: inherit;"><option>PPN 11% (default)</option><option>Tax exempt</option></select></label>
+<label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: #C3CCDA;">Trial<select style="min-height: 40px; padding: 0 10px; border: 1px solid #2A3750; border-radius: 8px; background: #0A101C; color: #E6EBF2; font: inherit;"><option>No trial</option><option>7 days, then invoice</option><option>14 days, then stop</option></select></label>
+</div>
+</fieldset>
+
+<!-- resources -->
+<fieldset style="margin: 0; padding: 0; border: 0; display: flex; flex-direction: column; gap: 12px;">
+<legend style="padding: 0 0 10px; font-family: 'JetBrains Mono', monospace; font-size: 12px; letter-spacing: 0.06em; color: #8EC2FF;">RESOURCES</legend>
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px;">
+<sc-for list="{{cur.res}}" as="rs" hint-placeholder-count="6">
+<label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: #C3CCDA;">{{rs.label}}
+<span style="display: flex; align-items: center; border: 1px solid #2A3750; border-radius: 8px; background: #0A101C;"><input type="text" value="{{rs.value}}" onChange="{{noop}}" style="flex: 1; min-width: 0; min-height: 38px; padding: 0 10px; border: 0; background: transparent; color: #E6EBF2; font-family: 'JetBrains Mono', monospace;"><span style="padding: 0 10px; color: #8492A8; font-size: 12px;">{{rs.unit}}</span></span>
+</label>
+</sc-for>
+</div>
+</fieldset>
+
+<!-- network & traffic -->
+<fieldset style="margin: 0; padding: 0; border: 0; display: flex; flex-direction: column; gap: 12px;">
+<legend style="padding: 0 0 10px; font-family: 'JetBrains Mono', monospace; font-size: 12px; letter-spacing: 0.06em; color: #8EC2FF;">NETWORK &amp; TRAFFIC</legend>
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px;">
+<sc-for list="{{cur.net}}" as="nt" hint-placeholder-count="4">
+<label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: #C3CCDA;">{{nt.label}}
+<span style="display: flex; align-items: center; border: 1px solid #2A3750; border-radius: 8px; background: #0A101C;"><input type="text" value="{{nt.value}}" onChange="{{noop}}" style="flex: 1; min-width: 0; min-height: 38px; padding: 0 10px; border: 0; background: transparent; color: #E6EBF2; font-family: 'JetBrains Mono', monospace;"><span style="padding: 0 10px; color: #8492A8; font-size: 12px;">{{nt.unit}}</span></span>
+</label>
+</sc-for>
+</div>
+<div style="display: flex; flex-direction: column; gap: 8px;">
+<span style="font-size: 13px; color: #C3CCDA;">When monthly traffic is used up</span>
+<div role="radiogroup" aria-label="Traffic overage behaviour" style="display: flex; flex-wrap: wrap; gap: 8px;">
+<sc-for list="{{overage}}" as="o" hint-placeholder-count="3">
+<button type="button" role="radio" aria-checked="{{o.on}}" onClick="{{o.pick}}" style="display: flex; flex-direction: column; align-items: flex-start; gap: 2px; min-height: 44px; padding: 10px 14px; border-radius: 10px; border: 1px solid {{o.border}}; background: {{o.bg}}; color: #E6EBF2; font: inherit; text-align: left; cursor: pointer; flex: 1 1 200px;"><span style="font-weight: 600;">{{o.title}}</span><span style="font-size: 12px; color: #93A0B4;">{{o.sub}}</span></button>
+</sc-for>
+</div>
+</div>
+</fieldset>
+
+<!-- placement -->
+<fieldset style="margin: 0; padding: 0; border: 0; display: flex; flex-direction: column; gap: 10px;">
+<legend style="padding: 0 0 10px; font-family: 'JetBrains Mono', monospace; font-size: 12px; letter-spacing: 0.06em; color: #8EC2FF;">PLACEMENT &amp; TEMPLATES</legend>
+<div style="display: flex; flex-wrap: wrap; gap: 8px;">
+<span style="font-size: 13px; color: #C3CCDA; width: 100%;">Hosts customers can choose</span>
+<label style="display: flex; align-items: center; gap: 8px; min-height: 40px; padding: 0 12px; border: 1px solid #2A3750; border-radius: 10px;"><input type="checkbox" checked="{{yes}}" onChange="{{noop}}" style="accent-color: #4C9AFF;">Jakarta DC1 (jkt-dc1)</label>
+<label style="display: flex; align-items: center; gap: 8px; min-height: 40px; padding: 0 12px; border: 1px solid #2A3750; border-radius: 10px;"><input type="checkbox" checked="{{yes}}" onChange="{{noop}}" style="accent-color: #4C9AFF;">Jakarta DC2 (jkt-dc2)</label>
+<label style="display: flex; align-items: center; gap: 8px; min-height: 40px; padding: 0 12px; border: 1px solid #2A3750; border-radius: 10px;"><input type="checkbox" onChange="{{noop}}" style="accent-color: #4C9AFF;">Surabaya edge (sby-edge)</label>
+</div>
+<div style="display: flex; flex-wrap: wrap; gap: 8px;">
+<span style="font-size: 13px; color: #C3CCDA; width: 100%;">Templates on this plan</span>
+<sc-for list="{{templates}}" as="t" hint-placeholder-count="6">
+<span style="padding: 6px 10px; border-radius: 8px; background: #16223A; color: #C3CCDA; font-size: 13px;">{{t}}</span>
+</sc-for>
+<button type="button" style="min-height: 32px; padding: 0 10px; border: 1px dashed #3A4760; border-radius: 8px; background: transparent; color: #8EC2FF; font: inherit; font-size: 13px;">+ Add</button>
+</div>
+</fieldset>
+</div>
+</section>
+
+<!-- preview -->
+<aside aria-labelledby="prev-h" style="flex: 1 1 280px; min-width: 0; display: flex; flex-direction: column; gap: 14px;">
+<h2 id="prev-h" style="margin: 0; font-family: 'JetBrains Mono', monospace; font-size: 12px; letter-spacing: 0.06em; color: #8492A8; font-weight: 500;">CUSTOMER PREVIEW</h2>
+<div style="padding: 20px; border-radius: 14px; border: 1px solid #4C9AFF; background: #101C33; display: flex; flex-direction: column; gap: 10px;">
+<span style="font-family: 'Space Grotesk', sans-serif; font-size: 20px; font-weight: 600;">{{cur.title}}</span>
+<span style="font-family: 'Space Grotesk', sans-serif; font-size: 28px; font-weight: 700;">{{cur.monthly}}<span style="font-size: 14px; font-weight: 500; color: #93A0B4;"> /month</span></span>
+<span style="font-family: 'JetBrains Mono', monospace; font-size: 13px; color: #C3CCDA; white-space: pre-line; line-height: 1.8;">{{cur.previewSpec}}</span>
+<span style="font-size: 12px; color: #93A0B4;">Excludes PPN 11%</span>
+</div>
+<div style="padding: 16px; border-radius: 14px; border: 1px solid #1F2A3F; background: #101828; display: flex; flex-direction: column; gap: 8px; font-size: 13px;">
+<span style="display: flex; justify-content: space-between;"><span style="color: #93A0B4;">Active guests</span><span style="font-family: 'JetBrains Mono', monospace;">{{cur.guests}}</span></span>
+<span style="display: flex; justify-content: space-between;"><span style="color: #93A0B4;">Monthly recurring</span><span style="font-family: 'JetBrains Mono', monospace;">{{cur.mrr}}</span></span>
+<span style="display: flex; justify-content: space-between;"><span style="color: #93A0B4;">Avg traffic used</span><span style="font-family: 'JetBrains Mono', monospace;">{{cur.traffic}}</span></span>
+</div>
+<p style="margin: 0; font-size: 13px; color: #93A0B4;">Price changes apply from each guest's next billing cycle. Existing guests keep their price until then.</p>
+</aside>
+</div>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1500}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { picked: 'business', overage: 'bill' }; }
+  renderVals() {
+    const P = {
+      starter: { title: 'Starter', cpu: 2, ram: 4, disk: 60, tb: 2, ip: 1, m: 150000, guests: 61, state: 'Public', traffic: '0,7 TB' },
+      standard: { title: 'Standard', cpu: 4, ram: 8, disk: 120, tb: 3, ip: 1, m: 290000, guests: 47, state: 'Public', traffic: '1,2 TB' },
+      business: { title: 'Business', cpu: 8, ram: 16, disk: 250, tb: 5, ip: 1, m: 550000, guests: 29, state: 'Public', traffic: '2,6 TB' },
+      lab: { title: 'Lab (hourly)', cpu: 4, ram: 8, disk: 80, tb: 1, ip: 0, m: 0, h: 450, guests: 11, state: 'Private', traffic: '0,2 TB' }
+    };
+    const rp = (n) => 'Rp ' + n.toLocaleString('id-ID');
+    const picked = this.state.picked;
+    const plans = Object.keys(P).map((k) => {
+      const p = P[k], on = k === picked;
+      return {
+        title: p.title, guests: p.guests, state: p.state, stateColor: p.state === 'Public' ? '#3DD68C' : '#C7B8FF',
+        spec: p.cpu + ' vCPU · ' + p.ram + ' GB · ' + p.disk + ' GB · ' + p.tb + ' TB',
+        priceLabel: p.m ? rp(p.m) + ' /mo' : rp(p.h) + ' /hour',
+        on, border: on ? '#4C9AFF' : '#1F2A3F', bg: on ? '#101C33' : '#101828',
+        pick: () => this.setState({ picked: k })
+      };
+    });
+    const c = P[picked];
+    const hourly = c.h || Math.round(c.m / 730 / 10) * 10 + 10;
+    const cur = {
+      title: c.title, guests: c.guests, traffic: c.traffic,
+      monthly: c.m ? rp(c.m) : rp(c.h * 730),
+      mrr: c.m ? rp(c.m * c.guests) : rp(Math.round(c.h * 730 * c.guests * 0.4)),
+      previewSpec: c.cpu + ' vCPU\n' + c.ram + ' GB RAM\n' + c.disk + ' GB NVMe\n' + c.tb + ' TB traffic\n' + (c.ip ? c.ip + ' public IPv4 + /64 IPv6' : 'Private network only'),
+      prices: [
+        { cycle: 'Hourly', value: rp(hourly), tag: c.m ? 'off' : 'on', tagColor: c.m ? '#8492A8' : '#3DD68C', border: c.m ? '#1F2A3F' : '#2B4A80' },
+        { cycle: 'Monthly', value: c.m ? rp(c.m) : '—', tag: c.m ? 'on' : 'off', tagColor: c.m ? '#3DD68C' : '#8492A8', border: c.m ? '#2B4A80' : '#1F2A3F' },
+        { cycle: 'Quarterly', value: c.m ? rp(c.m * 3 * 0.95) : '—', tag: c.m ? '−5%' : 'off', tagColor: c.m ? '#3DD68C' : '#8492A8', border: c.m ? '#2B4A80' : '#1F2A3F' },
+        { cycle: 'Yearly', value: c.m ? rp(c.m * 10) : '—', tag: c.m ? '2 months free' : 'off', tagColor: c.m ? '#3DD68C' : '#8492A8', border: c.m ? '#2B4A80' : '#1F2A3F' }
+      ],
+      res: [
+        { label: 'vCPU cores', value: c.cpu, unit: 'cores' },
+        { label: 'Memory', value: c.ram, unit: 'GB' },
+        { label: 'Disk (NVMe)', value: c.disk, unit: 'GB' },
+        { label: 'Snapshots', value: c.m ? 3 : 1, unit: 'max' },
+        { label: 'Backups', value: c.m ? 7 : 0, unit: 'days' },
+        { label: 'Resize up to', value: c.cpu * 2, unit: 'vCPU' }
+      ],
+      net: [
+        { label: 'Monthly traffic', value: c.tb, unit: 'TB' },
+        { label: 'Port speed', value: c.cpu >= 8 ? 1000 : 500, unit: 'Mb/s' },
+        { label: 'Public IPv4', value: c.ip, unit: 'addr' },
+        { label: 'IPv6', value: c.ip ? '/64' : 'none', unit: 'prefix' }
+      ]
+    };
+    const ov = [
+      { id: 'bill', title: 'Bill overage', sub: 'Rp 200 per extra GB on next invoice' },
+      { id: 'throttle', title: 'Throttle', sub: 'Limit to 10 Mb/s until reset' },
+      { id: 'suspend', title: 'Suspend guest', sub: 'Stop and notify, resume on top-up' }
+    ];
+    const overage = ov.map((o) => ({ ...o, on: o.id === this.state.overage, border: o.id === this.state.overage ? '#4C9AFF' : '#2A3750', bg: o.id === this.state.overage ? '#12213D' : 'transparent', pick: () => this.setState({ overage: o.id }) }));
+    return {
+      plans, cur, overage, yes: true, noop: () => {},
+      templates: ['Ubuntu 24.04', 'Debian 12', 'Rocky Linux 9', 'AlmaLinux 9', 'Windows Server 2022', 'Windows Server 2025']
+    };
+  }
+}
+</script>
+</body>
+</html>

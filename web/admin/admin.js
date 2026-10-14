@@ -1,8 +1,13 @@
 import { icon } from '/shared/icons.js';
 import { renderSecurity } from '/shared/twofa.js';
 import { renderPasskeys } from '/shared/passkeys.js';
+import { renderIdentities } from '/shared/identities.js';
+import { renderAppearance } from '/shared/appearance.js';
 import { applyScheme } from '/shared/icons.js';
 import { createInfra } from '/infra.js';
+import { createDesk } from '/desk.js';
+import { createBilling } from '/billing.js';
+import { createPlans } from '/plans.js';
 
 // Administration area: assign servers, manage customers, read the activity log.
 // Receives the shared helpers from app.js so it behaves like the rest of the panel.
@@ -60,6 +65,9 @@ const ACTION_LABELS = {
   winupdate_started: 'Started Windows updates',
   winupdate_finished: 'Windows updates finished',
   winupdate_failed: 'Windows updates failed',
+  linuxupdate_started: 'Started Linux updates',
+  linuxupdate_finished: 'Linux updates finished',
+  linuxupdate_failed: 'Linux updates failed',
   server_reinstalled: 'Reinstalled server',
   server_reinstall_failed: 'Reinstalling server failed',
   invite_accepted: 'Accepted invitation, password set',
@@ -79,6 +87,26 @@ const ACTION_LABELS = {
   sso_login_failed: 'Failed single sign-on',
   admin_sso_login_failed: 'Failed single sign-on (administration)',
   sso_account_linked: 'Linked account to single sign-on',
+  sso_identity_linked: 'Linked a sign-in provider',
+  ticket_created: 'Opened a support ticket',
+  ticket_replied: 'Replied to a ticket',
+  ticket_closed: 'Closed a ticket',
+  ticket_message_from_zammad: 'Ticket message from Zammad',
+  admin_ticket_reply: 'Answered a ticket',
+  admin_ticket_note: 'Added an internal note to a ticket',
+  admin_ticket_update: 'Changed a ticket',
+  admin_kb_create: 'Created a knowledge-base article',
+  admin_kb_update: 'Changed a knowledge-base article',
+  admin_kb_delete: 'Deleted a knowledge-base article',
+  admin_kb_draft_from_ticket: 'Drafted an article from a ticket',
+  admin_zammad_settings: 'Changed the Zammad connection',
+  admin_ai_settings: 'Changed the AI assistant settings',
+  ai_conversation_started: 'Started a conversation with the assistant',
+  ai_handover: 'Assistant conversation became a ticket',
+  ai_error: 'AI assistant error',
+  zammad_webhook_refused: 'Refused a Zammad webhook call',
+  sso_identity_unlinked: 'Unlinked a sign-in provider',
+  admin_sso_provider: 'Changed single sign-on provider',
   sso_account_created: 'Account created by single sign-on',
   admin_sso_unlink: 'Unlinked account from single sign-on',
   tailscale_connect_started: 'Started connecting to Tailscale',
@@ -108,6 +136,25 @@ const ACTION_LABELS = {
   admin_gpu_profile_delete: 'Deleted a GPU profile',
   admin_gpu_attach: 'Attached a GPU',
   admin_gpu_detach: 'Detached a GPU',
+  admin_plan_create: 'Added a plan',
+  admin_plan_update: 'Changed a plan',
+  admin_plan_delete: 'Deleted a plan',
+  admin_plan_settings: 'Changed plan settings',
+  server_plan_changed: 'Moved a server to a larger plan',
+  invoice_created: 'Invoice created',
+  invoice_paid: 'Invoice paid',
+  invoice_refunded: 'Invoice refunded to the wallet',
+  invoice_transfer_reported: 'Reported a bank transfer',
+  payment_checkout: 'Opened a payment page',
+  payment_checkout_failed: 'Payment page could not be opened',
+  payment_webhook_refused: 'Refused a payment notification',
+  payment_amount_mismatch: 'Payment amount too low',
+  payment_duplicate_to_wallet: 'Second payment kept as balance',
+  auto_renew_changed: 'Changed auto-renew',
+  admin_invoice_void: 'Cancelled an invoice',
+  admin_wallet_adjust: 'Adjusted a wallet',
+  admin_server_price: 'Set a server price',
+  admin_billing_settings: 'Changed billing settings',
 };
 
 export function generatePassword(length = 16) {
@@ -124,12 +171,21 @@ export function createAdmin({ root, api, toast, fail, confirmAction, promptText,
   };
   // Access control, resource pools, object storage and GPUs (own module)
   const infra = createInfra({ root, api, toast, fail, confirmAction, esc });
+  // Ticket desk and knowledge base (own module)
+  const desk = createDesk({ root, api, toast, fail, confirmAction, esc, getMe });
+  // Invoices, payments and wallets (own module)
+  const billing = createBilling({ root, api, toast, fail, confirmAction, esc });
+  // Plans: sizes with a price (own module)
+  const plans = createPlans({ root, api, toast, fail, confirmAction, esc });
   // Which permission a tab needs (the server checks every request as well)
   const TAB_PERMISSION = {
     servers: 'servers.read', users: 'customers.read', templates: 'servers.read', vpn: 'network.read',
     activity: 'audit.read', settings: 'settings.read', account: null, about: null,
   };
   const allowedTab = (id) => (infra.handles(id) ? infra.tabs().some(([t]) => t === id)
+    : desk.handles(id) ? desk.tabs().some(([t]) => t === id)
+    : billing.handles(id) ? billing.tabs().some(([t]) => t === id)
+    : plans.handles(id) ? plans.tabs().some(([t]) => t === id)
     : !TAB_PERMISSION[id] || !st.perms || st.perms.has(TAB_PERMISSION[id]));
   const gb = (mb) => `${+(mb / 1024).toFixed(1)} GB`;
 
@@ -142,15 +198,23 @@ export function createAdmin({ root, api, toast, fail, confirmAction, promptText,
     try {
       if (infra.handles(st.tab)) {
         await infra.load(st.tab);
+      } else if (desk.handles(st.tab)) {
+        await desk.load(st.tab);
+      } else if (billing.handles(st.tab)) {
+        await billing.load(st.tab);
+      } else if (plans.handles(st.tab)) {
+        await plans.load(st.tab);
       } else if (st.tab === 'servers') {
         [st.vms, st.users] = await Promise.all([api('/api/admin/vms'), api('/api/admin/users')]);
       } else if (st.tab === 'users') {
         [st.users, st.email] = await Promise.all([api('/api/admin/users'), api('/api/admin/settings/email')]);
         if (!quiet) setTimeout(watchDeletions);
       } else if (st.tab === 'settings') {
-        [st.email, st.expiry, st.appearance, st.winupdates] = await Promise.all([
+        [st.email, st.expiry, st.appearance, st.winupdates, st.sso, st.branding, st.zammad, st.ai, st.billing] = await Promise.all([
           api('/api/admin/settings/email'), api('/api/admin/settings/expiry'), api('/api/admin/settings/appearance'),
-          api('/api/admin/settings/winupdates'),
+          api('/api/admin/settings/winupdates'), api('/api/admin/settings/sso'), api('/api/admin/settings/branding'),
+          api('/api/admin/settings/zammad').catch(() => null), api('/api/admin/settings/ai').catch(() => null),
+          api('/api/admin/settings/billing').catch(() => null),
         ]);
       } else if (st.tab === 'about') {
         st.about = await api(`/api/admin/about${st.refreshAbout ? '?refresh=1' : ''}`);
@@ -163,7 +227,7 @@ export function createAdmin({ root, api, toast, fail, confirmAction, promptText,
       } else if (st.tab === 'templates') {
         ({ templates: st.templates, storages: st.storages } = await api('/api/admin/templates'));
       } else {
-        st.audit = await api('/api/admin/audit?limit=200');
+        await loadActivity();
       }
       renderTab();
     } catch (err) {
@@ -174,7 +238,7 @@ export function createAdmin({ root, api, toast, fail, confirmAction, promptText,
 
   // ---- shell ------------------------------------------------------------
   function render() {
-    const tabs = [['servers', 'Servers'], ['users', 'Customers'], ['templates', 'Templates'], ['vpn', 'VPN'],
+    const tabs = [['servers', 'Servers'], ['users', 'Customers'], ...desk.tabs(), ...billing.tabs(), ...plans.tabs(), ['templates', 'Templates'], ['vpn', 'VPN'],
       ...infra.tabs(), ['activity', 'Activity'], ['account', 'Your account'], ['settings', 'Settings'], ['about', 'About']]
       .filter(([id]) => allowedTab(id));
     root.innerHTML = `
@@ -190,6 +254,9 @@ export function createAdmin({ root, api, toast, fail, confirmAction, promptText,
 
   function renderTab() {
     if (infra.handles(st.tab)) infra.render(st.tab);
+    if (desk.handles(st.tab)) desk.render(st.tab);
+    if (billing.handles(st.tab)) billing.render(st.tab);
+    if (plans.handles(st.tab)) plans.render(st.tab);
     if (st.tab === 'servers') renderServers();
     if (st.tab === 'users') renderUsers();
     if (st.tab === 'templates') renderTemplates();
@@ -197,9 +264,11 @@ export function createAdmin({ root, api, toast, fail, confirmAction, promptText,
     if (st.tab === 'activity') renderActivity();
     if (st.tab === 'account') {
       const body = root.querySelector('#admin-body');
-      body.innerHTML = '<div id="admin-2fa"></div><div id="admin-passkeys" class="account-section"></div>';
+      body.innerHTML = '<div id="admin-2fa"></div><div id="admin-passkeys" class="account-section"></div><div id="admin-identities" class="account-section"></div><div id="admin-appearance" class="account-section"></div>';
       renderSecurity(body.querySelector('#admin-2fa'), { email: getMe().email });
       renderPasskeys(body.querySelector('#admin-passkeys'));
+      renderIdentities(body.querySelector('#admin-identities'));
+      renderAppearance(body.querySelector('#admin-appearance'));
     }
     if (st.tab === 'about') renderAbout();
     if (st.tab === 'settings') renderSettings();
@@ -439,7 +508,7 @@ export function createAdmin({ root, api, toast, fail, confirmAction, promptText,
               const self = u.id === me.id;
               return `
               <tr data-user="${u.id}">
-                <td>${esc(u.email)}${self ? ' <span class="muted">(you)</span>' : ''}${u.ssoLinked ? ' <span class="tag" title="Linked to single sign-on">SSO</span>' : ''}${u.passkeyCount ? ` <span class="tag" title="${u.passkeyCount} passkey${u.passkeyCount > 1 ? 's' : ''}">Passkey</span>` : ''}${u.expiryMode ? ` <span class="tag" title="${esc(expiryRuleText(u))}">${icon('clock', { size: 12 })} Expiry</span>` : ''}${
+                <td>${esc(u.email)}${self ? ' <span class="muted">(you)</span>' : ''}${u.ssoLinked ? ` <span class="tag" title="Linked to single sign-on${u.ssoProviders ? `: ${esc(u.ssoProviders)}` : ''}">SSO</span>` : ''}${u.passkeyCount ? ` <span class="tag" title="${u.passkeyCount} passkey${u.passkeyCount > 1 ? 's' : ''}">Passkey</span>` : ''}${u.expiryMode ? ` <span class="tag" title="${esc(expiryRuleText(u))}">${icon('clock', { size: 12 })} Expiry</span>` : ''}${
                   u.invite?.status === 'pending' ? ` <span class="tag" title="Link valid until ${esc(new Date(u.invite.expires).toLocaleString())}">Invitation pending</span>`
                   : u.invite?.status === 'expired' ? ' <span class="tag warn">Invitation expired</span>'
                   : u.invite?.status === 'sent' ? ' <span class="tag">Invited</span>' : ''}</td>
@@ -700,9 +769,12 @@ export function createAdmin({ root, api, toast, fail, confirmAction, promptText,
         </div>`;
       return;
     }
+    const canEdit = !st.perms || st.perms.has('templates.write');
     body.innerHTML = `
       <p class="muted" style="margin-top:0">Customers who may create servers can choose from the templates offered here.
         Linux templates are set up with cloud-init, Windows templates through the QEMU guest agent.</p>
+      ${canEdit ? '' : '<p class="notice"><span>Read-only: only owners (or a role with “Offer, set up and withdraw OS templates”) can change templates.</span></p>'}
+      <fieldset class="plain-fieldset" ${canEdit ? '' : 'disabled'}>
       <div class="table-wrap">
         <table class="table">
           <thead><tr>
@@ -740,7 +812,8 @@ export function createAdmin({ root, api, toast, fail, confirmAction, promptText,
         <strong>Cloud-init:</strong> the customer chooses the user name (User is only the suggestion); Network is the
         <span class="mono">ipconfig0</span> value, e.g. <span class="mono">ip=dhcp</span>.
         <strong>Guest agent (Windows):</strong> the template must be sysprep'd with the QEMU guest agent installed and enabled;
-        the panel sets the password of User (default Administrator) and the computer name.</p>`;
+        the panel sets the password of User (default Administrator) and the computer name.</p>
+      </fieldset>`;
   }
 
   async function saveTemplate(row) {
@@ -902,12 +975,162 @@ export function createAdmin({ root, api, toast, fail, confirmAction, promptText,
   }
 
   // ---- settings: email ----------------------------------------------------
+  /** Settings card: the AI assistant for customers (Claude or an OpenAI-compatible API). */
+  function aiCard() {
+    const a = st.ai;
+    if (!a) return '';
+    return `
+      <section class="security-card settings-card">
+        <div class="settings-head">
+          <h2 class="twofa-title">AI assistant <span class="pill ${a.enabled ? 'pill-running' : ''}">${a.enabled ? 'On' : 'Off'}</span></h2>
+          <p class="muted">A chat for customers that answers from the knowledge base and their own servers and tickets. It only reads;
+            it can propose a ticket, which the customer confirms. Questions and answers are sent to the provider you choose here.</p>
+        </div>
+        <form id="ai-form" class="email-form" novalidate>
+          <div class="grid-3">
+            <label>Provider <select name="provider">
+              <option value="anthropic" ${a.provider === 'anthropic' ? 'selected' : ''}>Claude (Anthropic API)</option>
+              <option value="openai" ${a.provider === 'openai' ? 'selected' : ''}>OpenAI-compatible (OpenAI, vLLM, Ollama…)</option></select></label>
+            <label>Model <input name="model" value="${esc(a.model)}" spellcheck="false" placeholder="claude-sonnet-5-5"></label>
+            <label>API key <input name="apiKey" type="password" autocomplete="new-password" placeholder="${a.hasKey ? 'Stored; leave empty to keep it' : (a.provider === 'openai' ? 'Optional for local models' : 'sk-ant-…')}"></label>
+          </div>
+          <label>API address <input name="baseUrl" value="${esc(a.baseUrl)}" spellcheck="false"
+              placeholder="${a.provider === 'openai' ? 'https://api.openai.com/v1 or http://ollama.internal:11434/v1' : 'empty = https://api.anthropic.com'}">
+            <span class="hint">OpenAI-compatible: the address up to <span class="mono">/v1</span>. A model in your own network may use http.</span></label>
+          <div class="grid-3">
+            <label>Questions per customer per day <input name="dailyLimit" type="number" min="1" max="1000" value="${esc(a.dailyLimit)}"></label>
+            <label>Longest answer (tokens) <input name="maxTokens" type="number" min="256" max="4096" value="${esc(a.maxTokens)}"></label>
+            <label class="check" style="align-self:end"><input type="checkbox" name="handover" ${a.handover ? 'checked' : ''}><span>May propose tickets</span></label>
+          </div>
+          <label>Extra instructions <textarea name="instructions" rows="3" maxlength="4000" placeholder="e.g. Our support hours are 08:00–20:00 WIB. Answer in Indonesian unless the customer writes in English.">${esc(a.instructions)}</textarea></label>
+          <div class="row">
+            <label class="inline-check"><input type="checkbox" name="enabled" ${a.enabled ? 'checked' : ''}> Switched on for customers</label>
+            <button class="btn primary">Save</button>
+            <button type="button" class="btn" data-ai-test>Test</button>
+          </div>
+        </form>
+      </section>`;
+  }
+
+  /** Settings card: optional two-way sync of support tickets with Zammad. */
+  function zammadCard() {
+    const z = st.zammad;
+    if (!z) return '';
+    const pending = z.pending.tickets + z.pending.messages;
+    return `
+      <section class="security-card settings-card">
+        <div class="settings-head">
+          <h2 class="twofa-title">Helpdesk: Zammad <span class="pill ${z.enabled ? 'pill-running' : ''}">${z.enabled ? 'Connected' : 'Off'}</span></h2>
+          <p class="muted">Optional. Tickets always work in the panel; with Zammad, new tickets and messages are also created there,
+            and what agents write in Zammad (or customers by email, WhatsApp or phone) comes back to the panel.</p>
+        </div>
+        <form id="zammad-form" class="email-form" novalidate>
+          <div class="grid-2">
+            <label>Zammad address <input name="url" value="${esc(z.url)}" placeholder="https://helpdesk.example.com" spellcheck="false"></label>
+            <label>API token <input name="token" type="password" autocomplete="new-password" placeholder="${z.hasToken ? 'Stored; leave empty to keep it' : 'Profile → Token Access (agent with ticket.agent)'}"></label>
+          </div>
+          <div class="grid-3">
+            ${['L1', 'L2', 'L3'].map((q) => `<label>Group for ${q} <input name="group${q}" value="${esc(z.groups[q] ?? '')}" placeholder="Users"></label>`).join('')}
+          </div>
+          <div class="row">
+            <label class="inline-check"><input type="checkbox" name="enabled" ${z.enabled ? 'checked' : ''}> Sync with Zammad</label>
+            <button class="btn primary">Save</button>
+            <button type="button" class="btn" data-zammad-test>Test connection</button>
+            ${pending ? `<button type="button" class="btn" data-zammad-retry>Send ${pending} waiting item${pending === 1 ? '' : 's'} now</button>` : ''}
+          </div>
+        </form>
+        <div class="zammad-hook">
+          <h3 class="h3">Back to the panel (webhook in Zammad)</h3>
+          <p class="muted small">In Zammad: <em>Settings → Manage → Webhook</em> → new webhook with this endpoint and HMAC SHA1 signature token.
+            Then <em>Manage → Trigger</em>: condition “Action is updated” (and “created”), action “Webhook” → this webhook.</p>
+          ${z.webhookUrl ? `<p class="small">Endpoint: <span class="mono">${esc(z.webhookUrl)}</span></p>` : '<p class="small warn-text">Set PANEL_PUBLIC_URL first: Zammad needs the panel’s public address.</p>'}
+          ${z.webhookSecret ? `<p class="small">Signature token: <span class="mono">${esc(z.webhookSecret)}</span>
+            <button type="button" class="link-btn" data-zammad-secret>New token</button></p>` : '<p class="muted small">The signature token is made when you save.</p>'}
+        </div>
+      </section>`;
+  }
+
+  /** Settings card: sign-in with Google, Microsoft and GitHub. */
+  function ssoCard() {
+    const s = st.sso;
+    if (!s) return '';
+    const noUrl = !s.publicUrls.customer && !s.publicUrls.admin;
+    return `
+      <section class="security-card settings-card">
+        <div class="settings-head">
+          <h2 class="twofa-title">Single sign-on</h2>
+          <p class="muted">Let people sign in with Google, Microsoft (work or school accounts, Microsoft 365) or GitHub.
+            Create an app at the provider, enter the redirect address shown below there, and paste the client ID and secret here.
+            Existing accounts are never linked by email alone: users link a provider themselves under Account.</p>
+          ${noUrl ? '<p class="small warn-text">Set PANEL_PUBLIC_URL (and ADMIN_PUBLIC_URL for the admin portal) in the environment first: the providers need the callback address.</p>' : ''}
+        </div>
+        ${s.providers.map((p) => `
+          <form class="email-form sso-form" data-sso="${esc(p.id)}" novalidate>
+            <h3 class="h3">${esc(p.name)} <span class="pill ${p.enabled ? 'pill-running' : ''}">${p.enabled ? 'On' : 'Off'}</span>
+              ${p.linkedAccounts ? `<span class="muted small">${p.linkedAccounts} linked account${p.linkedAccounts === 1 ? '' : 's'}</span>` : ''}</h3>
+            <p class="muted small">${esc(p.hint)}</p>
+            <div class="grid-2">
+              <label>Client ID <input name="clientId" value="${esc(p.clientId)}" autocomplete="off" spellcheck="false"></label>
+              <label>Client secret
+                <input name="clientSecret" type="password" autocomplete="new-password" placeholder="${p.hasSecret ? 'Stored; leave empty to keep it' : ''}"></label>
+            </div>
+            ${p.id === 'microsoft' ? `
+              <label>Tenant <input name="tenant" value="${esc(p.tenant)}" spellcheck="false">
+                <span class="hint"><span class="mono">organizations</span>: any work or school account;
+                  your tenant ID or domain: only your organisation (its email addresses are trusted for new sign-ups).</span></label>` : ''}
+            <label>Allowed email domains (optional)
+              <input name="allowedDomains" value="${esc(p.allowedDomains.join(', '))}" placeholder="example.com, example.org" spellcheck="false"></label>
+            <fieldset class="inline-fieldset"><legend class="small">Show on</legend>
+              <label class="inline-check"><input type="checkbox" name="portalCustomer" ${p.portals.includes('customer') ? 'checked' : ''}> Customer portal</label>
+              <label class="inline-check"><input type="checkbox" name="portalAdmin" ${p.portals.includes('admin') ? 'checked' : ''}> Admin portal</label>
+            </fieldset>
+            <label class="check"><input type="checkbox" name="allowSignup" ${p.allowSignup ? 'checked' : ''}>
+              <span>New customers can create an account with it <span class="muted">(verified email only; without this, only existing users who linked it can sign in)</span></span></label>
+            ${Object.entries(p.redirectUris).map(([portal, uri]) => `
+              <p class="small">Redirect address (${esc(portal)}): <span class="mono">${esc(uri)}</span></p>`).join('')}
+            <div class="row">
+              <label class="inline-check"><input type="checkbox" name="enabled" ${p.enabled ? 'checked' : ''}> Switched on</label>
+              <button class="btn primary">Save ${esc(p.name)}</button>
+            </div>
+          </form>`).join('')}
+      </section>`;
+  }
+
   function renderSettings() {
     const e = st.email;
     const me = getMe();
     const ap = st.appearance;
+    const br = st.branding;
     root.querySelector('#admin-body').innerHTML = `
       <div class="settings">
+        ${br ? `
+        <section class="security-card settings-card">
+          <div class="settings-head">
+            <h2 class="twofa-title">Branding</h2>
+            <p class="muted">Your product name, logo and support link on both portals, the sign-in pages and in emails.</p>
+          </div>
+          <form id="branding-form" class="email-form" novalidate>
+            <div class="grid-2">
+              <label>Product name <input name="name" maxlength="40" value="${esc(br.customName)}" placeholder="${esc(br.defaultName)}">
+                <span class="hint">Empty: ${esc(br.defaultName)} (PANEL_NAME).</span></label>
+              <label>Support link <input name="supportUrl" value="${esc(br.supportUrl)}" placeholder="https://support.example.com or mailto:help@example.com" spellcheck="false">
+                <span class="hint">Shown under the sign-in form.</span></label>
+            </div>
+            <div class="row"><button class="btn primary">Save</button></div>
+          </form>
+          ${[['logo', 'Logo', 'SVG, PNG or WebP, up to 512 KB; shown about 30 px high in the sidebar and on the sign-in page.'],
+             ['favicon', 'Browser tab icon', 'Square PNG, SVG or WebP, up to 128 KB.']].map(([kind, label, hint]) => `
+            <div class="branding-asset">
+              <h3 class="h3">${label}</h3>
+              <div class="branding-preview">${br[kind] ? `<img src="${esc(br[kind])}" alt="Current ${label.toLowerCase()}">` : '<span class="muted small">Built-in</span>'}</div>
+              <p class="muted small">${hint}</p>
+              <div class="row">
+                <label class="btn">Upload…<input type="file" accept="image/svg+xml,image/png,image/webp" data-brand-upload="${kind}" class="sr-only"></label>
+                ${br[kind] ? `<button type="button" class="btn ghost" data-brand-remove="${kind}">Use the built-in one</button>` : ''}
+              </div>
+            </div>`).join('')}
+        </section>` : ''}
+
         <section class="security-card settings-card">
           <div class="settings-head">
             <h2 class="twofa-title">Appearance</h2>
@@ -932,6 +1155,8 @@ export function createAdmin({ root, api, toast, fail, confirmAction, promptText,
             <button type="button" class="btn ghost" data-scheme-cancel hidden>Cancel preview</button>
             <span class="muted small" id="scheme-note"></span>
           </div>
+          <label class="check"><input type="checkbox" data-allow-personal ${ap.allowPersonal ? 'checked' : ''}>
+            <span>Users may choose their own scheme and light/dark mode <span class="muted">(Account → Appearance; only for themselves)</span></span></label>
         </section>
 
         <section class="security-card settings-card">
@@ -976,15 +1201,26 @@ export function createAdmin({ root, api, toast, fail, confirmAction, promptText,
           </form>
         </section>
 
+        ${ssoCard()}
+
+        ${zammadCard()}
+
+        ${aiCard()}
+
+        ${billing.settingsCard(st.billing)}
+
         <section class="security-card settings-card">
           <div class="settings-head">
-            <h2 class="twofa-title">Windows updates</h2>
-            <p class="muted">Customers can install Windows updates on their Windows servers from the server page
-              (Updates tab): security or all quality updates, optionally with a snapshot first and automatic restarts.
-              Feature upgrades and previews are never installed.</p>
+            <h2 class="twofa-title">Operating system updates</h2>
+            <p class="muted">Customers can install updates on their virtual machines from the server page (Updates tab),
+              through the QEMU guest agent: security or all updates, optionally with a snapshot first and automatic restarts.
+              Windows feature upgrades, previews and Linux release upgrades are never installed; on Linux, held packages
+              and changed configuration files are left alone.</p>
           </div>
-          <label class="check"><input type="checkbox" data-winupdates ${st.winupdates?.enabled ? 'checked' : ''}>
+          <label class="check"><input type="checkbox" data-winupdates="windows" ${st.winupdates?.enabled ? 'checked' : ''}>
             <span>Allow customers to install Windows updates</span></label>
+          <label class="check"><input type="checkbox" data-winupdates="linux" ${st.winupdates?.linux ? 'checked' : ''}>
+            <span>Allow customers to install Linux package updates <span class="muted">(apt or dnf)</span></span></label>
         </section>
 
         <section class="security-card settings-card">
@@ -1054,7 +1290,99 @@ export function createAdmin({ root, api, toast, fail, confirmAction, promptText,
     warnPlain();
   });
 
+  // Billing: open an invoice (click or Enter on its row)
+  root.addEventListener('click', (e) => {
+    if (billing.handles(st.tab) && e.target.closest('tr[data-billing-invoice]') && !e.target.closest('a, button')) billing.onClick(e, st.tab);
+  });
+  root.addEventListener('keydown', (e) => {
+    if (billing.handles(st.tab) && e.key === 'Enter' && e.target.closest?.('tr[data-billing-invoice]')) { e.preventDefault(); billing.onClick(e, st.tab); }
+  });
+
+  // Activity: open an event's details (click or Enter)
+  root.addEventListener('click', (e) => {
+    const row = e.target.closest('tr[data-activity]');
+    if (row && !e.target.closest('a, button')) toggleActivity(row);
+  });
+  root.addEventListener('keydown', (e) => {
+    const row = e.target.closest?.('tr[data-activity]');
+    if (row && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); toggleActivity(row); }
+  });
+
   root.addEventListener('submit', async (ev) => {
+    if (ev.target.id === 'activity-filter') {
+      ev.preventDefault();
+      const el = ev.target.elements;
+      st.activityFilter = { actor: el.actor.value, category: el.category.value, q: el.q.value.trim() };
+      load();
+      return;
+    }
+    if (ev.target.id === 'billing-settings-form') {
+      ev.preventDefault();
+      try { st.billing = await billing.saveSettings(ev.target); renderSettings(); } catch (err) { fail(err); }
+      return;
+    }
+    if (ev.target.id === 'ai-form') {
+      ev.preventDefault();
+      const el = ev.target.elements;
+      const body = {
+        provider: el.provider.value, model: el.model.value.trim(), baseUrl: el.baseUrl.value.trim(),
+        dailyLimit: Number(el.dailyLimit.value), maxTokens: Number(el.maxTokens.value),
+        handover: el.handover.checked, instructions: el.instructions.value, enabled: el.enabled.checked,
+      };
+      if (el.apiKey.value) body.apiKey = el.apiKey.value;
+      try {
+        st.ai = await api('/api/admin/settings/ai', { method: 'PUT', body });
+        toast(st.ai.enabled ? 'AI assistant is on' : 'AI assistant settings saved');
+        renderSettings();
+      } catch (err) { fail(err); }
+      return;
+    }
+    if (ev.target.id === 'zammad-form') {
+      ev.preventDefault();
+      const el = ev.target.elements;
+      const body = {
+        url: el.url.value.trim(), enabled: el.enabled.checked,
+        groups: { L1: el.groupL1.value.trim(), L2: el.groupL2.value.trim(), L3: el.groupL3.value.trim() },
+      };
+      if (el.token.value) body.token = el.token.value;
+      try {
+        st.zammad = await api('/api/admin/settings/zammad', { method: 'PUT', body });
+        toast(st.zammad.enabled ? 'Zammad connected' : 'Zammad settings saved');
+        renderSettings();
+      } catch (err) { fail(err); }
+      return;
+    }
+    if (ev.target.id === 'branding-form') {
+      ev.preventDefault();
+      const el = ev.target.elements;
+      try {
+        st.branding = await api('/api/admin/settings/branding', { method: 'PUT', body: { name: el.name.value, supportUrl: el.supportUrl.value } });
+        toast('Branding saved. Reload the page to see the new name everywhere.');
+        renderSettings();
+      } catch (err) { fail(err); }
+      return;
+    }
+    if (ev.target.matches?.('form[data-sso]')) {
+      ev.preventDefault();
+      const f = ev.target;
+      const el = f.elements;
+      const body = {
+        enabled: el.enabled.checked,
+        clientId: el.clientId.value.trim(),
+        portals: [el.portalCustomer.checked && 'customer', el.portalAdmin.checked && 'admin'].filter(Boolean),
+        allowSignup: el.allowSignup.checked,
+        allowedDomains: el.allowedDomains.value.split(/[\s,]+/).filter(Boolean),
+      };
+      if (el.clientSecret.value) body.clientSecret = el.clientSecret.value;
+      if (el.tenant) body.tenant = el.tenant.value.trim();
+      try {
+        const saved = await api(`/api/admin/settings/sso/${encodeURIComponent(f.dataset.sso)}`, { method: 'PUT', body });
+        st.sso.providers = st.sso.providers.map((p) => (p.id === saved.id ? saved : p));
+        toast(`${saved.name} sign-in saved${saved.enabled ? ' and switched on' : ''}`);
+        renderSettings();
+      } catch (err) { fail(err); }
+      return;
+    }
     if (ev.target.id === 'email-form') {
       ev.preventDefault();
       const f = ev.target;
@@ -1167,39 +1495,87 @@ export function createAdmin({ root, api, toast, fail, confirmAction, promptText,
   }
 
   // ---- activity ---------------------------------------------------------
+  // ---- activity ----------------------------------------------------------
+  const ACTORS = [['', 'Everyone'], ['customer', 'Customers'], ['admin', 'Administrators'], ['system', 'Panel (automatic)'], ['anonymous', 'Unknown sign-ins']];
+  const CATEGORIES = [['', 'Any action'], ['create', 'Created / started'], ['change', 'Changed'], ['delete', 'Deleted / removed'], ['power', 'Power / expiry'], ['security', 'Sign-in & security']];
+  const ACTOR_TAG = { customer: 'Customer', admin: 'Admin', system: 'Panel', anonymous: 'Unknown' };
+
+  async function loadActivity({ more = false } = {}) {
+    const f = st.activityFilter ??= { actor: '', category: '', q: '' };
+    const params = new URLSearchParams({ limit: '100' });
+    for (const k of ['actor', 'category', 'q']) if (f[k]) params.set(k, f[k]);
+    if (more && st.activityNext) params.set('before', String(st.activityNext));
+    const r = await api(`/api/admin/activity?${params}`);
+    st.audit = more ? [...st.audit, ...r.events] : r.events;
+    st.activityNext = r.nextBefore;
+  }
+
+  function activityDetail(a) {
+    let d = null;
+    try { d = a.detail ? JSON.parse(a.detail) : null; } catch { return ''; }
+    if (!d) return '';
+    let short = '';
+    if (d.email && (a.action.startsWith('admin_') || a.action.endsWith('login_failed'))) short = d.email;
+    if (d.hostname) short = d.hostname;
+    if (d.label && a.action.startsWith('admin_template')) short = d.label;
+    if (d.error) short = d.error;
+    if (d.reason && a.action.includes('sso')) short = d.reason;
+    if (d.provider && a.action.includes('sso')) short = [d.provider, d.reason].filter(Boolean).join(': ');
+    if (d.passkey) short = d.reason ? `passkey: ${d.reason}` : 'with a passkey';
+    return short;
+  }
+
   function renderActivity() {
+    const f = st.activityFilter ??= { actor: '', category: '', q: '' };
     root.querySelector('#admin-body').innerHTML = `
-      <div class="section-head">
-        <p class="muted" style="margin:0">The last ${st.audit.length} events, newest first.</p>
-        <button class="btn" data-refresh-audit>Refresh</button>
-      </div>
+      <form id="activity-filter" class="activity-filter" role="search">
+        <label class="grow"><span class="sr-only">Search</span>
+          <input type="search" name="q" value="${esc(f.q)}" placeholder="Search customer email, server ID, IP, action…"></label>
+        <label><span class="sr-only">Who</span><select name="actor">${ACTORS.map(([k, l]) => `<option value="${k}" ${f.actor === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+        <label><span class="sr-only">Action</span><select name="category">${CATEGORIES.map(([k, l]) => `<option value="${k}" ${f.category === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+        <button class="btn">Filter</button>
+        <button type="button" class="btn ghost" data-refresh-audit>Refresh</button>
+      </form>
+      <p class="muted small">${st.audit.length} event${st.audit.length === 1 ? '' : 's'}${st.activityNext ? ' shown, more available' : ''}, newest first. Click an event for its details.</p>
       <div class="table-wrap">
         <table class="table">
           <thead><tr><th>Time</th><th>Who</th><th>What</th><th>Server</th><th>IP address</th></tr></thead>
           <tbody>
-            ${st.audit.map((a) => {
-              let detail = '';
-              try {
-                const d = a.detail ? JSON.parse(a.detail) : null;
-                if (d?.email && (a.action.startsWith('admin_') || a.action.endsWith('login_failed'))) detail = d.email;
-                if (d?.hostname) detail = d.hostname;
-                if (d?.label && a.action.startsWith('admin_template')) detail = d.label;
-                if (d?.error) detail = d.error;
-                if (d?.reason && a.action.includes('sso')) detail = d.reason;
-                if (d?.passkey) detail = d.reason ? `passkey: ${d.reason}` : 'with a passkey';
-              } catch { /* ignore */ }
+            ${st.audit.length ? st.audit.map((a, i) => {
+              const detail = activityDetail(a);
               return `
-              <tr class="${a.action.endsWith('login_failed') || a.action.endsWith('_failed') ? 'row-warn' : ''}">
+              <tr class="${a.action.endsWith('_failed') ? 'row-warn' : ''} activity-row" data-activity="${i}" tabindex="0" aria-expanded="false">
                 <td class="nowrap">${utc(a.createdAt).toLocaleString()}</td>
-                <td>${esc(a.email ?? '–')}</td>
+                <td><span class="tag">${ACTOR_TAG[a.actor] ?? ''}</span> ${esc(a.email ?? '–')}</td>
                 <td>${esc(ACTION_LABELS[a.action] ?? a.action)}${detail ? ` <span class="muted">${esc(detail)}</span>` : ''}</td>
                 <td class="mono">${a.vmid ?? ''}</td>
                 <td class="mono muted">${esc(a.ip ?? '')}</td>
               </tr>`;
-            }).join('')}
+            }).join('') : '<tr><td colspan="5" class="muted">No events match.</td></tr>'}
           </tbody>
         </table>
-      </div>`;
+      </div>
+      ${st.activityNext ? '<div class="row"><button class="btn" data-more-activity>Load more</button></div>' : ''}`;
+  }
+
+  /** Shows the full record of an event under its row. */
+  function toggleActivity(row) {
+    const next = row.nextElementSibling;
+    if (next?.classList.contains('activity-more')) { next.remove(); row.setAttribute('aria-expanded', 'false'); return; }
+    const a = st.audit[Number(row.dataset.activity)];
+    let pretty = a.detail ?? '';
+    try { pretty = JSON.stringify(JSON.parse(a.detail), null, 2); } catch { /* as stored */ }
+    if (pretty === 'null') pretty = '';
+    row.insertAdjacentHTML('afterend', `
+      <tr class="activity-more"><td colspan="5">
+        <dl class="activity-dl">
+          <dt>Event</dt><dd class="mono">#${a.id} · ${esc(a.action)} · ${esc(a.category)}</dd>
+          <dt>Account</dt><dd>${esc(a.email ?? '–')}${a.userId ? ` <span class="muted">(ID ${a.userId})</span>` : ''}</dd>
+          <dt>Time (UTC)</dt><dd class="mono">${esc(a.createdAt)}</dd>
+          ${pretty ? `<dt>Details</dt><dd><pre class="activity-json">${esc(pretty)}</pre></dd>` : ''}
+        </dl>
+      </td></tr>`);
+    row.setAttribute('aria-expanded', 'true');
   }
 
   // ---- events (bound once) ----------------------------------------------
@@ -1207,6 +1583,50 @@ export function createAdmin({ root, api, toast, fail, confirmAction, promptText,
     const t = e.target.closest('button');
     if (!t) return;
     if (infra.handles(st.tab) && !t.dataset.adminTab && await infra.onClick(e, st.tab)) return;
+    if (desk.handles(st.tab) && !t.dataset.adminTab && await desk.onClick(e, st.tab)) return;
+    if (billing.handles(st.tab) && !t.dataset.adminTab && await billing.onClick(e, st.tab)) return;
+    if (plans.handles(st.tab) && !t.dataset.adminTab && await plans.onClick(e, st.tab)) return;
+
+    if (t.hasAttribute('data-ai-test')) {
+      t.disabled = true;
+      try {
+        const r = await api('/api/admin/settings/ai/test', { method: 'POST' });
+        toast(`The model answered: “${r.answer}”`);
+      } catch (err) { fail(err); }
+      t.disabled = false;
+      return;
+    }
+    if (t.hasAttribute('data-zammad-test')) {
+      t.disabled = true;
+      try {
+        const r = await api('/api/admin/settings/zammad/test', { method: 'POST' });
+        toast(`Zammad answers (signed in as ${r.user ?? 'the token user'})${r.missing.length ? `. Groups not found: ${r.missing.join(', ')}` : ''}`, r.missing.length ? 'warn' : 'info');
+      } catch (err) { fail(err); }
+      t.disabled = false;
+      return;
+    }
+    if (t.hasAttribute('data-zammad-retry')) {
+      try {
+        const r = await api('/api/admin/settings/zammad/retry', { method: 'POST' });
+        toast(`Sent ${r.tickets} ticket${r.tickets === 1 ? '' : 's'} and ${r.messages} message${r.messages === 1 ? '' : 's'}`);
+        st.zammad = await api('/api/admin/settings/zammad');
+        renderSettings();
+      } catch (err) { fail(err); }
+      return;
+    }
+    if (t.hasAttribute('data-zammad-secret')) {
+      if (!(await confirmAction('Make a new signature token? Zammad keeps sending with the old one until you paste the new token into its webhook.', 'New token'))) return;
+      try { st.zammad = await api('/api/admin/settings/zammad', { method: 'PUT', body: { newSecret: true } }); renderSettings(); } catch (err) { fail(err); }
+      return;
+    }
+    if (t.dataset.brandRemove) {
+      try {
+        st.branding = await api(`/api/admin/settings/branding/${t.dataset.brandRemove}`, { method: 'DELETE' });
+        toast('Using the built-in image again');
+        renderSettings();
+      } catch (err) { fail(err); }
+      return;
+    }
 
     if (t.dataset.adminTab) {
       st.tab = t.dataset.adminTab;
@@ -1260,6 +1680,11 @@ export function createAdmin({ root, api, toast, fail, confirmAction, promptText,
 
     if (t.hasAttribute('data-refresh-audit')) {
       load();
+      return;
+    }
+    if (t.hasAttribute('data-more-activity')) {
+      t.disabled = true;
+      try { await loadActivity({ more: true }); renderActivity(); } catch (err) { fail(err); t.disabled = false; }
       return;
     }
 
@@ -1408,11 +1833,39 @@ export function createAdmin({ root, api, toast, fail, confirmAction, promptText,
   });
 
   root.addEventListener('change', async (e) => {
+    if (e.target.matches?.('[data-brand-upload]')) {
+      const input = e.target;
+      const file = input.files?.[0];
+      if (!file) return;
+      const data = await new Promise((resolve, reject) => {
+        const r = new FileReader();
+        r.onload = () => resolve(String(r.result).split(',')[1] ?? '');
+        r.onerror = () => reject(r.error);
+        r.readAsDataURL(file);
+      }).catch(() => null);
+      if (data === null) return fail(new Error('The file could not be read'));
+      try {
+        st.branding = await api(`/api/admin/settings/branding/${input.dataset.brandUpload}`, { method: 'PUT', body: { type: file.type, data } });
+        toast('Image saved');
+        renderSettings();
+      } catch (err) { fail(err); }
+      return;
+    }
+    if (e.target.matches?.('[data-allow-personal]')) {
+      const box = e.target;
+      try {
+        st.appearance = await api('/api/admin/settings/appearance', { method: 'PUT', body: { allowPersonal: box.checked } });
+        toast(box.checked ? 'Users can choose their own appearance' : 'Everyone sees the panel scheme');
+      } catch (err) { fail(err); box.checked = !box.checked; }
+      return;
+    }
     if (e.target.matches?.('[data-winupdates]')) {
       const box = e.target;
       try {
-        st.winupdates = await api('/api/admin/settings/winupdates', { method: 'PUT', body: { enabled: box.checked } });
-        toast(st.winupdates.enabled ? 'Customers can install Windows updates' : 'Windows updates through the panel are switched off');
+        const linux = box.dataset.winupdates === 'linux';
+        st.winupdates = await api('/api/admin/settings/winupdates', { method: 'PUT', body: linux ? { linux: box.checked } : { enabled: box.checked } });
+        const what = linux ? 'Linux package updates' : 'Windows updates';
+        toast(box.checked ? `Customers can install ${what}` : `${what} through the panel are switched off`);
       } catch (err) { fail(err); box.checked = !box.checked; }
       return;
     }
@@ -1441,12 +1894,29 @@ export function createAdmin({ root, api, toast, fail, confirmAction, promptText,
 
   root.addEventListener('change', (e) => {
     if (infra.handles(st.tab)) infra.onChange(e, st.tab);
+    if (desk.handles(st.tab)) desk.onChange(e, st.tab);
+    if (plans.handles(st.tab)) plans.onChange(e, st.tab);
   });
 
   root.addEventListener('submit', (e) => {
     if (infra.handles(st.tab)) {
       e.preventDefault();
       infra.onSubmit(e, st.tab);
+      return;
+    }
+    if (desk.handles(st.tab)) {
+      e.preventDefault();
+      desk.onSubmit(e, st.tab);
+      return;
+    }
+    if (billing.handles(st.tab)) {
+      e.preventDefault();
+      billing.onSubmit(e, st.tab);
+      return;
+    }
+    if (plans.handles(st.tab)) {
+      e.preventDefault();
+      plans.onSubmit(e, st.tab);
       return;
     }
     if (e.target.id !== 'user-form') return;
@@ -1460,9 +1930,15 @@ export function createAdmin({ root, api, toast, fail, confirmAction, promptText,
       const me = await api('/api/admin/me');
       st.perms = new Set(me.permissions);
       infra.setPermissions(me.permissions);
+      desk.setPermissions(me.permissions);
+      billing.setPermissions(me.permissions);
+      plans.setPermissions(me.permissions);
     } catch (err) {
       fail(err);
     }
+    // Back from linking a sign-in provider: open the account page with the result
+    const q = new URLSearchParams(location.search);
+    if (q.has('sso_linked') || (q.has('sso_error') && location.hash === '#account')) st.tab = 'account';
     if (!allowedTab(st.tab)) st.tab = ['servers', 'users', 'resources', 'gpu', 'storage', 'account'].find(allowedTab);
   }
 

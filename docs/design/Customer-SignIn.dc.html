@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Sign in</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500&amp;family=Space+Grotesk:wght@500;600;700&amp;display=swap">
+<style>
+body{margin:0;background:#0A101C;}
+a{color:#8EC2FF;}a:hover{color:#C5E0FF;}
+</style>
+</helmet>
+<div style="min-height: 100vh; display: flex; flex-wrap: wrap; background: #0A101C; color: #E6EBF2; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 14px; line-height: 1.5;">
+
+<!-- brand panel (white-label) -->
+<div style="flex: 1 1 420px; box-sizing: border-box; padding: 40px 48px; background: radial-gradient(circle at 30% 40%, #13294A 0%, #0D1424 60%); display: flex; flex-direction: column; justify-content: space-between; gap: 40px;">
+<div style="display: flex; align-items: center; gap: 10px;"><span style="width: 34px; height: 34px; border-radius: 9px; background: #4C9AFF; display: inline-flex; align-items: center; justify-content: center; color: #06101F; font-family: 'Space Grotesk', sans-serif; font-weight: 700;">P</span><span style="font-family: 'Space Grotesk', sans-serif; font-size: 20px; font-weight: 600;">PVE Panel</span><span style="font-size: 11px; color: #93A0B4; border: 1px dashed #2A3750; border-radius: 6px; padding: 1px 6px;">logo from Settings → White-label</span></div>
+<svg viewBox="0 0 360 260" width="100%" style="max-width: 420px; align-self: center;" aria-hidden="true">
+<g stroke="#3A4A66" stroke-width="1.5"><line x1="180" y1="130" x2="70" y2="70"></line><line x1="180" y1="130" x2="300" y2="64"></line><line x1="180" y1="130" x2="60" y2="200"></line><line x1="180" y1="130" x2="310" y2="190"></line><line x1="180" y1="130" x2="176" y2="238"></line></g>
+<line x1="180" y1="130" x2="180" y2="30" stroke="#4C9AFF" stroke-dasharray="4 5" stroke-width="1.5"></line>
+<rect x="148" y="14" width="64" height="26" rx="13" fill="none" stroke="#4C9AFF" stroke-width="2"></rect>
+<circle cx="180" cy="130" r="30" fill="#4C9AFF"></circle>
+<g fill="#0D1424" stroke-width="2"><circle cx="70" cy="70" r="16" stroke="#3DD68C"></circle><circle cx="300" cy="64" r="16" stroke="#3DD68C"></circle><circle cx="60" cy="200" r="16" stroke="#8A97AC"></circle><circle cx="310" cy="190" r="16" stroke="#8A97AC"></circle><circle cx="176" cy="238" r="16" stroke="#3DD68C"></circle></g>
+</svg>
+<span style="font-family: 'Space Grotesk', sans-serif; font-size: 22px; font-weight: 600; max-width: 460px;">Your servers in your own private network, reachable from anywhere through your VPN.</span>
+</div>
+
+<!-- form -->
+<main style="flex: 1 1 420px; box-sizing: border-box; padding: 40px 32px; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 16px;">
+<div style="width: 100%; max-width: 380px; display: flex; flex-direction: column; gap: 16px;">
+
+<div style="display: flex; flex-wrap: wrap; gap: 6px; font-size: 12px; color: #93A0B4; align-items: center;"><span>Preview:</span>
+<sc-for list="{{modes}}" as="m" hint-placeholder-count="3"><button type="button" onClick="{{m.pick}}" aria-pressed="{{m.on}}" style="min-height: 28px; padding: 0 10px; border-radius: 999px; border: 1px solid {{m.border}}; background: {{m.bg}}; color: #C3CCDA; font: inherit; font-size: 12px; cursor: pointer;">{{m.label}}</button></sc-for>
+</div>
+
+<h1 style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 30px; font-weight: 600;">{{title}}</h1>
+
+<sc-if value="{{m.normal}}" hint-placeholder-val="{{true}}">
+<div style="display: flex; flex-direction: column; gap: 10px;">
+<sc-for list="{{providers}}" as="p" hint-placeholder-count="3">
+<button type="button" style="min-height: 46px; display: flex; align-items: center; gap: 12px; padding: 0 14px; border: 1px solid #2A3750; border-radius: 10px; background: #101828; color: #E6EBF2; font: inherit; font-weight: 500; cursor: pointer;">
+<span aria-hidden="true" style="width: 22px; height: 22px; border-radius: 6px; background: {{p.chip}}; display: inline-flex; align-items: center; justify-content: center;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#06101F" stroke-width="3" stroke-linecap="round"><path d="M5 12h14M13 6l6 6-6 6"></path></svg></span>
+<span style="flex: 1; text-align: left;">Continue with {{p.name}}</span>
+<span style="font-size: 11px; color: #93A0B4;">{{p.note}}</span>
+</button>
+</sc-for>
+<button type="button" style="min-height: 46px; display: flex; align-items: center; gap: 12px; padding: 0 14px; border: 1px solid #2A3750; border-radius: 10px; background: #101828; color: #E6EBF2; font: inherit; font-weight: 500;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#8EC2FF" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="9" cy="8" r="4"></circle><path d="M3 20c0-3 3-5 6-5M15 13a3 3 0 1 1 3 3v4h-2v-2h-2"></path></svg><span>Sign in with a passkey</span></button>
+<div style="display: flex; align-items: center; gap: 10px; color: #6F7C92; font-size: 12px;"><span style="flex: 1; height: 1px; background: #1F2A3F;"></span>or with email<span style="flex: 1; height: 1px; background: #1F2A3F;"></span></div>
+<label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 600;">Email<input type="email" autocomplete="username" onChange="{{noop}}" style="min-height: 44px; padding: 0 12px; border: 1px solid #2A3750; border-radius: 10px; background: #0C1322; color: #E6EBF2; font: inherit;"></label>
+<label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 600;">Password<input type="password" autocomplete="current-password" onChange="{{noop}}" style="min-height: 44px; padding: 0 12px; border: 1px solid #2A3750; border-radius: 10px; background: #0C1322; color: #E6EBF2; font: inherit;"></label>
+<button type="button" style="min-height: 46px; border: 0; border-radius: 10px; background: #4C9AFF; color: #06101F; font: inherit; font-weight: 600;">Sign in</button>
+<span style="font-size: 12px; color: #93A0B4;">New here? <a href="#">Create an account</a> · <a href="#">Forgot password</a></span>
+</div>
+</sc-if>
+
+<sc-if value="{{m.domain}}" hint-placeholder-val="{{false}}">
+<div style="display: flex; flex-direction: column; gap: 12px;">
+<label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 600;">Email<input type="email" value="rina@arunika.id" onChange="{{noop}}" style="min-height: 44px; padding: 0 12px; border: 1px solid #4C9AFF; border-radius: 10px; background: #0C1322; color: #E6EBF2; font: inherit;"></label>
+<div style="padding: 12px 14px; border-radius: 10px; background: #152645; border: 1px solid #21406E; font-size: 13px; color: #CFE3FF;">arunika.id signs in with its company account (Microsoft 365). Password sign-in is turned off for this domain by your organisation.</div>
+<button type="button" style="min-height: 46px; border: 0; border-radius: 10px; background: #4C9AFF; color: #06101F; font: inherit; font-weight: 600;">Continue to Microsoft sign-in</button>
+<a href="#" style="font-size: 12px;">Use a different email</a>
+</div>
+</sc-if>
+
+<sc-if value="{{m.link}}" hint-placeholder-val="{{false}}">
+<div style="display: flex; flex-direction: column; gap: 12px;">
+<div style="padding: 12px 14px; border-radius: 10px; background: #2E2410; border: 1px solid #5A4618; font-size: 13px; color: #F8DFA6;">You signed in with GitHub as <b>rina-arunika</b>. An account with <b>rina@arunika.id</b> already exists. Confirm it is you to link GitHub to that account.</div>
+<label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 600;">Password of rina@arunika.id<input type="password" onChange="{{noop}}" style="min-height: 44px; padding: 0 12px; border: 1px solid #2A3750; border-radius: 10px; background: #0C1322; color: #E6EBF2; font: inherit;"></label>
+<label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 600;">Code from your authenticator app<input type="text" inputmode="numeric" placeholder="123 456" onChange="{{noop}}" style="min-height: 44px; padding: 0 12px; border: 1px solid #2A3750; border-radius: 10px; background: #0C1322; color: #E6EBF2; font-family: 'JetBrains Mono', monospace;"></label>
+<button type="button" style="min-height: 46px; border: 0; border-radius: 10px; background: #4C9AFF; color: #06101F; font: inherit; font-weight: 600;">Link GitHub and sign in</button>
+<span style="font-size: 12px; color: #93A0B4;">Accounts are linked only after this check, never automatically by email address alone.</span>
+</div>
+</sc-if>
+
+<span style="font-size: 11px; color: #6F7C92;">Protected by 2FA. Help: <a href="#">helpdesk</a></span>
+</div>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { mode: 'normal' }; }
+  renderVals() {
+    const M = [['normal', 'All options'], ['domain', 'Company domain'], ['link', 'Link account']];
+    const titles = { normal: 'Sign in', domain: 'Sign in', link: 'Confirm it is you' };
+    return {
+      title: titles[this.state.mode], noop: () => {},
+      modes: M.map(([k, l]) => ({ label: l, on: k === this.state.mode, border: k === this.state.mode ? '#4C9AFF' : '#2A3750', bg: k === this.state.mode ? '#17284A' : 'transparent', pick: () => this.setState({ mode: k }) })),
+      m: Object.fromEntries(M.map(([k]) => [k, k === this.state.mode])),
+      providers: [
+        { name: 'Google', note: 'Gmail · Workspace', chip: '#7EE6B0' },
+        { name: 'Microsoft', note: 'Office 365 · Entra ID', chip: '#9CC8FF' },
+        { name: 'GitHub', note: 'developers', chip: '#C3CCDA' }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

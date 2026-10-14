@@ -20,9 +20,14 @@ const paths = {
   menu: '<path d="M4 7h16M4 12h16M4 17h16"/>',
   users: '<circle cx="9" cy="8.5" r="3.5"/><path d="M3 19.5c.8-3.3 3.2-5 6-5s5.2 1.7 6 5"/><path d="M15.5 5.2a3.5 3.5 0 0 1 0 6.6M17.5 14.8c1.8.6 3 2.2 3.5 4.7"/>',
   layers: '<path d="M12 4l8.5 4.5L12 13 3.5 8.5z"/><path d="M3.5 12.5L12 17l8.5-4.5"/>',
+  wallet: '<path d="M4 7.5A2.5 2.5 0 0 1 6.5 5H18v3"/><rect x="3.5" y="8" width="17" height="11.5" rx="2"/><path d="M16 13.75h1.5"/>',
   clock: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>',
   link: '<path d="M10 14a4.5 4.5 0 0 0 6.4 0l3-3a4.5 4.5 0 0 0-6.4-6.4l-1.2 1.2"/><path d="M14 10a4.5 4.5 0 0 0-6.4 0l-3 3a4.5 4.5 0 0 0 6.4 6.4l1.2-1.2"/>',
   list: '<path d="M8 6.5h12M8 12h12M8 17.5h12M4 6.5h.01M4 12h.01M4 17.5h.01"/>',
+  chat: '<path d="M4.5 5.5h15v10h-8l-4.5 3.5v-3.5h-2.5z"/><path d="M8.5 9.5h7M8.5 12.5h4.5"/>',
+  book: '<path d="M4.5 5.5c2.5-1 5-1 7.5.5 2.5-1.5 5-1.5 7.5-.5v13c-2.5-1-5-1-7.5.5-2.5-1.5-5-1.5-7.5-.5z"/><path d="M12 6v13"/>',
+  spark: '<path d="M12 3.5l1.8 5.2 5.2 1.8-5.2 1.8L12 17.5l-1.8-5.2-5.2-1.8 5.2-1.8z"/><path d="M18.5 15.5l.7 1.8 1.8.7-1.8.7-.7 1.8-.7-1.8-1.8-.7 1.8-.7z"/>',
+  search: '<circle cx="10.5" cy="10.5" r="6"/><path d="M15 15l5 5"/>',
   // OS glyphs: neutral shapes, not vendor logos
   linux: '<rect x="3" y="4.5" width="18" height="15" rx="2.5"/><path d="M7 10l2.5 2L7 14M11.5 14.5H16"/>',
   windows: '<rect x="3" y="4.5" width="18" height="15" rx="2.5"/><path d="M3 9h18M6 6.8h.01M8.5 6.8h.01"/>',
@@ -55,14 +60,53 @@ export function brandMark(size = 28) {
 }
 
 // Color scheme: apply the last known one immediately (no flash of the default
-// colors), then whatever the server says. Set by an admin for everyone.
+// colors), then whatever the server says. The panel's scheme is set by an admin
+// for everyone; a signed-in user may choose their own scheme and light/dark mode
+// (Account → Appearance), remembered in this browser too.
 const SCHEME_KEY = 'pve-panel.scheme';
+const PERSONAL_KEY = 'pve-panel.personal';
+let personal = null;   // { scheme, mode } of the signed-in user, or null
+let panelScheme = null;
+const html = document.documentElement;
+
+function setMode(mode) {
+  if (mode === 'light' || mode === 'dark') html.dataset.mode = mode;
+  else delete html.dataset.mode;
+}
+
+/** The panel's scheme (for everyone); a personal choice still wins. */
 export function applyScheme(id) {
   if (!id) return;
-  document.documentElement.dataset.scheme = id;
+  panelScheme = id;
+  html.dataset.scheme = personal?.scheme || id;
   try { localStorage.setItem(SCHEME_KEY, id); } catch { /* storage unavailable */ }
 }
-try { const remembered = localStorage.getItem(SCHEME_KEY); if (remembered) document.documentElement.dataset.scheme = remembered; } catch { /* ignore */ }
+
+/** The signed-in user's own choice (from /api/account/appearance); null clears it (sign-out). */
+export function applyPersonal(a) {
+  personal = a && a.allowed ? { scheme: a.scheme ?? null, mode: a.mode ?? 'system' } : null;
+  try {
+    if (personal) localStorage.setItem(PERSONAL_KEY, JSON.stringify(personal)); else localStorage.removeItem(PERSONAL_KEY);
+  } catch { /* storage unavailable */ }
+  if (a?.effective) html.dataset.scheme = a.effective;
+  else if (!a) {
+    let fallback = panelScheme;
+    try { fallback ??= localStorage.getItem(SCHEME_KEY); } catch { /* ignore */ }
+    if (fallback) html.dataset.scheme = fallback; else delete html.dataset.scheme;
+  }
+  setMode(personal?.mode);
+}
+
+try {
+  personal = JSON.parse(localStorage.getItem(PERSONAL_KEY) || 'null');
+  const remembered = personal?.scheme || localStorage.getItem(SCHEME_KEY);
+  if (remembered) html.dataset.scheme = remembered;
+  setMode(personal?.mode);
+} catch { /* ignore */ }
+
+let brandInfo = null;
+/** What /api/brand said (after applyBrand), e.g. the support link. */
+export const brandDetails = () => brandInfo;
 
 /** Fetches the product name and applies it to the page (title + [data-brand]). */
 export async function applyBrand(suffix = '') {
@@ -74,6 +118,21 @@ export async function applyBrand(suffix = '') {
       name = b.name || name;
       customOsIcons = b.osIcons ?? {};
       applyScheme(b.scheme);
+      brandInfo = b;
+      // Own logo (Settings → Branding) instead of the built-in mark
+      if (b.logo) {
+        document.querySelectorAll('[data-brand-mark]').forEach((el) => {
+          el.innerHTML = `<img class="brand-logo" src="${b.logo.replace(/"/g, '')}" alt="">`;
+        });
+      }
+      if (b.favicon) {
+        let link = document.querySelector('link[rel="icon"]');
+        if (!link) { link = document.createElement('link'); link.rel = 'icon'; document.head.append(link); }
+        link.href = b.favicon;
+      }
+      if (b.supportUrl) {
+        document.querySelectorAll('[data-support-link]').forEach((a) => { a.href = b.supportUrl; a.hidden = false; });
+      }
     }
   } catch { /* keep default */ }
   document.querySelectorAll('[data-brand]').forEach((el) => { el.textContent = name; });

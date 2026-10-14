@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Admin networking and IPAM</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500&amp;family=Space+Grotesk:wght@500;600;700&amp;display=swap">
+<style>
+body{margin:0;background:#0A101C;}
+a{color:#8EC2FF;}a:hover{color:#C5E0FF;}
+</style>
+</helmet>
+<div style="min-height: 100vh; background: #0A101C; color: #E6EBF2; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 14px; line-height: 1.5; display: flex; flex-wrap: wrap; align-items: stretch;">
+
+<div style="flex: 1 1 240px; background: #0D1424; border-right: 1px solid #1C2638;">
+<dc-import name="Sidebar" portal="admin" active="ipam" hint-size="100%,960px"></dc-import>
+</div>
+
+<main style="flex: 999 1 560px; min-width: 0; box-sizing: border-box; padding: 28px 32px 48px; display: flex; flex-direction: column; gap: 20px;">
+
+<div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px;">
+<div style="display: flex; flex-direction: column; gap: 2px;">
+<h1 style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 28px; font-weight: 600;">Networking &amp; IPAM</h1>
+<span style="color: #93A0B4;">Address pools, tenant networks, NAT and port forwards across every host</span>
+</div>
+<div style="display: flex; flex-wrap: wrap; gap: 10px;">
+<button type="button" style="min-height: 44px; padding: 0 14px; border: 1px solid #2A3750; border-radius: 10px; background: #101828; color: #E6EBF2; font: inherit; font-weight: 500;">Tenant VNets (42)</button>
+<button type="button" style="min-height: 44px; padding: 0 16px; border: 0; border-radius: 10px; background: #4C9AFF; color: #06101F; font: inherit; font-weight: 600;">+ Add pool</button>
+</div>
+</div>
+
+<!-- pools -->
+<section aria-labelledby="pools-h" style="background: #101828; border: 1px solid #1F2A3F; border-radius: 14px; overflow: hidden;">
+<div style="padding: 14px 18px; border-bottom: 1px solid #1C2638;"><h2 id="pools-h" style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 18px; font-weight: 600;">Address pools</h2></div>
+<div style="overflow-x: auto;">
+<div style="min-width: 900px;">
+<div style="display: grid; grid-template-columns: 1.3fr 1.4fr 1fr 0.8fr 0.9fr 1.8fr 1.1fr; gap: 10px; padding: 10px 18px; color: #8492A8; font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 0.04em;">
+<span>POOL</span><span>PREFIX</span><span>GATEWAY</span><span>FAMILY</span><span>SCOPE</span><span>ALLOCATED</span><span>BILLED AS</span>
+</div>
+<sc-for list="{{pools}}" as="p" hint-placeholder-count="5">
+<button type="button" onClick="{{p.pick}}" aria-pressed="{{p.on}}" style="width: 100%; display: grid; grid-template-columns: 1.3fr 1.4fr 1fr 0.8fr 0.9fr 1.8fr 1.1fr; gap: 10px; align-items: center; padding: 12px 18px; border: 0; border-top: 1px solid #1C2638; background: {{p.bg}}; color: #E6EBF2; font: inherit; text-align: left; cursor: pointer;">
+<span style="font-weight: 500;">{{p.name}}</span>
+<span style="font-family: 'JetBrains Mono', monospace; font-size: 13px; color: #C3CCDA;">{{p.cidr}}</span>
+<span style="font-family: 'JetBrains Mono', monospace; font-size: 13px; color: #B8C2D1;">{{p.gw}}</span>
+<span style="color: #B8C2D1;">{{p.fam}}</span>
+<span style="color: #B8C2D1;">{{p.scope}}</span>
+<span style="display: flex; align-items: center; gap: 10px;"><span style="flex: 1; height: 6px; border-radius: 3px; background: #1C2638; overflow: hidden;"><span style="display: block; height: 6px; width: {{p.pct}}; background: {{p.barColor}};"></span></span><span style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #C3CCDA; min-width: 84px;">{{p.used}}</span></span>
+<span style="color: #C3CCDA; font-size: 13px;">{{p.bill}}</span>
+</button>
+</sc-for>
+</div>
+</div>
+</section>
+
+<div style="display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-start;">
+
+<!-- allocations -->
+<section aria-labelledby="alloc-h" style="flex: 3 1 600px; min-width: 0; background: #101828; border: 1px solid #1F2A3F; border-radius: 14px; overflow: hidden;">
+<div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px; padding: 14px 18px; border-bottom: 1px solid #1C2638;">
+<h2 id="alloc-h" style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 18px; font-weight: 600;">Allocations · {{cur.name}}</h2>
+<div style="display: flex; gap: 8px;">
+<button type="button" style="min-height: 36px; padding: 0 12px; border: 1px solid #2A3750; border-radius: 8px; background: transparent; color: #E6EBF2; font: inherit; font-size: 13px;">Reserve address</button>
+<button type="button" style="min-height: 36px; padding: 0 12px; border: 1px solid #2A3750; border-radius: 8px; background: transparent; color: #E6EBF2; font: inherit; font-size: 13px;">Export CSV</button>
+</div>
+</div>
+<div style="overflow-x: auto;">
+<div style="min-width: 720px;">
+<div style="display: grid; grid-template-columns: 1.3fr 1.2fr 1.4fr 1.4fr 1.6fr 0.8fr; gap: 10px; padding: 10px 18px; color: #8492A8; font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 0.04em;">
+<span>ADDRESS</span><span>GUEST</span><span>CUSTOMER</span><span>MAC</span><span>REVERSE DNS</span><span style="text-align: right;">ACTION</span>
+</div>
+<sc-for list="{{allocs}}" as="a" hint-placeholder-count="8">
+<div style="display: grid; grid-template-columns: 1.3fr 1.2fr 1.4fr 1.4fr 1.6fr 0.8fr; gap: 10px; align-items: center; padding: 10px 18px; border-top: 1px solid #1C2638; font-size: 13px;">
+<span style="font-family: 'JetBrains Mono', monospace;">{{a.ip}}</span>
+<span style="color: {{a.guestColor}};">{{a.guest}}</span>
+<span style="color: #C3CCDA;">{{a.cust}}</span>
+<span style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #93A0B4;">{{a.mac}}</span>
+<span style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #B8C2D1;">{{a.rdns}}</span>
+<span style="text-align: right;"><button type="button" style="min-height: 32px; padding: 0 10px; border: 1px solid #2A3750; border-radius: 8px; background: transparent; color: #8EC2FF; font: inherit; font-size: 12px;">{{a.action}}</button></span>
+</div>
+</sc-for>
+</div>
+</div>
+</section>
+
+<!-- NAT / forwards -->
+<section aria-labelledby="nat-h" style="flex: 2 1 380px; min-width: 0; display: flex; flex-direction: column; gap: 16px;">
+<div style="background: #101828; border: 1px solid #1F2A3F; border-radius: 14px; overflow: hidden;">
+<div style="display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 14px 18px; border-bottom: 1px solid #1C2638;">
+<h2 id="nat-h" style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 18px; font-weight: 600;">Port forwards (DNAT)</h2>
+<span style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #F5B94C;">2 pending apply</span>
+</div>
+<sc-for list="{{fwds}}" as="f" hint-placeholder-count="5">
+<div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px; padding: 10px 18px; border-top: 1px solid #1C2638; font-size: 13px;">
+<span style="font-family: 'JetBrains Mono', monospace; color: #E6EBF2;">{{f.pub}} <span style="color: #4C9AFF;" aria-hidden="true">→</span> {{f.priv}}</span>
+<span style="display: flex; gap: 8px; align-items: center;"><span style="color: #93A0B4;">{{f.proto}}</span><span style="padding: 2px 8px; border-radius: 6px; font-size: 11px; font-family: 'JetBrains Mono', monospace; background: {{f.bg}}; color: {{f.fg}};">{{f.state}}</span></span>
+</div>
+</sc-for>
+<div style="display: flex; gap: 8px; padding: 12px 18px; border-top: 1px solid #1C2638;">
+<button type="button" style="min-height: 40px; padding: 0 14px; border: 0; border-radius: 10px; background: #4C9AFF; color: #06101F; font: inherit; font-weight: 600;">Apply to pve-jkt1-01</button>
+<button type="button" style="min-height: 40px; padding: 0 14px; border: 1px solid #2A3750; border-radius: 10px; background: transparent; color: #E6EBF2; font: inherit;">Preview rules</button>
+</div>
+</div>
+
+<div style="background: #101828; border: 1px solid #1F2A3F; border-radius: 14px; padding: 16px 18px; display: flex; flex-direction: column; gap: 10px;">
+<h2 style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 18px; font-weight: 600;">Host firewall (read-only)</h2>
+<span style="font-size: 13px; color: #93A0B4;">Parsed from pve-firewall and nftables on pve-jkt1-01, 2 minutes ago</span>
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; font-size: 13px;">
+<span style="padding: 10px; border-radius: 8px; background: #0C1322; display: flex; flex-direction: column;"><span style="color: #93A0B4;">Datacenter firewall</span><span style="color: #3DD68C; font-weight: 500;">Enabled</span></span>
+<span style="padding: 10px; border-radius: 8px; background: #0C1322; display: flex; flex-direction: column;"><span style="color: #93A0B4;">Tenant isolation</span><span style="color: #3DD68C; font-weight: 500;">42 / 42 VNets</span></span>
+<span style="padding: 10px; border-radius: 8px; background: #0C1322; display: flex; flex-direction: column;"><span style="color: #93A0B4;">MASQUERADE rules</span><span style="font-family: 'JetBrains Mono', monospace;">42</span></span>
+<span style="padding: 10px; border-radius: 8px; background: #0C1322; display: flex; flex-direction: column;"><span style="color: #93A0B4;">Blocked private ranges</span><span style="font-family: 'JetBrains Mono', monospace;">5</span></span>
+</div>
+</div>
+</section>
+</div>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1500}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { picked: 0 }; }
+  renderVals() {
+    const raw = [
+      ['public-jkt1', '103.28.14.0/24', '103.28.14.1', 'IPv4', 'jkt-dc1', 231, 254, 'Rp 50.000 /IP /mo'],
+      ['public-jkt2', '103.28.15.0/25', '103.28.15.1', 'IPv4', 'jkt-dc2', 74, 126, 'Rp 50.000 /IP /mo'],
+      ['v6-jkt', '2401:7a0:1c::/48', '2401:7a0:1c::1', 'IPv6', 'All hosts', 212, 65536, 'Included (/64)'],
+      ['tenant-nets', '10.100.0.0/16', 'per VNet', 'IPv4', 'All hosts', 42, 256, 'Included'],
+      ['sby-public', '45.118.72.0/26', '45.118.72.1', 'IPv4', 'sby-edge', 19, 62, 'Rp 50.000 /IP /mo']
+    ];
+    const pools = raw.map((r, i) => {
+      const pct = Math.round(r[5] / r[6] * 100);
+      const on = i === this.state.picked;
+      return {
+        name: r[0], cidr: r[1], gw: r[2], fam: r[3], scope: r[4], bill: r[7],
+        used: r[3] === 'IPv6' ? r[5] + ' /64s' : (i === 3 ? r[5] + ' / 256 /24s' : r[5] + ' / ' + r[6]),
+        pct: Math.max(pct, 2) + '%', barColor: pct >= 90 ? '#F5B94C' : '#4C9AFF',
+        on, bg: on ? '#121F38' : 'transparent', pick: () => this.setState({ picked: i })
+      };
+    });
+    const cur = pools[this.state.picked];
+    const a = [
+      ['103.28.14.21', 'web-prod-01', 'PT Arunika Digital', 'BC:24:11:3A:9F:02', 'web.arunika.id', 'Change'],
+      ['103.28.14.22', 'web-prod-01', 'PT Arunika Digital', 'BC:24:11:3A:9F:02', '—', 'Release'],
+      ['103.28.14.23', 'web-prod-01', 'PT Arunika Digital', 'BC:24:11:3A:9F:02', '—', 'Release'],
+      ['103.28.14.48', 'shop-api-01', 'Toko Sinar Jaya', 'BC:24:11:7C:10:4E', 'api.sinarjaya.co.id', 'Change'],
+      ['103.28.14.49', 'Reserved', 'Internal · gateway VIP', '—', '—', 'Unreserve'],
+      ['103.28.14.61', 'cdn-edge-04', 'Medialink ID', 'BC:24:11:02:EE:91', 'edge4.medialink.id', 'Change'],
+      ['103.28.14.62', 'Free', '—', '—', '—', 'Assign'],
+      ['103.28.14.63', 'Free', '—', '—', '—', 'Assign']
+    ];
+    const allocs = a.map((x) => ({ ip: x[0], guest: x[1], cust: x[2], mac: x[3], rdns: x[4], action: x[5], guestColor: x[1] === 'Free' ? '#3DD68C' : (x[1] === 'Reserved' ? '#C7B8FF' : '#E6EBF2') }));
+    const st = { Active: ['#123326', '#7EE6B0'], Pending: ['#3A2E10', '#F5C46B'] };
+    const f = [
+      ['103.28.14.48:443', '10.100.7.11:443', 'TCP', 'Active'],
+      ['103.28.14.48:5432', '10.100.7.11:5432', 'TCP', 'Active'],
+      ['103.28.14.21:3389', '10.100.1.12:3389', 'TCP', 'Pending'],
+      ['103.28.14.61:8080', '10.100.4.9:80', 'TCP', 'Active'],
+      ['103.28.14.21:51821', '10.100.1.20:51820', 'UDP', 'Pending']
+    ];
+    const fwds = f.map((x) => ({ pub: x[0], priv: x[1], proto: x[2], state: x[3], bg: st[x[3]][0], fg: st[x[3]][1] }));
+    return { pools, cur, allocs, fwds };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Create server</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500&amp;family=Space+Grotesk:wght@500;600;700&amp;display=swap">
+<style>
+body{margin:0;background:#0A101C;}
+a{color:#8EC2FF;}a:hover{color:#C5E0FF;}
+</style>
+</helmet>
+<div style="min-height: 100vh; background: #0A101C; color: #E6EBF2; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 14px; line-height: 1.5; display: flex; flex-wrap: wrap; align-items: stretch;">
+
+<div style="flex: 1 1 240px; background: #0D1424; border-right: 1px solid #1C2638;">
+<dc-import name="Sidebar" portal="customer" active="create" hint-size="100%,960px"></dc-import>
+</div>
+
+<main style="flex: 999 1 560px; min-width: 0; box-sizing: border-box; padding: 28px 32px 48px; display: flex; flex-direction: column; gap: 22px;">
+
+<div style="display: flex; flex-direction: column; gap: 2px;">
+<h1 style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 28px; font-weight: 600;">Create server</h1>
+<span style="color: #93A0B4;">You can add 2 more servers · 10 vCPU · 16 GB · 570 GB left on your account</span>
+</div>
+
+<div style="display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start;">
+
+<div style="flex: 3 1 560px; min-width: 0; display: flex; flex-direction: column; gap: 26px;">
+
+<!-- 1 location -->
+<section aria-labelledby="s1" style="display: flex; flex-direction: column; gap: 12px;">
+<h2 id="s1" style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 18px; font-weight: 600;"><span style="color: #8EC2FF; font-family: 'JetBrains Mono', monospace; font-size: 14px;">01</span> Location</h2>
+<div role="radiogroup" aria-label="Location" style="display: flex; flex-wrap: wrap; gap: 10px;">
+<sc-for list="{{locs}}" as="l" hint-placeholder-count="3">
+<button type="button" role="radio" aria-checked="{{l.on}}" disabled="{{l.off}}" onClick="{{l.pick}}" style="flex: 1 1 180px; display: flex; flex-direction: column; align-items: flex-start; gap: 2px; min-height: 60px; padding: 12px 14px; border-radius: 12px; border: 1px solid {{l.border}}; background: {{l.bg}}; color: {{l.fg}}; font: inherit; text-align: left; cursor: pointer;"><span style="font-weight: 600;">{{l.name}}</span><span style="font-size: 12px; color: #93A0B4;">{{l.sub}}</span></button>
+</sc-for>
+</div>
+</section>
+
+<!-- 2 plan -->
+<section aria-labelledby="s2" style="display: flex; flex-direction: column; gap: 12px;">
+<div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px;">
+<h2 id="s2" style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 18px; font-weight: 600;"><span style="color: #8EC2FF; font-family: 'JetBrains Mono', monospace; font-size: 14px;">02</span> Plan</h2>
+<div role="radiogroup" aria-label="Billing cycle" style="display: flex; padding: 3px; border: 1px solid #2A3750; border-radius: 10px;">
+<sc-for list="{{cycles}}" as="c" hint-placeholder-count="2">
+<button type="button" role="radio" aria-checked="{{c.on}}" onClick="{{c.pick}}" style="min-height: 36px; padding: 0 14px; border: 0; border-radius: 8px; background: {{c.bg}}; color: {{c.fg}}; font: inherit; font-size: 13px; font-weight: 500; cursor: pointer;">{{c.label}}</button>
+</sc-for>
+</div>
+</div>
+<div role="radiogroup" aria-label="Plan" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px;">
+<sc-for list="{{plans}}" as="p" hint-placeholder-count="3">
+<button type="button" role="radio" aria-checked="{{p.on}}" disabled="{{p.off}}" onClick="{{p.pick}}" style="display: flex; flex-direction: column; align-items: flex-start; gap: 8px; padding: 16px; border-radius: 14px; border: 1px solid {{p.border}}; background: {{p.bg}}; color: #E6EBF2; font: inherit; text-align: left; cursor: pointer;">
+<span style="display: flex; justify-content: space-between; width: 100%; gap: 8px;"><span style="font-family: 'Space Grotesk', sans-serif; font-size: 18px; font-weight: 600;">{{p.title}}</span><span style="font-size: 11px; font-family: 'JetBrains Mono', monospace; color: {{p.tagColor}};">{{p.tag}}</span></span>
+<span style="font-family: 'Space Grotesk', sans-serif; font-size: 22px; font-weight: 700;">{{p.price}}<span style="font-size: 13px; font-weight: 500; color: #93A0B4;"> {{p.per}}</span></span>
+<span style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #B8C2D1; white-space: pre-line; line-height: 1.75;">{{p.spec}}</span>
+</button>
+</sc-for>
+</div>
+</section>
+
+<!-- 3 image -->
+<section aria-labelledby="s3" style="display: flex; flex-direction: column; gap: 12px;">
+<h2 id="s3" style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 18px; font-weight: 600;"><span style="color: #8EC2FF; font-family: 'JetBrains Mono', monospace; font-size: 14px;">03</span> Operating system</h2>
+<div role="radiogroup" aria-label="Operating system" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px;">
+<sc-for list="{{tmpls}}" as="t" hint-placeholder-count="6">
+<button type="button" role="radio" aria-checked="{{t.on}}" onClick="{{t.pick}}" style="display: flex; align-items: center; gap: 10px; min-height: 56px; padding: 10px 12px; border-radius: 12px; border: 1px solid {{t.border}}; background: {{t.bg}}; color: #E6EBF2; font: inherit; text-align: left; cursor: pointer;"><span style="width: 32px; height: 32px; flex: none; border-radius: 8px; background: #16223A; color: #8EC2FF; display: flex; align-items: center; justify-content: center; font-family: 'JetBrains Mono', monospace; font-size: 10px;" aria-hidden="true">{{t.badge}}</span><span style="display: flex; flex-direction: column; line-height: 1.3;"><span style="font-weight: 500;">{{t.name}}</span><span style="font-size: 12px; color: #93A0B4;">{{t.sub}}</span></span></button>
+</sc-for>
+</div>
+</section>
+
+<!-- 4 access & add-ons -->
+<section aria-labelledby="s4" style="display: flex; flex-direction: column; gap: 12px;">
+<h2 id="s4" style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 18px; font-weight: 600;"><span style="color: #8EC2FF; font-family: 'JetBrains Mono', monospace; font-size: 14px;">04</span> Access &amp; add-ons</h2>
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px;">
+<label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: #C3CCDA;">Server name<input type="text" value="api-gateway-01" onChange="{{noop}}" style="min-height: 44px; padding: 0 12px; border: 1px solid #2A3750; border-radius: 10px; background: #0C1322; color: #E6EBF2; font-family: 'JetBrains Mono', monospace; font-size: 14px;"></label>
+<label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: #C3CCDA;">{{accessLabel}}<select style="min-height: 44px; padding: 0 12px; border: 1px solid #2A3750; border-radius: 10px; background: #0C1322; color: #E6EBF2; font: inherit;"><option>{{accessValue}}</option><option>Set a password instead</option></select></label>
+<label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: #C3CCDA;">Network<select style="min-height: 44px; padding: 0 12px; border: 1px solid #2A3750; border-radius: 10px; background: #0C1322; color: #E6EBF2; font: inherit;"><option>Private 10.100.1.0/24 + 1 public IPv4</option><option>Private network only</option></select></label>
+</div>
+<div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 14px; border: 1px solid #1F2A3F; border-radius: 12px; background: #101828;">
+<span style="display: flex; flex-direction: column;"><span style="font-weight: 500;">Extra public IPv4</span><span style="font-size: 12px; color: #93A0B4;">Rp 50.000 per address per month</span></span>
+<span style="display: flex; align-items: center; gap: 8px;">
+<button type="button" onClick="{{ipDown}}" aria-label="Fewer addresses" style="width: 40px; height: 40px; border: 1px solid #2A3750; border-radius: 10px; background: transparent; color: #E6EBF2; font: inherit; font-size: 18px; cursor: pointer;">−</button>
+<span style="min-width: 28px; text-align: center; font-family: 'JetBrains Mono', monospace; font-size: 16px;" aria-live="polite">{{ips}}</span>
+<button type="button" onClick="{{ipUp}}" aria-label="More addresses" style="width: 40px; height: 40px; border: 1px solid #2A3750; border-radius: 10px; background: transparent; color: #E6EBF2; font: inherit; font-size: 18px; cursor: pointer;">+</button>
+</span>
+</div>
+</section>
+</div>
+
+<!-- summary -->
+<aside aria-labelledby="sum-h" style="flex: 1 1 320px; min-width: 0; display: flex; flex-direction: column; gap: 14px; padding: 18px; background: #101828; border: 1px solid #22314C; border-radius: 16px;">
+<h2 id="sum-h" style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 18px; font-weight: 600;">Order summary</h2>
+<sc-for list="{{sumLines}}" as="s" hint-placeholder-count="4">
+<span style="display: flex; justify-content: space-between; gap: 10px; font-size: 13px;"><span style="color: #B8C2D1;">{{s.k}}</span><span style="font-family: 'JetBrains Mono', monospace; text-align: right;">{{s.v}}</span></span>
+</sc-for>
+<span style="display: flex; justify-content: space-between; padding-top: 10px; border-top: 1px solid #2A3750; font-size: 13px;"><span style="color: #B8C2D1;">{{recurLabel}}</span><span style="font-family: 'JetBrains Mono', monospace;">{{recur}}</span></span>
+<span style="display: flex; justify-content: space-between; font-size: 13px;"><span style="color: #B8C2D1;">{{firstLabel}}</span><span style="font-family: 'JetBrains Mono', monospace;">{{first}}</span></span>
+<span style="display: flex; justify-content: space-between; font-size: 13px;"><span style="color: #B8C2D1;">PPN 11%</span><span style="font-family: 'JetBrains Mono', monospace;">{{tax}}</span></span>
+<span style="display: flex; justify-content: space-between; align-items: baseline; padding-top: 10px; border-top: 1px solid #2A3750;"><span style="font-weight: 600;">Due today</span><span style="font-family: 'Space Grotesk', sans-serif; font-size: 24px; font-weight: 700;">{{dueToday}}</span></span>
+
+<div role="radiogroup" aria-label="How to pay" style="display: flex; flex-direction: column; gap: 8px;">
+<sc-for list="{{pays}}" as="p" hint-placeholder-count="2">
+<button type="button" role="radio" aria-checked="{{p.on}}" onClick="{{p.pick}}" style="display: flex; flex-direction: column; align-items: flex-start; gap: 2px; min-height: 52px; padding: 10px 12px; border-radius: 10px; border: 1px solid {{p.border}}; background: {{p.bg}}; color: #E6EBF2; font: inherit; text-align: left; cursor: pointer;"><span style="font-weight: 600; font-size: 13px;">{{p.title}}</span><span style="font-size: 12px; color: {{p.subColor}};">{{p.sub}}</span></button>
+</sc-for>
+</div>
+
+<a href="Customer-Servers.dc.html" style="display: flex; justify-content: center; align-items: center; min-height: 48px; border-radius: 12px; background: #4C9AFF; color: #06101F; text-decoration: none; font-weight: 600;">{{cta}}</a>
+<span style="font-size: 12px; color: #93A0B4;">First charge is pro-rated to your billing date, 05 Nov. You can resize within the plan or cancel any time; unused days return as wallet credit.</span>
+</aside>
+</div>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1500}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { loc: 'jkt1', plan: 'standard', cycle: 'monthly', tmpl: 'ubuntu', ips: 0, pay: 'wallet' }; }
+  renderVals() {
+    const s = this.state;
+    const rp = (n) => 'Rp ' + Math.round(n).toLocaleString('id-ID');
+    const sel = (on) => ({ border: on ? '#4C9AFF' : '#2A3750', bg: on ? '#101C33' : '#101828' });
+    const L = [
+      { id: 'jkt1', name: 'Jakarta DC1', sub: 'jkt-dc1 · lowest latency' },
+      { id: 'jkt2', name: 'Jakarta DC2', sub: 'jkt-dc2 · separate site' },
+      { id: 'sby', name: 'Surabaya edge', sub: 'Not available on your plans', off: true }
+    ];
+    const locs = L.map((l) => ({ ...l, on: l.id === s.loc, off: !!l.off, fg: l.off ? '#7D8BA1' : '#E6EBF2', ...sel(l.id === s.loc), pick: () => !l.off && this.setState({ loc: l.id }) }));
+    const P = [
+      { id: 'starter', title: 'Starter', m: 150000, spec: '2 vCPU · 4 GB RAM\n60 GB NVMe · 2 TB', fits: true },
+      { id: 'standard', title: 'Standard', m: 290000, spec: '4 vCPU · 8 GB RAM\n120 GB NVMe · 3 TB', fits: true },
+      { id: 'business', title: 'Business', m: 550000, spec: '8 vCPU · 16 GB RAM\n250 GB NVMe · 5 TB', fits: true }
+    ];
+    const yearly = s.cycle === 'yearly';
+    const plans = P.map((p) => ({
+      title: p.title, spec: p.spec, on: p.id === s.plan, off: !p.fits, ...sel(p.id === s.plan),
+      price: rp(yearly ? p.m * 10 : p.m), per: yearly ? '/year' : '/month',
+      tag: yearly ? 'save ' + rp(p.m * 2) : (p.id === 'standard' ? 'POPULAR' : ''), tagColor: yearly ? '#3DD68C' : '#8EC2FF',
+      pick: () => this.setState({ plan: p.id })
+    }));
+    const cycles = [{ id: 'monthly', label: 'Monthly' }, { id: 'yearly', label: 'Yearly · 2 months free' }].map((c) => ({ label: c.label, on: c.id === s.cycle, bg: c.id === s.cycle ? '#17284A' : 'transparent', fg: c.id === s.cycle ? '#FFFFFF' : '#B8C2D1', pick: () => this.setState({ cycle: c.id }) }));
+    const T = [
+      { id: 'ubuntu', name: 'Ubuntu', sub: '24.04 LTS', badge: 'UBU' },
+      { id: 'debian', name: 'Debian', sub: '12', badge: 'DEB' },
+      { id: 'rocky', name: 'Rocky Linux', sub: '9', badge: 'RKY' },
+      { id: 'alma', name: 'AlmaLinux', sub: '9', badge: 'ALM' },
+      { id: 'win22', name: 'Windows Server', sub: '2022 · +licence', badge: 'WIN', win: true },
+      { id: 'win25', name: 'Windows Server', sub: '2025 · +licence', badge: 'WIN', win: true }
+    ];
+    const tmpls = T.map((t) => ({ ...t, on: t.id === s.tmpl, ...sel(t.id === s.tmpl), pick: () => this.setState({ tmpl: t.id }) }));
+    const plan = P.find((p) => p.id === s.plan);
+    const tm = T.find((t) => t.id === s.tmpl);
+    const winFee = tm.win ? 120000 : 0;
+    const ipFee = s.ips * 50000;
+    const monthlyAll = plan.m + winFee + ipFee;
+    const recurAmt = yearly ? plan.m * 10 + (winFee + ipFee) * 12 : monthlyAll;
+    const firstAmt = yearly ? recurAmt : monthlyAll * 22 / 31;
+    const taxAmt = Math.round(firstAmt * 0.11);
+    const due = Math.round(firstAmt) + taxAmt;
+    const sumLines = [
+      { k: plan.title + ' plan', v: rp(yearly ? plan.m * 10 : plan.m) + (yearly ? ' /yr' : ' /mo') },
+      { k: tm.name + ' ' + tm.sub.replace(' · +licence', ''), v: tm.win ? rp(yearly ? winFee * 12 : winFee) + (yearly ? ' /yr' : ' /mo') : 'Included' },
+      { k: 'Extra IPv4 × ' + s.ips, v: s.ips ? rp(yearly ? ipFee * 12 : ipFee) + (yearly ? ' /yr' : ' /mo') : '—' },
+      { k: 'Location', v: (L.find((l) => l.id === s.loc) || L[0]).name }
+    ];
+    const wallet = 250000;
+    const enough = wallet >= due;
+    const pays = [
+      { id: 'wallet', title: 'Pay from wallet', sub: enough ? 'Balance Rp 250.000 · Rp ' + (wallet - due).toLocaleString('id-ID') + ' left after' : 'Balance Rp 250.000 · not enough, top up first', subColor: enough ? '#93A0B4' : '#F5C46B' },
+      { id: 'invoice', title: 'Pay now by VA or QRIS', sub: 'Server starts when payment is confirmed', subColor: '#93A0B4' }
+    ].map((p) => ({ ...p, on: p.id === s.pay, ...sel(p.id === s.pay), pick: () => this.setState({ pay: p.id }) }));
+    return {
+      locs, plans, cycles, tmpls, pays, sumLines, ips: s.ips,
+      ipUp: () => this.setState({ ips: Math.min(4, s.ips + 1) }),
+      ipDown: () => this.setState({ ips: Math.max(0, s.ips - 1) }),
+      noop: () => {},
+      accessLabel: tm.win ? 'Administrator password' : 'SSH key',
+      accessValue: tm.win ? 'Generate a strong password' : 'rina@macbook (ed25519)',
+      recurLabel: yearly ? 'Then yearly' : 'Then monthly from 05 Nov',
+      recur: rp(recurAmt) + ' + PPN',
+      firstLabel: yearly ? 'First year' : 'Pro-rated 14 Oct – 04 Nov (22 days)',
+      first: rp(firstAmt), tax: rp(taxAmt), dueToday: rp(due),
+      cta: s.pay === 'wallet' && !enough ? 'Top up and create' : 'Create server · ' + rp(due)
+    };
+  }
+}
+</script>
+</body>
+</html>
