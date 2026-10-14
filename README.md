@@ -120,6 +120,7 @@ PVE Panel was built with substantial help from an AI assistant (**Claude by Anth
 - Open **support tickets** (optionally about one of their servers), follow the conversation and get answers by email
 - Search the **help center** (knowledge base) and rate articles
 - Ask the **AI assistant**: answers from the help center and their own servers and tickets, hands over to a ticket
+- **Billing**: wallet with top-ups, renew servers for 1, 3, 6 or 12 months (with discounts), auto-renew from the wallet, printable invoices with PPN; pay by wallet, **Xendit**, **Midtrans** or bank transfer
 - Delete self-created servers
 - View provisioning progress and actionable failure messages
 - Manage personal VPN devices
@@ -146,6 +147,7 @@ PVE Panel was built with substantial help from an AI assistant (**Claude by Anth
 - **Knowledge base**: Markdown articles with drafts and visibility (public, customers, agents only), drafts from solved tickets, and a list of help-center searches that found nothing
 - Optional two-way sync with a **Zammad** helpdesk
 - **AI assistant** for customers (Claude, or any OpenAI-compatible API incl. local models): settings, usage, and every conversation with what the assistant looked up
+- **Billing**: invoices with filters (unpaid, transfer reported, overdue), revenue and tax this month, confirm bank transfers, cancel invoices, adjust wallets, fixed prices per server; a *Finance* role
 - Give single customers or servers an expiry date: reminders, automatic stop, grace period, deletion
 - Role-based access for administrators (owner, operator, resource manager, read-only support, custom roles)
 - Datacenters and resource allocation pools: shared caps on vCPU, memory, disk, public IPs, GPUs and object storage
@@ -960,6 +962,40 @@ Details: [Server expiry](https://sebastianflint.github.io/pve-panel/docs/adminis
 
 ---
 
+## 💳 Billing & payments (Xendit, Midtrans)
+
+Off by default. The owner switches it on in **Settings → Billing**; customers then see **Billing** in the menu and a
+**Renew** button on servers with an end date. Billing builds on [server expiry](#-server-expiry): a paid renewal moves
+the end date (and starts an expired server again).
+
+```text
+Customer ── renew 1/3/6/12 months or top up ──► Invoice (PPN) ──► pay:
+   wallet ─────────────────────────────────────────────────────► paid at once
+   Xendit / Midtrans ─► payment page ─► webhook ─► status API check ─► paid
+   bank transfer ─► customer reports reference ─► admin confirms ───► paid
+Paid renewal ──► end date + 30 days per month · paid top-up ──► wallet balance
+Auto-renew ──► N days before the end: one month from the wallet (email if the balance is short)
+```
+
+- **Prices** come from a rate card (per vCPU, GB RAM, GB disk, with a minimum; rounded up to Rp 1.000) or a fixed
+  price per server; discounts for 3, 6 and 12 months; tax name and rate (default PPN 11 %) are settings.
+- **Top-ups** are not taxed: tax is charged on the service the balance pays for.
+- **Invoices** are numbered `PREFIX-YYYYMM-0001`, carry seller and customer details (incl. NPWP) and print as PDF.
+- **Gateways** are never trusted on their notification alone. Xendit: the `x-callback-token` header must match;
+  Midtrans: the SHA-512 `signature_key` must match. Then the panel asks the gateway's API for the status and the paid
+  amount; a smaller amount is not accepted. A payment that arrives twice (two payment pages) goes to the wallet.
+- API keys are stored encrypted and never shown again.
+
+| Gateway | Panel setting | In the gateway dashboard |
+|---|---|---|
+| Xendit (Invoice API) | Secret API key (Money-in write), callback verification token | Webhook *Invoices paid* → `https://portal.example.com/api/billing/webhooks/xendit` |
+| Midtrans (Snap) | Server key, sandbox on/off | Notification URL → `https://portal.example.com/api/billing/webhooks/midtrans` |
+
+Set `PANEL_PUBLIC_URL` (the customer portal address): Settings shows the webhook addresses from it, and customers return
+to their invoice there after paying (without it, the address the browser used). Auto-renew runs every hour (`AUTORENEW_INTERVAL_SECONDS`).
+
+---
+
 ## 🪟 Windows templates
 
 Windows systems can be deployed without cloud-init.
@@ -1414,6 +1450,12 @@ Only these file names are served, with a strict sandbox policy. Make sure you're
 | `POST` | `/api/assistant/conversations/:id/messages` | Ask a follow-up question |
 | `POST` | `/api/assistant/conversations/:id/handover` | Create the proposed ticket |
 | `POST` | `/api/assistant/messages/:id/rating` | Helpful or not |
+| `GET` | `/api/billing` | Wallet, servers with prices, invoices, payment methods |
+| `GET` | `/api/billing/invoices/:number` | An own invoice |
+| `POST` | `/api/billing/renewals`, `/api/billing/topups` | Invoice to renew a server (`vmid`, `months`) / to top up the wallet |
+| `POST` | `/api/billing/invoices/:number/pay` | Pay: `wallet`, `xendit`, `midtrans` (returns the payment page) or `bank` |
+| `PUT` | `/api/billing/servers/:vmid/auto-renew`, `/api/billing/profile` | Auto-renew on/off / billing details |
+| `POST` | `/api/billing/webhooks/xendit`, `/api/billing/webhooks/midtrans` | Gateway → panel (authenticated, then confirmed with the gateway's API) |
 | `GET` | `/api/auth/sso/:provider/start[?link=1]`, `/api/auth/sso/:provider/callback` | Sign in with (or link) Google, Microsoft, GitHub |
 | `POST` | `/api/auth/passkey/options`, `/api/auth/passkey/verify` | Sign in with a passkey |
 | `POST` | `/api/invite/check`, `/api/invite/accept` | Invitation link: check it, set the password |
