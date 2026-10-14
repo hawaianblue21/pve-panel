@@ -28,6 +28,8 @@ export const PERMISSIONS = [
   { key: 'support.read', group: 'Support', label: 'Read support tickets' },
   { key: 'support.write', group: 'Support', label: 'Answer, assign and close support tickets' },
   { key: 'kb.write', group: 'Support', label: 'Write and publish knowledge-base articles' },
+  { key: 'billing.read', group: 'Billing', label: 'View invoices, payments and wallets' },
+  { key: 'billing.write', group: 'Billing', label: 'Confirm payments, cancel invoices, adjust wallets and prices' },
   { key: 'audit.read', group: 'Panel', label: 'Read the activity log' },
   { key: 'rbac.write', group: 'Panel', label: 'Manage administrators and roles' },
 ];
@@ -51,6 +53,10 @@ export const BUILTIN_ROLES = [
   {
     key: 'resources', name: 'Resource manager', description: 'Capacity: pools, datacenters, object storage and GPUs',
     permissions: [...READS, 'pools.write', 'storage.write', 'gpu.write'],
+  },
+  {
+    key: 'finance', name: 'Finance', description: 'Invoices, payments, wallets and prices; reads everything else',
+    permissions: [...READS, 'billing.write'],
   },
   { key: 'support', name: 'Support (read-only)', description: 'Sees everything, changes nothing', permissions: READS },
 ];
@@ -123,6 +129,15 @@ const ROUTES = {
   'PUT /api/admin/settings/zammad': 'settings.write',
   'POST /api/admin/settings/zammad/test': 'settings.write',
   'POST /api/admin/settings/zammad/retry': 'support.write',
+  'GET /api/admin/billing': 'billing.read',
+  'GET /api/admin/billing/invoices/:number': 'billing.read',
+  'POST /api/admin/billing/invoices/:number/mark-paid': 'billing.write',
+  'POST /api/admin/billing/invoices/:number/void': 'billing.write',
+  'POST /api/admin/billing/wallets/:userId': 'billing.write',
+  'PUT /api/admin/billing/servers/:vmid/price': 'billing.write',
+  'POST /api/admin/billing/auto-renew/run': 'billing.write',
+  'GET /api/admin/settings/billing': 'settings.read',
+  'PUT /api/admin/settings/billing': 'settings.write',
   'GET /api/admin/audit': 'audit.read',
   'GET /api/admin/activity': 'audit.read',
 
