@@ -23,7 +23,8 @@ import storageRoutes from './routes/storage.js';
 import supportRoutes from './routes/support.js';
 import assistantRoutes from './routes/assistant.js';
 import billingRoutes from './routes/billing.js';
-import { startAutoRenew } from './billing.js';
+import { startAutoRenew, refundFailedOrder } from './billing.js';
+import { onCreateFailed } from './provision.js';
 import { startZammadRetry } from './zammad.js';
 import { syncOnStartup } from './vpn.js';
 import { reapplyIsolation, syncVnetAliases } from './network.js';
@@ -177,6 +178,8 @@ startExpiryScheduler(admin.log);
 startUpdateTracker(admin.log);
 startZammadRetry(admin.log);
 startAutoRenew(admin.log);
+// a new server on a paid plan that could not be set up: money back to the wallet
+onCreateFailed(refundFailedOrder);
 
 await customer.listen({ port: config.port, host: config.host });
 await admin.listen({ port: config.adminPort, host: config.adminHost });

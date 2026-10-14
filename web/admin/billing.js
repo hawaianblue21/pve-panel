@@ -7,7 +7,7 @@ const rp = (n) => { const v = Math.round(Number(n) || 0); return `${v < 0 ? '−
 const toDate = (d) => new Date(/^\d{4}-\d{2}-\d{2} /.test(d) ? `${d.replace(' ', 'T')}Z` : d);
 const day = (d) => (d ? toDate(d).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) : '');
 const when = (d) => (d ? toDate(d).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }) : '');
-const FILTERS = [['', 'All'], ['unpaid', 'Unpaid'], ['reported', 'Transfer reported'], ['overdue', 'Overdue'], ['paid', 'Paid'], ['void', 'Cancelled']];
+const FILTERS = [['', 'All'], ['unpaid', 'Unpaid'], ['reported', 'Transfer reported'], ['overdue', 'Overdue'], ['paid', 'Paid'], ['refunded', 'Refunded'], ['void', 'Cancelled']];
 const VIA = { wallet: 'Wallet', xendit: 'Xendit', midtrans: 'Midtrans', bank: 'Bank / by hand' };
 
 export function createBilling({ root, api, toast, fail, confirmAction, esc }) {
@@ -17,7 +17,9 @@ export function createBilling({ root, api, toast, fail, confirmAction, esc }) {
   const TABS = [['billing', 'Billing', 'billing.read']];
   const tag = (i) => (i.status === 'unpaid'
     ? `<span class="tag warn">${i.overdue ? 'Overdue' : i.customerRef ? 'Transfer reported' : 'Unpaid'}</span>`
-    : `<span class="tag ${i.status === 'paid' ? 'ok' : ''}">${i.status === 'paid' ? 'Paid' : 'Cancelled'}</span>`);
+    : `<span class="tag ${i.status === 'paid' ? 'ok' : ''}">${({ paid: 'Paid', refunded: 'Refunded', void: 'Cancelled' })[i.status] ?? esc(i.status)}</span>`);
+  const WHAT = { topup: () => 'Wallet top-up', order: (i) => `New server${i.vmid ? ` ${i.vmid}` : ''} · ${i.months} mo`, upgrade: (i) => `Plan upgrade · server ${i.vmid}`,
+    renewal: (i) => `Server ${i.vmid} · ${i.months} mo`, manual: (i) => i.lines[0]?.description ?? 'Invoice' };
 
   async function loadList() {
     const p = new URLSearchParams();
@@ -61,7 +63,7 @@ export function createBilling({ root, api, toast, fail, confirmAction, esc }) {
             <tbody>${d.invoices.map((i) => `
               <tr data-billing-invoice="${esc(i.number)}" tabindex="0" class="${i.status === 'unpaid' && (i.overdue || i.customerRef) ? 'row-attention' : ''}">
                 <td class="mono nowrap">${esc(i.number)}</td><td>${esc(i.email)}</td>
-                <td>${esc(i.purpose === 'topup' ? 'Wallet top-up' : `Server ${i.vmid} · ${i.months} mo`)}${i.auto ? ' <span class="tag">auto</span>' : ''}</td>
+                <td>${esc((WHAT[i.purpose] ?? WHAT.manual)(i))}${i.auto ? ' <span class="tag">auto</span>' : ''}</td>
                 <td class="nowrap muted">${esc(day(i.createdAt))}</td><td class="num">${rp(i.total)}</td><td>${tag(i)}</td>
                 <td class="muted">${esc(VIA[i.paidVia] ?? '')}</td></tr>`).join('')}
             </tbody></table></div>` : '<p class="muted">No invoices match.</p>'}

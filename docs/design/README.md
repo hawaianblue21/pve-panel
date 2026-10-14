@@ -17,7 +17,7 @@ Status: ✅ implemented · 🟡 partly (what is missing is listed) · ⬜ design
 |---|---|---|
 | Multi-host dashboard | `Main.dc.html` | ⬜ (today: the Servers tab) |
 | Guests (all hosts) | `Admin-Guests.dc.html` | 🟡 Servers tab; host grouping and bulk actions missing |
-| Plans | `Admin-Plans.dc.html` | ⬜ |
+| Plans | `Admin-Plans.dc.html` | ✅ sizes with prices, GPU plans, retire, plans-only mode (plan bundles for object storage and IPs missing) |
 | Networking & IPAM | `Admin-IPAM.dc.html` | 🟡 customer networks (SDN); IP address management missing |
 | Billing overview, invoice detail | `Admin-Billing.dc.html`, `Admin-Invoice.dc.html` | ✅ KPIs, filters, confirm transfer, cancel, wallet adjustment, fixed price (refunds to card and dunning steps missing) |
 | Hosts & onboarding (owner only) | `Admin-Hosts.dc.html` | ⬜ |
@@ -42,7 +42,7 @@ Status: ✅ implemented · 🟡 partly (what is missing is listed) · ⬜ design
 
 | Screen | File | Status |
 |---|---|---|
-| My servers, server detail, create server | `Customer-Servers.dc.html`, `Customer-Server.dc.html`, `Customer-Create.dc.html` | ✅ |
+| My servers, server detail, create server | `Customer-Servers.dc.html`, `Customer-Server.dc.html`, `Customer-Create.dc.html` | ✅ incl. plans, paying in advance and moving to a larger plan |
 | OS updates (Windows + Linux) | `Customer-Updates.dc.html` | ✅ weekly automatic window missing |
 | Renewals & expiry | `Customer-Expiry.dc.html` | ✅ expiry banner, free extension, paid renewal and auto-renew |
 | Appearance & sign-in methods | `Customer-Preferences.dc.html` | ✅ density, language and time zone missing |

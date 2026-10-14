@@ -7,7 +7,7 @@ const rp = (n) => { const v = Math.round(Number(n) || 0); return `${v < 0 ? '−
 // SQLite dates are "YYYY-MM-DD HH:MM:SS" in UTC; the others are ISO
 const toDate = (d) => new Date(/^\d{4}-\d{2}-\d{2} /.test(d) ? `${d.replace(' ', 'T')}Z` : d);
 const day = (d) => (d ? toDate(d).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) : '');
-const STATUS = { unpaid: ['Unpaid', 'warn'], paid: ['Paid', 'ok'], void: ['Cancelled', ''] };
+const STATUS = { unpaid: ['Unpaid', 'warn'], paid: ['Paid', 'ok'], void: ['Cancelled', ''], refunded: ['Refunded to wallet', ''] };
 const statusTag = (inv) => (inv.status === 'unpaid' && inv.overdue
   ? '<span class="tag warn">Overdue</span>'
   : `<span class="tag ${STATUS[inv.status]?.[1] ?? ''}">${esc(STATUS[inv.status]?.[0] ?? inv.status)}</span>`);

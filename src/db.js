@@ -379,7 +379,7 @@ db.exec(`
     id            INTEGER PRIMARY KEY,
     number        TEXT UNIQUE NOT NULL,
     user_id       INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    purpose       TEXT NOT NULL CHECK (purpose IN ('renewal', 'topup', 'manual')),
+    purpose       TEXT NOT NULL CHECK (purpose IN ('renewal', 'topup', 'manual', 'order', 'upgrade')),
     vmid          INTEGER,
     months        INTEGER,
     lines         TEXT NOT NULL,
@@ -389,7 +389,7 @@ db.exec(`
     tax           INTEGER NOT NULL,
     total         INTEGER NOT NULL,
     currency      TEXT NOT NULL DEFAULT 'IDR',
-    status        TEXT NOT NULL DEFAULT 'unpaid' CHECK (status IN ('unpaid', 'paid', 'void')),
+    status        TEXT NOT NULL DEFAULT 'unpaid' CHECK (status IN ('unpaid', 'paid', 'void', 'refunded')),
     due_at        TEXT NOT NULL,
     paid_at       TEXT,
     paid_via      TEXT,
@@ -441,6 +441,45 @@ db.exec(`
 addColumn('vms', 'auto_renew', 'INTEGER NOT NULL DEFAULT 0');
 addColumn('vms', 'price_monthly', 'INTEGER');            // fixed price; NULL = from the rate card
 addColumn('users', 'billing_profile', 'TEXT');           // JSON: name, address, tax ID on invoices
+
+// Invoices from before plans: widen the allowed kinds and states (SQLite can't change a CHECK in place)
+{
+  const sql = db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'invoices'").get()?.sql ?? '';
+  if (sql && !sql.includes("'order'")) {
+    db.exec('PRAGMA foreign_keys = OFF');
+    db.exec('BEGIN IMMEDIATE');
+    try {
+      const widened = sql
+        .replace("('renewal', 'topup', 'manual')", "('renewal', 'topup', 'manual', 'order', 'upgrade')")
+        .replace("('unpaid', 'paid', 'void')", "('unpaid', 'paid', 'void', 'refunded')")
+        .replace(/CREATE TABLE "?invoices"?/, 'CREATE TABLE invoices_new');
+      db.exec(widened);
+      db.exec('INSERT INTO invoices_new SELECT * FROM invoices');
+      db.exec('DROP TABLE invoices');
+      db.exec('ALTER TABLE invoices_new RENAME TO invoices');
+      db.exec('CREATE INDEX IF NOT EXISTS invoices_user ON invoices(user_id, status)');
+      db.exec('COMMIT');
+    } catch (err) { db.exec('ROLLBACK'); throw err; } finally { db.exec('PRAGMA foreign_keys = ON'); }
+  }
+}
+
+// ---- Plans (plans.js): sizes customers create servers from, with a monthly price --------
+db.exec(`
+  CREATE TABLE IF NOT EXISTS plans (
+    id              INTEGER PRIMARY KEY,
+    name            TEXT NOT NULL,
+    description     TEXT NOT NULL DEFAULT '',
+    cores           INTEGER NOT NULL,
+    memory_mb       INTEGER NOT NULL,
+    disk_gb         INTEGER NOT NULL,
+    gpu_profile_id  INTEGER REFERENCES gpu_profiles(id),
+    price_monthly   INTEGER,                   -- whole rupiah before tax; NULL = no charge
+    active          INTEGER NOT NULL DEFAULT 1,
+    sort            INTEGER NOT NULL DEFAULT 0,
+    created_at      TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+`);
+addColumn('vms', 'plan_id', 'INTEGER REFERENCES plans(id)');
 
 // ---- Single sign-on identities (Google, Microsoft, GitHub; see sso.js) ------------
 // One identity per provider per account; found by provider + issuer + subject.

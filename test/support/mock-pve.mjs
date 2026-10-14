@@ -10,6 +10,7 @@
 //   /__tsowner/<vmid>            Tailscale logout refused (Windows profile owner)
 //   /__recovery/<vmid>           a Recovery partition blocks extending C:
 //   /__lu/<vmid>/<scenario>      Linux updates: normal | uptodate | kernel | nopm | lowdisk | error | dnf
+//   /__failclone/<n>             the next n clones end with an error
 //   /__sdn, /__vms, /__gw        inspect state
 import http from 'node:http';
 import { WebSocketServer } from 'ws';
@@ -36,7 +37,8 @@ export async function startMockPve({ port = 0 } = {}) {
   const tasks = new Map(); let seq = 0;
   const sdn = { zones: [], vnets: [], subnets: new Map(), pending: 0 };
   const started = new Map([[150, 0]]); const gwFiles = new Map(); const GW_PUB = 'Qm9ndXNHYXRld2F5UHVibGljS2V5MTIzNDU2Nzg5MDA='; const execs = new Map(); let pidSeq = 100;
-  const task = (kind, vmid, ms=1500, then=()=>{}) => { const upid=`UPID:pve1:${(++seq).toString(16)}:0:${Date.now()}:${kind}:${vmid}:panel@pve!panel:`; tasks.set(upid, {done:Date.now()+ms, then, fired:true}); setTimeout(then, ms); return upid; };
+  let failClones = 0;
+  const task = (kind, vmid, ms=1500, then=()=>{}, exit=undefined) => { const upid=`UPID:pve1:${(++seq).toString(16)}:0:${Date.now()}:${kind}:${vmid}:panel@pve!panel:`; tasks.set(upid, {done:Date.now()+ms, then, fired:true, exit}); setTimeout(then, ms); return upid; };
   const send = (res, data, code=200, msg) => { res.writeHead(code, msg || '', {'content-type':'application/json'}); res.end(JSON.stringify({data, message: msg})); };
   const body = (req) => new Promise(r => { let b=''; req.on('data',c=>b+=c); req.on('end',()=>r(Object.fromEntries(new URLSearchParams(b)))); });
   const destroyed = []; // DELETE calls, for assertions
@@ -179,6 +181,7 @@ export async function startMockPve({ port = 0 } = {}) {
   if (p.startsWith('/__recovery/')) { vms.get(Number(p.split('/')[2])).recoveryAfterC = true; return send(res, 'ok'); }
     if (p.startsWith('/__flaky/')) { const [, , v, n] = p.split('/'); flaky.set(Number(v), Number(n)); return send(res, 'ok'); }
     if (p.startsWith('/__tsapprove/')) { tsApproved.add(Number(p.split('/')[2])); return send(res, 'approved'); }
+    if (p.startsWith('/__failclone/')) { failClones = Number(p.split('/')[2]); return send(res, 'ok'); }
     if (p === '/__vms') return send(res, [...vms.keys()]);
     if (p.startsWith('/__clearfw/')) { const v = vms.get(Number(p.split('/')[2])); v.fwRules = (v.fwRules ?? []).filter(r => r.type !== 'out'); return send(res, 'cleared'); }
     if (p === '/cluster/nextid') { const want = u.searchParams.get('vmid'); if (want) return vms.has(Number(want)) ? send(res,null,400,`VM ${want} already exists`) : send(res, want); let id=100; while (vms.has(id)) id++; return send(res, String(id)); }
@@ -223,6 +226,7 @@ export async function startMockPve({ port = 0 } = {}) {
       clones.push({ from: vmid, ...b });
       vms.set(id, { origin: vmid, vmid:id, node:b.target || 'pve1', type:'qemu', name:b.name, status:'stopped', lock:'clone', maxcpu:vm.maxcpu, maxmem:vm.maxmem, maxdisk:vm.maxdisk, cfg:{...vm.cfg, scsi0: vm.cfg.scsi0.replace(`base-${vmid}`, `vm-${id}`), net0: vm.cfg.net0 ? vm.cfg.net0.replace(/=[0-9A-Fa-f:]{17}/, '').replace(/^(\w+)/, `$1=${newMac()}`) : `virtio=${newMac()},bridge=vmbr0`} });
       if (vms.get(id).cfg.net0 && !/=/.test(vms.get(id).cfg.net0.split(',')[0])) vms.get(id).cfg.net0 = withMac(vms.get(id).cfg.net0);
+      if (failClones > 0) { failClones -= 1; return send(res, task('qmclone', vmid, 800, () => { vms.delete(id); }, 'clone failed: storage full')); }
       return send(res, task('qmclone', vmid, 2500, () => { delete vms.get(id).lock; })); }
     if (rest === '/config' && req.method === 'GET') return send(res, vm.cfg);
     if (rest === '/config' && req.method === 'PUT') { const b = await body(req); if (b.net0) b.net0 = withMac(b.net0); log('CONFIG', vmid, JSON.stringify(b));

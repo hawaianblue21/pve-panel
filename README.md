@@ -120,6 +120,7 @@ PVE Panel was built with substantial help from an AI assistant (**Claude by Anth
 - Open **support tickets** (optionally about one of their servers), follow the conversation and get answers by email
 - Search the **help center** (knowledge base) and rate articles
 - Ask the **AI assistant**: answers from the help center and their own servers and tickets, hands over to a ticket
+- **Plans**: create servers from plans (size and monthly price), pay the first period from the wallet, move up to a larger plan for the difference
 - **Billing**: wallet with top-ups, renew servers for 1, 3, 6 or 12 months (with discounts), auto-renew from the wallet, printable invoices with PPN; pay by wallet, **Xendit**, **Midtrans** or bank transfer
 - Delete self-created servers
 - View provisioning progress and actionable failure messages
@@ -147,6 +148,7 @@ PVE Panel was built with substantial help from an AI assistant (**Claude by Anth
 - **Knowledge base**: Markdown articles with drafts and visibility (public, customers, agents only), drafts from solved tickets, and a list of help-center searches that found nothing
 - Optional two-way sync with a **Zammad** helpdesk
 - **AI assistant** for customers (Claude, or any OpenAI-compatible API incl. local models): settings, usage, and every conversation with what the assistant looked up
+- **Plans**: sizes (vCPU, memory, disk, optional GPU) with a monthly price; retire plans without touching their servers; optionally require a plan instead of custom sizes
 - **Billing**: invoices with filters (unpaid, transfer reported, overdue), revenue and tax this month, confirm bank transfers, cancel invoices, adjust wallets, fixed prices per server; a *Finance* role
 - Give single customers or servers an expiry date: reminders, automatic stop, grace period, deletion
 - Role-based access for administrators (owner, operator, resource manager, read-only support, custom roles)
@@ -962,6 +964,26 @@ Details: [Server expiry](https://sebastianflint.github.io/pve-panel/docs/adminis
 
 ---
 
+## 📦 Plans
+
+Plans are fixed sizes (vCPU, memory, disk, optionally a GPU) with a monthly price, managed in the admin portal under
+**Plans** (owner or *Finance*). Customers then pick a plan in **New server**; with *Customers must choose a plan* switched
+on, custom sizes are gone.
+
+| | Without billing | With billing and a price |
+|---|---|---|
+| New server | the plan sets the size | 1, 3, 6 or 12 months are paid from the wallet first (discounts and PPN as for renewals); not enough balance: nothing is created |
+| Setup fails | n/a | the order is refunded to the wallet automatically |
+| Renewal | n/a | at the plan's current price (a fixed server price set by an administrator wins) |
+| Larger plan | free | the difference in monthly price for the days already paid, plus tax |
+
+- A server on a plan is resized only by moving to a larger plan (same GPU; disks only grow).
+- A plan's size can't change while servers use it; retire it and add a new one. A price change applies from each server's
+  next invoice; unpaid renewals at the old size or price are replaced.
+- GPU plans are shown only to customers whose resource pool offers that GPU. Customer limits and pools still apply.
+
+---
+
 ## 💳 Billing & payments (Xendit, Midtrans)
 
 Off by default. The owner switches it on in **Settings → Billing**; customers then see **Billing** in the menu and a
@@ -1424,7 +1446,7 @@ Only these file names are served, with a strict sandbox policy. Make sure you're
 | `GET (WS)` | `/api/console/:session` | Console WebSocket |
 | `GET` | `/api/account` | Limits, usage, network, panel version |
 | `GET` | `/api/templates` | Available templates |
-| `POST` | `/api/vms` | Provision a server |
+| `POST` | `/api/vms` | Create a server: `templateId`, `hostname`, … and `planId` (+ `months` when billed) or `cores`, `memoryMb`, `diskGb` |
 | `POST` | `/api/vms/:vmid/reinstall` | Reinstall a self-created server from a template |
 | `POST` | `/api/vms/:vmid/resize` | Change CPU cores, memory and disk within the plan |
 | `POST` | `/api/vms/:vmid/extend` | Extend an expiring server (once, if allowed) |
@@ -1450,6 +1472,8 @@ Only these file names are served, with a strict sandbox policy. Make sure you're
 | `POST` | `/api/assistant/conversations/:id/messages` | Ask a follow-up question |
 | `POST` | `/api/assistant/conversations/:id/handover` | Create the proposed ticket |
 | `POST` | `/api/assistant/messages/:id/rating` | Helpful or not |
+| `GET` | `/api/plans` | Plans this customer can use, with the total per period when billed |
+| `GET/POST` | `/api/vms/:vmid/plans`, `/api/vms/:vmid/plan` | Larger plans with their cost now / move to one (`planId`, `restart`) |
 | `GET` | `/api/billing` | Wallet, servers with prices, invoices, payment methods |
 | `GET` | `/api/billing/invoices/:number` | An own invoice |
 | `POST` | `/api/billing/renewals`, `/api/billing/topups` | Invoice to renew a server (`vmid`, `months`) / to top up the wallet |
