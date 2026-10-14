@@ -9,6 +9,7 @@ import { prepareSignIn, resumeSso } from '/shared/signin.js';
 import { renderPasskeys } from '/shared/passkeys.js';
 import { renderIdentities } from '/shared/identities.js';
 import { renderAppearance, loadPersonalAppearance } from '/shared/appearance.js';
+import { createSupport } from '/support.js';
 
 const brandReady = applyBrand();
 document.querySelectorAll('[data-brand-mark]').forEach((el) => { el.innerHTML = brandMark(30); });
@@ -128,13 +129,29 @@ function statusOf(vm) {
 const statusWord = (vm) => STATE_TEXT[vm.state]
   ?? (state.busy.has(vm.vmid) ? 'Working…' : vm.status === 'running' ? 'Running' : 'Stopped');
 
+// Support tickets and the help center (own module)
+const support = createSupport({
+  state,
+  renderList: () => renderList(),
+  setView(view, hash) {
+    state.view = view;
+    state.selected = null;
+    history.replaceState(null, '', hash);
+    renderList();
+  },
+});
+window.addEventListener('hashchange', () => { if (state.me) support.route(location.hash); });
+
 function renderList() {
+  const supportViews = ['support', 'support-new', 'ticket'];
   $('#rack-actions').innerHTML = [
     `<button class="nav-item" id="nav-overview" aria-current="${state.view === 'overview'}">${icon('overview')}<span>Overview</span></button>`,
     state.account.canCreate
       ? `<button class="nav-item" id="new-server" aria-current="${state.view === 'create'}">${icon('plus')}<span>New server</span></button>` : '',
     state.account.vpn?.enabled
       ? `<button class="nav-item" id="vpn-access" aria-current="${state.view === 'vpn'}">${icon('shield')}<span>VPN access</span></button>` : '',
+    `<button class="nav-item" id="nav-support" aria-current="${supportViews.includes(state.view)}">${icon('chat')}<span>Support</span>${state.supportWaiting ? `<span class="nav-badge" title="Tickets waiting for your reply">${state.supportWaiting}</span>` : ''}</button>`,
+    `<button class="nav-item" id="nav-help" aria-current="${['help', 'article'].includes(state.view)}">${icon('book')}<span>Help center</span></button>`,
   ].join('');
 
   $('#vm-count').textContent = state.vms.length ? String(state.vms.length) : '';
@@ -344,6 +361,7 @@ function renderDetail() {
         </div>
       </header>
       ${expiryBanner(vm)}
+      <p class="server-help"><button type="button" class="link-btn" data-help-server>${icon('chat', { size: 15 })}<span>Problem with this server? Ask support</span></button></p>
 
       <div class="tabs" role="tablist">
         ${tabs.map(([id, label, ic]) => `
@@ -638,6 +656,12 @@ $('#detail').addEventListener('submit', async (e) => {
   } catch (ex) {
     err.textContent = ex.message;
     button.disabled = false;
+  }
+});
+
+$('#detail').addEventListener('click', (e) => {
+  if (e.target.closest('[data-help-server]') && state.view === 'server') {
+    support.openNew({ vmid: state.selected, category: 'server' });
   }
 });
 
@@ -1432,6 +1456,8 @@ $('#rack-actions').addEventListener('click', (e) => {
   if (e.target.closest('#nav-overview')) openHome();
   if (e.target.closest('#new-server')) openCreate();
   if (e.target.closest('#vpn-access')) openVpn();
+  if (e.target.closest('#nav-support')) support.openSupport();
+  if (e.target.closest('#nav-help')) support.openHelp();
 });
 
 // ---------- VPN access -------------------------------------------------------
@@ -1686,11 +1712,14 @@ async function startApp(me) {
     openAccount();
   } else if (location.hash === '#vpn' && state.account.vpn?.enabled) {
     await openVpn();
+  } else if (support.route(location.hash)) {
+    // support ticket or help-center article (e.g. a link from an email)
   } else {
     const fromHash = Number(location.hash.slice(1));
     if (state.vms.some((v) => v.vmid === fromHash)) await select(fromHash);
     else await openHome();
   }
+  support.refreshBadge();
 
   // Every 10 s normally, every 5 s while a server is being created or deleted.
   clearInterval(state.poll);

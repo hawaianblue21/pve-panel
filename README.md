@@ -117,6 +117,8 @@ PVE Panel was built with substantial help from an AI assistant (**Claude by Anth
 - Install Linux package updates (apt / dnf) the same way: security only or everything, restart reminder after a new kernel
 - Sign in with Google, Microsoft (work or school accounts) or GitHub, and link or unlink them under Account
 - Choose their own color scheme and light / dark mode (when the panel owner allows it)
+- Open **support tickets** (optionally about one of their servers), follow the conversation and get answers by email
+- Search the **help center** (knowledge base) and rate articles
 - Delete self-created servers
 - View provisioning progress and actionable failure messages
 - Manage personal VPN devices
@@ -139,6 +141,9 @@ PVE Panel was built with substantial help from an AI assistant (**Claude by Anth
 - See the running version and whether an update is available
 - Configure email (SMTP) in the admin portal and invite users by email
 - White-label: product name, logo, browser icon and support link; single sign-on with Google, Microsoft and GitHub
+- **Ticket desk**: queues L1 / L2 / L3, priority, status, assignment, internal notes, the customer's servers and recent activity next to each ticket, matching articles
+- **Knowledge base**: Markdown articles with drafts and visibility (public, customers, agents only), drafts from solved tickets, and a list of help-center searches that found nothing
+- Optional two-way sync with a **Zammad** helpdesk
 - Give single customers or servers an expiry date: reminders, automatic stop, grace period, deletion
 - Role-based access for administrators (owner, operator, resource manager, read-only support, custom roles)
 - Datacenters and resource allocation pools: shared caps on vCPU, memory, disk, public IPs, GPUs and object storage
@@ -184,8 +189,9 @@ fails closed.
 | Built-in role | Can |
 | --- | --- |
 | **Owner** | Everything, including administrators and roles |
-| **Operator** | Customers, servers, network; reads everything else (OS templates and settings too) |
+| **Operator** | Customers, servers, network, tickets and the knowledge base; reads everything else (OS templates and settings too) |
 | **Resource manager** | Resource pools, datacenters, object storage, GPUs; reads everything else |
+| **Support agent** | Tickets and the knowledge base; reads everything else |
 | **Support (read-only)** | Sees everything, changes nothing |
 
 **OS templates** and **panel settings** (email, sign-in providers, branding, appearance, updates, expiry) can only be
@@ -806,6 +812,42 @@ Rules:
 
 ---
 
+## 🎧 Support tickets & knowledge base
+
+Customers open tickets under **Support** (or *Problem with this server? Ask support* on a server page). While they type
+the subject, matching help-center articles are suggested. Agents answer in the admin portal under **Tickets**:
+
+| | |
+|---|---|
+| Status | *open* (support's turn) → *waiting* (after an answer: the customer's turn, shown as a badge in the menu) → *solved* / *closed*; a customer reply opens it again |
+| Queues | **L1** first response; **L2** network and storage (or urgent); **L3** security. Changeable per ticket |
+| Next to each ticket | the customer's servers and their state, the last account activity, matching articles (one click adds a link to the reply) |
+| Notes | internal notes are never shown to the customer and never emailed |
+| Email | the customer gets every answer by email (when email is set up), with a link straight to the ticket |
+
+The **knowledge base** (admin portal → **Knowledge base**) holds Markdown articles with a draft / published state and a
+visibility: *everyone* (also before sign-in, via `/api/kb`), *signed-in customers*, or *agents only*. A solved ticket can
+become a draft article in one click (problem + answer; remove personal details before publishing). Help-center searches
+that found nothing are listed, most frequent first, with *Write article*.
+
+Permissions: `support.read`, `support.write`, `kb.write`. The built-in **Support agent** role has them plus read access;
+**Operator** can answer and write articles; **Support (read-only)** only reads.
+
+### Optional: Zammad
+
+Tickets always work in the panel. To also use a [Zammad](https://zammad.org) helpdesk (email, WhatsApp, phone, SLAs),
+fill in **Settings → Helpdesk: Zammad**: the address, an API token of an agent, and the Zammad group for each queue.
+
+- **Panel → Zammad**: new tickets (customer matched by email, created if needed), customer messages (*on behalf of* the
+  customer), agent replies and notes from the panel, and status / priority / queue changes.
+- **Zammad → panel**: in Zammad, add a **webhook** to the endpoint shown in Settings with the shown **HMAC SHA1 signature
+  token**, and a **trigger** that calls it when a ticket is created or updated. Articles written in Zammad come back to
+  the panel ticket (once each), closed tickets close in the panel. Calls with a wrong signature are refused and logged.
+- If Zammad can't be reached, the panel keeps the ticket, shows the error on it, and retries every two minutes (or now,
+  with *Send waiting items*).
+
+---
+
 ## ✉️ Email & invitations
 
 Email is configured in the **admin portal → Settings**, not in `.env`:
@@ -1334,6 +1376,12 @@ Only these file names are served, with a strict sandbox policy. Make sure you're
 | `GET/POST/PATCH/DELETE` | `/api/account/passkeys/...` | Manage passkeys |
 | `GET/DELETE` | `/api/account/identities[/:provider]` | Linked sign-in providers: list / unlink |
 | `GET/PUT` | `/api/account/appearance` | Own color scheme and light/dark mode |
+| `GET/POST` | `/api/support/tickets` | Own tickets / open a ticket |
+| `GET` | `/api/support/tickets/:number` | A ticket with its messages (no internal notes) |
+| `POST` | `/api/support/tickets/:number/messages`, `/api/support/tickets/:number/close` | Reply / close |
+| `GET` | `/api/kb[?q=]`, `/api/kb/:slug` | Help center: categories, search, article (public articles also without sign-in) |
+| `POST` | `/api/kb/:slug/feedback` | “Did this help?” |
+| `POST` | `/api/support/zammad/webhook` | Zammad → panel (HMAC-SHA1 signed) |
 | `GET` | `/api/auth/sso/:provider/start[?link=1]`, `/api/auth/sso/:provider/callback` | Sign in with (or link) Google, Microsoft, GitHub |
 | `POST` | `/api/auth/passkey/options`, `/api/auth/passkey/verify` | Sign in with a passkey |
 | `POST` | `/api/invite/check`, `/api/invite/accept` | Invitation link: check it, set the password |
@@ -1436,6 +1484,7 @@ Every change is tested on GitHub; releases are only published when all tests pas
 | Linux updates | apt and dnf, security only or all, snapshot, disk and package-manager checks, kernel restart reminder, errors, per-OS switch |
 | Single sign-on | Google / Microsoft (signed ID tokens) and GitHub against simulated providers: PKCE, state, nonce, no take-over by email, sign-up rules, linking, admins |
 | Platform | personal appearance, branding uploads (SVG checks), activity filters and paging, owner-only templates and settings |
+| Support | tickets (routing, privacy between customers, internal notes, email), knowledge base (visibility, drafts, search, gaps), roles, Zammad sync against a simulated Zammad (signed webhook, retries) |
 | API | the real panel against a simulated Proxmox: sign-in & 2FA, ownership, provisioning, networks, plan limits, reinstall, resize, email & invitations, VPN, Tailscale, customer deletion |
 | Browser | Playwright: sign-in, overview, server page, creating a server, admin views |
 

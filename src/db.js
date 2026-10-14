@@ -273,6 +273,74 @@ addColumn('winupdates', 'os', "TEXT NOT NULL DEFAULT 'windows'");
 addColumn('users', 'ui_scheme', 'TEXT');
 addColumn('users', 'ui_mode', 'TEXT');
 
+// ---- Support: tickets, messages and the knowledge base (support.js, kb.js) --------
+// Tickets live in the panel; zammad_* columns are only used when the optional
+// Zammad sync is set up (zammad.js). A customer's tickets go with the customer.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS tickets (
+    id               INTEGER PRIMARY KEY,
+    number           INTEGER UNIQUE NOT NULL,
+    user_id          INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    vmid             INTEGER,
+    subject          TEXT NOT NULL,
+    category         TEXT NOT NULL,
+    priority         TEXT NOT NULL DEFAULT 'normal' CHECK (priority IN ('low', 'normal', 'high', 'urgent')),
+    status           TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'waiting', 'resolved', 'closed')),
+    queue            TEXT NOT NULL DEFAULT 'L1' CHECK (queue IN ('L1', 'L2', 'L3')),
+    assignee_id      INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    context          TEXT,
+    created_at       TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at       TEXT NOT NULL DEFAULT (datetime('now')),
+    zammad_id        INTEGER UNIQUE,
+    zammad_error     TEXT,
+    zammad_synced_at TEXT
+  );
+  CREATE INDEX IF NOT EXISTS tickets_user ON tickets(user_id);
+  CREATE INDEX IF NOT EXISTS tickets_status ON tickets(status, queue);
+
+  CREATE TABLE IF NOT EXISTS ticket_messages (
+    id                INTEGER PRIMARY KEY,
+    ticket_id         INTEGER NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
+    author            TEXT NOT NULL CHECK (author IN ('customer', 'agent', 'system')),
+    author_id         INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    author_name       TEXT,
+    body              TEXT NOT NULL,
+    internal          INTEGER NOT NULL DEFAULT 0,
+    created_at        TEXT NOT NULL DEFAULT (datetime('now')),
+    zammad_article_id INTEGER UNIQUE,
+    zammad_pending    INTEGER NOT NULL DEFAULT 0
+  );
+  CREATE INDEX IF NOT EXISTS ticket_messages_ticket ON ticket_messages(ticket_id);
+
+  CREATE TABLE IF NOT EXISTS kb_articles (
+    id            INTEGER PRIMARY KEY,
+    slug          TEXT UNIQUE NOT NULL,
+    title         TEXT NOT NULL,
+    category      TEXT NOT NULL DEFAULT 'General',
+    body          TEXT NOT NULL DEFAULT '',
+    visibility    TEXT NOT NULL DEFAULT 'customers' CHECK (visibility IN ('public', 'customers', 'internal')),
+    status        TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'published')),
+    source_ticket INTEGER,
+    created_by    INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    updated_by    INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    created_at    TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at    TEXT NOT NULL DEFAULT (datetime('now')),
+    published_at  TEXT,
+    views         INTEGER NOT NULL DEFAULT 0,
+    helpful       INTEGER NOT NULL DEFAULT 0,
+    not_helpful   INTEGER NOT NULL DEFAULT 0
+  );
+
+  -- What people searched in the help center, to find missing articles
+  CREATE TABLE IF NOT EXISTS kb_searches (
+    id         INTEGER PRIMARY KEY,
+    query      TEXT NOT NULL,
+    results    INTEGER NOT NULL,
+    signed_in  INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+`);
+
 // ---- Single sign-on identities (Google, Microsoft, GitHub; see sso.js) ------------
 // One identity per provider per account; found by provider + issuer + subject.
 db.exec(`

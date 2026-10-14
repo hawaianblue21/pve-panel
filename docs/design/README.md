@@ -30,8 +30,10 @@ Status: ✅ implemented · 🟡 partly (what is missing is listed) · ⬜ design
 | GPU compute | `Admin-GPU.dc.html` | ✅ |
 | Customers & behaviour | `Admin-Customers.dc.html` | 🟡 customer list and limits; behaviour profile and signals missing |
 | Activity log | `Admin-Activity.dc.html` | ✅ filters by actor, kind and text, event details, paging (diff view missing) |
-| Ticket desk (Zammad), AI assistant, knowledge base editor | `Admin-Support.dc.html`, `Admin-AI.dc.html`, `Admin-KB.dc.html` | ⬜ |
-| API tokens & integrations (owner only) | `Admin-Integrations.dc.html` | ⬜ |
+| Ticket desk (Zammad) | `Admin-Support.dc.html` | ✅ queues, notes, customer context, KB suggestions, optional Zammad sync (AI triage missing) |
+| Knowledge base editor | `Admin-KB.dc.html` | ✅ drafts from tickets, visibility, searches without results (AI drafts missing) |
+| AI assistant | `Admin-AI.dc.html` | ⬜ |
+| API tokens & integrations (owner only) | `Admin-Integrations.dc.html` | 🟡 Zammad (in Settings); API tokens, payment gateways and AI provider missing |
 | Settings & white label (owner only) | `Admin-Settings.dc.html` | 🟡 branding, single sign-on, appearance, updates, email, expiry; Proxmox clusters, Proxmox Backup Server missing |
 | Patch management | `Admin-Updates.dc.html` | 🟡 Windows/Linux switches, per-server runs and log; fleet view and rollout rings missing |
 | Server lifecycle (expiry) | `Admin-Lifecycle.dc.html` | 🟡 rules, reminders, stop, grace, deletion, pause; queue view missing |
@@ -50,7 +52,9 @@ Status: ✅ implemented · 🟡 partly (what is missing is listed) · ⬜ design
 | Billing & wallet, invoice & pay | `Customer-Billing.dc.html`, `Customer-Invoice.dc.html` | ⬜ |
 | Block storage | `Customer-Block.dc.html` | ⬜ |
 | Object storage | `Customer-Object.dc.html` | 🟡 API (`/api/storage`); customer screen missing |
-| Support tickets, AI assistant, knowledge base | `Customer-Tickets.dc.html`, `Customer-Assistant.dc.html`, `Customer-KB.dc.html` | ⬜ |
+| Support tickets | `Customer-Tickets.dc.html` | ✅ |
+| Knowledge base (help center) | `Customer-KB.dc.html` | ✅ |
+| AI assistant | `Customer-Assistant.dc.html` | ⬜ |
 
 ## Shared
 

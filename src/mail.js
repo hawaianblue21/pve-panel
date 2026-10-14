@@ -267,3 +267,23 @@ export function expirySummaryMessage(summary) {
     }),
   };
 }
+
+// ---- Support tickets ----------------------------------------------------------------------
+
+/** A support agent answered a customer's ticket. */
+export function ticketReplyMessage(ticket, body) {
+  const panel = emailSettings().panelUrl;
+  const link = panel ? `${panel.replace(/\/+$/, '')}/#support/${ticket.number}` : '';
+  const title = `New reply to your ticket #${ticket.number}: ${ticket.subject}`;
+  const lines = [`Support answered your ticket “${ticket.subject}”:`, body.length > 4000 ? `${body.slice(0, 4000)}…` : body];
+  return {
+    subject: title,
+    text: [...lines, '', link ? `Reply in the panel: ${link}` : ''].join('\n'),
+    html: layout({
+      title,
+      paragraphs: lines.map((l, i) => (i === 1 ? `<span style="white-space:pre-wrap">${esc(l)}</span>` : esc(l))),
+      button: link ? { href: link, label: 'Open the ticket' } : null,
+      footer: 'Reply in the panel, so your answer reaches the right person.',
+    }),
+  };
+}

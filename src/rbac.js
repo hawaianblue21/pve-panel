@@ -25,6 +25,9 @@ export const PERMISSIONS = [
   { key: 'gpu.write', group: 'Resources', label: 'Manage GPU profiles, attach and detach GPUs' },
   { key: 'settings.read', group: 'Panel', label: 'View panel settings' },
   { key: 'settings.write', group: 'Panel', label: 'Change panel settings (email, sign-in, branding, appearance, updates, expiry)' },
+  { key: 'support.read', group: 'Support', label: 'Read support tickets' },
+  { key: 'support.write', group: 'Support', label: 'Answer, assign and close support tickets' },
+  { key: 'kb.write', group: 'Support', label: 'Write and publish knowledge-base articles' },
   { key: 'audit.read', group: 'Panel', label: 'Read the activity log' },
   { key: 'rbac.write', group: 'Panel', label: 'Manage administrators and roles' },
 ];
@@ -39,7 +42,11 @@ export const BUILTIN_ROLES = [
   // only read them); give them to a custom role if someone else should change them.
   {
     key: 'operator', name: 'Operator', description: 'Day-to-day operations: customers, servers, network',
-    permissions: [...READS, 'customers.write', 'servers.manage', 'servers.delete', 'network.write'],
+    permissions: [...READS, 'customers.write', 'servers.manage', 'servers.delete', 'network.write', 'support.write', 'kb.write'],
+  },
+  {
+    key: 'agent', name: 'Support agent', description: 'Tickets and the knowledge base; reads customers and servers',
+    permissions: [...READS, 'support.write', 'kb.write'],
   },
   {
     key: 'resources', name: 'Resource manager', description: 'Capacity: pools, datacenters, object storage and GPUs',
@@ -96,6 +103,21 @@ const ROUTES = {
   'GET /api/admin/settings/expiry': 'settings.read',
   'PUT /api/admin/settings/expiry': 'settings.write',
 
+  'GET /api/admin/support/tickets': 'support.read',
+  'GET /api/admin/support/tickets/:number': 'support.read',
+  'POST /api/admin/support/tickets/:number/messages': 'support.write',
+  'PATCH /api/admin/support/tickets/:number': 'support.write',
+  'POST /api/admin/support/tickets/:number/kb-draft': 'kb.write',
+  'GET /api/admin/kb': 'support.read',
+  'GET /api/admin/kb/:id': 'support.read',
+  'GET /api/admin/kb-search': 'support.read',
+  'POST /api/admin/kb': 'kb.write',
+  'PUT /api/admin/kb/:id': 'kb.write',
+  'DELETE /api/admin/kb/:id': 'kb.write',
+  'GET /api/admin/settings/zammad': 'settings.read',
+  'PUT /api/admin/settings/zammad': 'settings.write',
+  'POST /api/admin/settings/zammad/test': 'settings.write',
+  'POST /api/admin/settings/zammad/retry': 'support.write',
   'GET /api/admin/audit': 'audit.read',
   'GET /api/admin/activity': 'audit.read',
 

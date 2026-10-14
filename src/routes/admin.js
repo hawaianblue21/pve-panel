@@ -26,6 +26,7 @@ import {
   enforceRoutePermission, requirePermission, roleOf, permissionsOf, roleByKey, roleById, assertOwnerRemains,
 } from '../rbac.js';
 import adminInfraRoutes from './admin-infra.js';
+import adminSupportRoutes from './admin-support.js';
 
 const PASSWORD = { type: 'string', minLength: 12, maxLength: 200 };
 
@@ -49,6 +50,7 @@ export default async function adminRoutes(app) {
   });
 
   await app.register(adminInfraRoutes);
+  await app.register(adminSupportRoutes);
 
   // ---- Users ------------------------------------------------------------
 
