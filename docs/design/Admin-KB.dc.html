@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Knowledge base editor</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500&amp;family=Space+Grotesk:wght@500;600;700&amp;display=swap">
+<style>
+body{margin:0;background:#0A101C;}
+a{color:#8EC2FF;}a:hover{color:#C5E0FF;}
+</style>
+</helmet>
+<div style="min-height: 100vh; background: #0A101C; color: #E6EBF2; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 14px; line-height: 1.5; display: flex; flex-wrap: wrap; align-items: stretch;">
+
+<div style="flex: 1 1 240px; background: #0D1424; border-right: 1px solid #1C2638;">
+<dc-import name="Sidebar" portal="admin" active="kb" hint-size="100%,1240px"></dc-import>
+</div>
+
+<main style="flex: 999 1 560px; min-width: 0; box-sizing: border-box; padding: 28px 32px 48px; display: flex; flex-direction: column; gap: 18px;">
+
+<div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px;">
+<div style="display: flex; flex-direction: column; gap: 2px;">
+<h1 style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 28px; font-weight: 600;">Knowledge base</h1>
+<span style="color: #93A0B4;">One source for the customer KB, the AI assistant's answers and agents' reply suggestions</span>
+</div>
+<div style="display: flex; flex-wrap: wrap; gap: 10px;">
+<button type="button" style="min-height: 44px; padding: 0 14px; border: 1px solid #2A3750; border-radius: 10px; background: #101828; color: #E6EBF2; font: inherit;">Sync with Zammad KB</button>
+<button type="button" style="min-height: 44px; padding: 0 16px; border: 0; border-radius: 10px; background: #4C9AFF; color: #06101F; font: inherit; font-weight: 600;">+ New article</button>
+</div>
+</div>
+
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px;">
+<sc-for list="{{kpis}}" as="k" hint-placeholder-count="4">
+<div style="display: flex; flex-direction: column; gap: 2px; padding: 12px 14px; background: #101828; border: 1px solid #1F2A3F; border-radius: 12px;"><span style="font-size: 12px; color: #93A0B4;">{{k.label}}</span><span style="font-family: 'Space Grotesk', sans-serif; font-size: 22px; font-weight: 600;">{{k.value}}</span><span style="font-size: 12px; color: {{k.color}};">{{k.sub}}</span></div>
+</sc-for>
+</div>
+
+<div style="display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-start;">
+<nav aria-label="Articles" style="flex: 1 1 300px; min-width: 0; background: #101828; border: 1px solid #1F2A3F; border-radius: 14px; overflow: hidden;">
+<sc-for list="{{articles}}" as="a" hint-placeholder-count="6">
+<button type="button" onClick="{{a.pick}}" aria-current="{{a.current}}" style="width: 100%; display: flex; flex-direction: column; gap: 4px; padding: 12px 16px; border: 0; border-top: 1px solid #1C2638; background: {{a.bg}}; color: #E6EBF2; font: inherit; text-align: left; cursor: pointer;">
+<span style="display: flex; justify-content: space-between; gap: 8px; width: 100%;"><span style="font-weight: 500;">{{a.title}}</span><span style="flex: none; padding: 1px 7px; border-radius: 5px; font-size: 11px; background: {{a.stBg}}; color: {{a.stFg}};">{{a.status}}</span></span>
+<span style="font-size: 12px; color: #93A0B4;">{{a.meta}}</span>
+</button>
+</sc-for>
+</nav>
+
+<section aria-labelledby="ed-h" style="flex: 3 1 560px; min-width: 0; padding: 18px; background: #101828; border: 1px solid #1F2A3F; border-radius: 14px; display: flex; flex-direction: column; gap: 12px;">
+<sc-if value="{{cur.aiDraft}}" hint-placeholder-val="{{false}}">
+<div style="padding: 10px 12px; border-radius: 10px; background: #1A1730; border: 1px solid #3A3366; font-size: 13px; color: #D7D0FF;">Drafted by AI from ticket #4821 and 3 similar tickets. Check the steps before publishing.</div>
+</sc-if>
+<label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: #C3CCDA;">Title<input id="ed-h" type="text" value="{{cur.title}}" onChange="{{noop}}" style="min-height: 44px; padding: 0 12px; border: 1px solid #2A3750; border-radius: 10px; background: #0C1322; color: #E6EBF2; font: inherit; font-size: 15px; font-weight: 600;"></label>
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px;">
+<label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: #C3CCDA;">Category<select style="min-height: 40px; padding: 0 10px; border: 1px solid #2A3750; border-radius: 8px; background: #0C1322; color: #E6EBF2; font: inherit;"><option>{{cur.cat}}</option></select></label>
+<label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: #C3CCDA;">Visible to<select style="min-height: 40px; padding: 0 10px; border: 1px solid #2A3750; border-radius: 8px; background: #0C1322; color: #E6EBF2; font: inherit;"><option>{{cur.visibility}}</option><option>Everyone (public site)</option><option>Agents only (internal)</option></select></label>
+<label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: #C3CCDA;">Language<select style="min-height: 40px; padding: 0 10px; border: 1px solid #2A3750; border-radius: 8px; background: #0C1322; color: #E6EBF2; font: inherit;"><option>Bahasa Indonesia + English</option></select></label>
+</div>
+<label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: #C3CCDA;">Content (Markdown)<textarea rows="14" onChange="{{noop}}" style="padding: 12px 14px; border: 1px solid #2A3750; border-radius: 10px; background: #070C16; color: #C3CCDA; font-family: 'JetBrains Mono', monospace; font-size: 12.5px; line-height: 1.6; resize: vertical;">{{cur.body}}</textarea></label>
+<div style="display: flex; flex-wrap: wrap; gap: 14px; font-size: 13px; color: #93A0B4;"><span>{{cur.stats}}</span></div>
+<div style="display: flex; flex-wrap: wrap; gap: 8px;">
+<button type="button" style="min-height: 40px; padding: 0 16px; border: 0; border-radius: 10px; background: #4C9AFF; color: #06101F; font: inherit; font-weight: 600;">{{cur.primary}}</button>
+<button type="button" style="min-height: 40px; padding: 0 12px; border: 1px solid #2A3750; border-radius: 10px; background: transparent; color: #E6EBF2; font: inherit;">Preview as customer</button>
+<button type="button" style="min-height: 40px; padding: 0 12px; border: 1px solid #2A3750; border-radius: 10px; background: transparent; color: #E6EBF2; font: inherit;">Translate draft</button>
+</div>
+</section>
+</div>
+
+<section aria-labelledby="ns-h" style="background: #101828; border: 1px solid #1F2A3F; border-radius: 14px; overflow: hidden;">
+<div style="padding: 14px 18px; border-bottom: 1px solid #1C2638;"><h2 id="ns-h" style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 16px; font-weight: 600;">Searches with no good result (7 days)</h2></div>
+<sc-for list="{{misses}}" as="m" hint-placeholder-count="4">
+<div style="display: flex; flex-wrap: wrap; justify-content: space-between; gap: 10px; padding: 10px 18px; border-top: 1px solid #1C2638; font-size: 13px;"><span style="font-family: 'JetBrains Mono', monospace;">"{{m.q}}"</span><span style="color: #93A0B4;">{{m.n}} searches · {{m.where}}</span></div>
+</sc-for>
+</section>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1500}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { picked: 0 }; }
+  renderVals() {
+    const ST = { Published: ['#123326', '#7EE6B0'], Draft: ['#1C2638', '#B8C2D1'], 'AI draft': ['#262046', '#C7B8FF'], Internal: ['#3A2E10', '#F5C46B'] };
+    const A = [
+      { title: 'Network lost after reboot (netplan)', status: 'AI draft', meta: 'Network · from 4 tickets', cat: 'Network & VPN', visibility: 'Customers (signed in)', aiDraft: true, primary: 'Review and publish',
+        body: '## Symptoms\nThe server is running but not reachable after a restart.\n\n## Fix\n1. Open the console from the server page.\n2. Run `sudo netplan apply`.\n3. Check with `ip route` that a default route exists.\n\n## Why\nAn edited /etc/netplan file without `routes:` loses the default route at boot.',
+        stats: 'Not published yet · would have answered 4 tickets this month' },
+      { title: 'Mount a block volume on Linux and Windows', status: 'Published', meta: 'Storage · 312 views · 94% helpful', cat: 'Storage', visibility: 'Customers (signed in)', aiDraft: false, primary: 'Save changes',
+        body: '## Attach\nIn Block storage choose the volume and Attach.\n\n## Linux\n```\nlsblk\nsudo mkfs.ext4 /dev/sdb   # first use only\nsudo mount /dev/sdb /data\n```\n\n## Windows\nDisk Management → Online → Initialize (GPT) → New Simple Volume.',
+        stats: '312 views · 94% helpful · cited by the AI 58× · 3 tickets avoided per week (est.)' },
+      { title: 'Why is my website slow?', status: 'Published', meta: 'Servers · 540 views · 81% helpful', cat: 'Servers & OS', visibility: 'Everyone (public site)', aiDraft: false, primary: 'Save changes',
+        body: '## Check in this order\n1. CPU and memory graphs\n2. Disk wait (above 20 ms is slow)\n3. Traffic limit\n\nBackups writing to the same disk are the most common cause.', stats: '540 views · 81% helpful · cited by the AI 140×' },
+      { title: 'Escalation: compromised server playbook', status: 'Internal', meta: 'Security · agents only', cat: 'Security', visibility: 'Agents only (internal)', aiDraft: false, primary: 'Save changes',
+        body: '1. Keep the server suspended.\n2. Snapshot for evidence.\n3. Contact the customer by phone (Zammad).\n4. Require 2FA before reactivation.', stats: 'Visible to L1–L3 agents and the agent reply suggestions only' },
+      { title: 'Custom cloud-init user-data', status: 'Draft', meta: 'Servers · requested 23× by AI gaps', cat: 'Servers & OS', visibility: 'Customers (signed in)', aiDraft: false, primary: 'Publish',
+        body: '## Coming soon\nDescribe how to pass your own #cloud-config when creating a server.', stats: 'Asked 23× this week, mostly by Universitas Bina students' }
+    ];
+    const articles = A.map((a, i) => ({ title: a.title, status: a.status, meta: a.meta, stBg: ST[a.status][0], stFg: ST[a.status][1], current: i === this.state.picked ? 'page' : 'false', bg: i === this.state.picked ? '#121F38' : 'transparent', pick: () => this.setState({ picked: i }) }));
+    return {
+      articles, cur: A[this.state.picked], noop: () => {},
+      kpis: [
+        { label: 'Published articles', value: '89', sub: 'ID + EN', color: '#93A0B4' },
+        { label: 'Views (7 d)', value: '4 210', sub: 'customer portal + public', color: '#93A0B4' },
+        { label: 'Helpful', value: '87%', sub: 'of votes', color: '#7EE6B0' },
+        { label: 'AI drafts waiting', value: '3', sub: 'from repeated tickets', color: '#C7B8FF' }
+      ],
+      misses: [
+        { q: 'cloud-init sendiri', n: 23, where: 'customer KB + AI' },
+        { q: 'pindah datacenter', n: 11, where: 'AI' },
+        { q: 'RDP license', n: 7, where: 'customer KB' },
+        { q: 'cuda version', n: 5, where: 'AI' }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

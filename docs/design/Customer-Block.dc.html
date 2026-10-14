@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Block storage</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500&amp;family=Space+Grotesk:wght@500;600;700&amp;display=swap">
+<style>
+body{margin:0;background:#0A101C;}
+a{color:#8EC2FF;}a:hover{color:#C5E0FF;}
+</style>
+</helmet>
+<div style="min-height: 100vh; background: #0A101C; color: #E6EBF2; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 14px; line-height: 1.5; display: flex; flex-wrap: wrap; align-items: stretch;">
+
+<div style="flex: 1 1 240px; background: #0D1424; border-right: 1px solid #1C2638;">
+<dc-import name="Sidebar" portal="customer" active="block" hint-size="100%,1100px"></dc-import>
+</div>
+
+<main style="flex: 999 1 560px; min-width: 0; box-sizing: border-box; padding: 28px 32px 48px; display: flex; flex-direction: column; gap: 20px;">
+
+<div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px;">
+<div style="display: flex; flex-direction: column; gap: 2px;">
+<h1 style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 28px; font-weight: 600;">Block storage</h1>
+<span style="color: #93A0B4;">Extra disks you can attach, detach and move between your servers in the same datacenter</span>
+</div>
+<span style="display: flex; flex-direction: column; align-items: flex-end; gap: 4px; font-size: 13px;">
+<span style="color: #93A0B4;">vDisk in your pool · <span style="font-family: 'JetBrains Mono', monospace; color: #E6EBF2;">610 / 1500 GB</span></span>
+<span style="width: 220px; height: 6px; border-radius: 3px; background: #1C2638; overflow: hidden;"><span style="display: block; height: 6px; width: 41%; background: #4C9AFF;"></span></span>
+</span>
+</div>
+
+<div style="display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-start;">
+
+<!-- volumes -->
+<section aria-label="Volumes" style="flex: 3 1 560px; min-width: 0; display: flex; flex-direction: column; gap: 12px;">
+<sc-for list="{{volumes}}" as="v" hint-placeholder-count="4">
+<article style="display: flex; flex-wrap: wrap; align-items: center; gap: 16px; padding: 16px 18px; background: #101828; border: 1px solid #1F2A3F; border-radius: 14px;">
+<span style="width: 40px; height: 40px; flex: none; border-radius: 10px; background: #16223A; color: #8EC2FF; display: flex; align-items: center; justify-content: center;" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><ellipse cx="12" cy="6" rx="8" ry="3"></ellipse><path d="M4 6v12c0 1.7 3.6 3 8 3s8-1.3 8-3V6M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"></path></svg></span>
+<span style="flex: 2 1 200px; min-width: 0; display: flex; flex-direction: column;"><span style="font-family: 'Space Grotesk', sans-serif; font-size: 16px; font-weight: 600;">{{v.name}}</span><span style="font-size: 13px; color: #93A0B4;">{{v.size}} · {{v.tier}} · {{v.dc}}</span></span>
+<span style="flex: 1 1 160px; display: flex; flex-direction: column; font-size: 13px;"><span style="color: #93A0B4;">Attached to</span><span style="color: {{v.attColor}};">{{v.attached}}</span></span>
+<span style="flex: 1 1 120px; display: flex; flex-direction: column; font-size: 13px;"><span style="color: #93A0B4;">Performance</span><span style="font-family: 'JetBrains Mono', monospace;">{{v.iops}}</span></span>
+<span style="flex: 1 1 110px; display: flex; flex-direction: column; font-size: 13px;"><span style="color: #93A0B4;">Monthly</span><span style="font-family: 'JetBrains Mono', monospace;">{{v.price}}</span></span>
+<span style="display: flex; gap: 8px; flex-wrap: wrap;">
+<button type="button" style="min-height: 40px; padding: 0 12px; border: 1px solid #2A3750; border-radius: 10px; background: transparent; color: #E6EBF2; font: inherit; font-size: 13px;">{{v.action}}</button>
+<button type="button" style="min-height: 40px; padding: 0 12px; border: 1px solid #2A3750; border-radius: 10px; background: transparent; color: #E6EBF2; font: inherit; font-size: 13px;">Resize</button>
+<button type="button" style="min-height: 40px; padding: 0 12px; border: 1px solid #2A3750; border-radius: 10px; background: transparent; color: #E6EBF2; font: inherit; font-size: 13px;">Snapshot</button>
+</span>
+</article>
+</sc-for>
+
+<div style="padding: 14px 16px; background: #101828; border: 1px solid #1F2A3F; border-radius: 12px; display: flex; flex-direction: column; gap: 8px;">
+<span style="font-weight: 600;">After attaching, inside Linux</span>
+<pre style="margin: 0; padding: 12px; border-radius: 10px; background: #070C16; font-family: 'JetBrains Mono', monospace; font-size: 12.5px; color: #C3CCDA; white-space: pre-wrap;">lsblk                      # the new disk shows as /dev/sdb
+sudo mkfs.ext4 /dev/sdb    # first use only: erases the volume
+sudo mount /dev/sdb /data</pre>
+</div>
+</section>
+
+<!-- create -->
+<aside aria-labelledby="nv-h" style="flex: 2 1 340px; min-width: 0; display: flex; flex-direction: column; gap: 14px; padding: 18px; background: #101828; border: 1px solid #22314C; border-radius: 16px;">
+<h2 id="nv-h" style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 18px; font-weight: 600;">New volume</h2>
+<label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: #C3CCDA;">Name<input type="text" value="db-data-02" onChange="{{noop}}" style="min-height: 44px; padding: 0 12px; border: 1px solid #2A3750; border-radius: 10px; background: #0C1322; color: #E6EBF2; font-family: 'JetBrains Mono', monospace;"></label>
+<div role="radiogroup" aria-label="Performance tier" style="display: flex; flex-direction: column; gap: 8px;">
+<sc-for list="{{tiers}}" as="t" hint-placeholder-count="3">
+<button type="button" role="radio" aria-checked="{{t.on}}" onClick="{{t.pick}}" style="display: flex; justify-content: space-between; align-items: center; gap: 10px; min-height: 52px; padding: 10px 12px; border-radius: 10px; border: 1px solid {{t.border}}; background: {{t.bg}}; color: #E6EBF2; font: inherit; text-align: left; cursor: pointer;"><span style="display: flex; flex-direction: column;"><span style="font-weight: 600;">{{t.name}}</span><span style="font-size: 12px; color: #93A0B4;">{{t.desc}}</span></span><span style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #C3CCDA;">{{t.price}}</span></button>
+</sc-for>
+</div>
+<div style="display: flex; flex-direction: column; gap: 8px;">
+<span style="display: flex; justify-content: space-between; font-size: 13px; color: #C3CCDA;"><span>Size</span><span style="font-family: 'JetBrains Mono', monospace; color: #E6EBF2;" aria-live="polite">{{size}} GB</span></span>
+<div role="radiogroup" aria-label="Size" style="display: flex; flex-wrap: wrap; gap: 6px;">
+<sc-for list="{{sizes}}" as="s" hint-placeholder-count="5"><button type="button" role="radio" aria-checked="{{s.on}}" onClick="{{s.pick}}" style="min-height: 40px; padding: 0 12px; border-radius: 8px; border: 1px solid {{s.border}}; background: {{s.bg}}; color: #E6EBF2; font-family: 'JetBrains Mono', monospace; font-size: 13px; cursor: pointer;">{{s.label}}</button></sc-for>
+</div>
+</div>
+<label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: #C3CCDA;">Attach to<select style="min-height: 44px; padding: 0 12px; border: 1px solid #2A3750; border-radius: 10px; background: #0C1322; color: #E6EBF2; font: inherit;"><option>web-prod-01 (Jakarta DC1)</option><option>ad-dc-01 (Jakarta DC1)</option><option>Don't attach yet</option></select></label>
+<span style="display: flex; justify-content: space-between; align-items: baseline; padding-top: 10px; border-top: 1px solid #2A3750;"><span style="color: #B8C2D1;">Monthly, excl. PPN</span><span style="font-family: 'Space Grotesk', sans-serif; font-size: 22px; font-weight: 700;">{{monthly}}</span></span>
+<span style="font-size: 12px; color: {{fitColor}};">{{fit}}</span>
+<button type="button" style="min-height: 48px; border: 0; border-radius: 12px; background: #4C9AFF; color: #06101F; font: inherit; font-weight: 600;">Create volume</button>
+</aside>
+</div>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1500}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { tier: 'nvme', size: 200 }; }
+  renderVals() {
+    const rp = (n) => 'Rp ' + Math.round(n).toLocaleString('id-ID');
+    const T = [
+      { id: 'nvme', name: 'NVMe', desc: 'Up to 20 000 IOPS · databases', per: 1500 },
+      { id: 'ssd', name: 'SSD', desc: 'Up to 6 000 IOPS · general use', per: 900 },
+      { id: 'hdd', name: 'Archive (HDD)', desc: 'Up to 500 IOPS · backups, logs', per: 300 }
+    ];
+    const sel = (on) => ({ border: on ? '#4C9AFF' : '#2A3750', bg: on ? '#101C33' : 'transparent' });
+    const tiers = T.map((t) => ({ ...t, price: rp(t.per) + ' /GB', on: t.id === this.state.tier, ...sel(t.id === this.state.tier), pick: () => this.setState({ tier: t.id }) }));
+    const sizes = [50, 100, 200, 500, 1000].map((v) => ({ label: v >= 1000 ? '1 TB' : `${v} GB`, on: v === this.state.size, ...sel(v === this.state.size), pick: () => this.setState({ size: v }) }));
+    const t = T.find((x) => x.id === this.state.tier);
+    const left = 1500 - 610;
+    const fits = this.state.size <= left;
+    return {
+      tiers, sizes, size: this.state.size, noop: () => {},
+      monthly: rp(this.state.size * t.per),
+      fit: fits ? `Fits your pool: ${left - this.state.size} GB vDisk left after this` : `Your pool has ${left} GB vDisk left. Ask your administrator for more.`,
+      fitColor: fits ? '#93A0B4' : '#F5C46B',
+      volumes: [
+        { name: 'db-data-01', size: '250 GB', tier: 'NVMe', dc: 'Jakarta DC1', attached: 'web-prod-01 · /dev/sdb', attColor: '#E6EBF2', iops: '20k IOPS', price: 'Rp 375.000', action: 'Detach' },
+        { name: 'backup-vol', size: '500 GB', tier: 'Archive', dc: 'Jakarta DC1', attached: 'ad-dc-01 · E:', attColor: '#E6EBF2', iops: '500 IOPS', price: 'Rp 150.000', action: 'Detach' },
+        { name: 'scratch-ml', size: '100 GB', tier: 'SSD', dc: 'Jakarta DC1', attached: 'Not attached', attColor: '#F5C46B', iops: '6k IOPS', price: 'Rp 90.000', action: 'Attach' }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

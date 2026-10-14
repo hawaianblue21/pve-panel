@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Hosts and onboarding</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500&amp;family=Space+Grotesk:wght@500;600;700&amp;display=swap">
+<style>
+body{margin:0;background:#0A101C;}
+a{color:#8EC2FF;}a:hover{color:#C5E0FF;}
+</style>
+</helmet>
+<div style="min-height: 100vh; background: #0A101C; color: #E6EBF2; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 14px; line-height: 1.5; display: flex; flex-wrap: wrap; align-items: stretch;">
+
+<div style="flex: 1 1 240px; background: #0D1424; border-right: 1px solid #1C2638;">
+<dc-import name="Sidebar" portal="admin" active="nodes" hint-size="100%,1100px"></dc-import>
+</div>
+
+<main style="flex: 999 1 560px; min-width: 0; box-sizing: border-box; padding: 28px 32px 48px; display: flex; flex-direction: column; gap: 22px;">
+
+<div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px;">
+<div style="display: flex; flex-direction: column; gap: 2px;">
+<h1 style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 28px; font-weight: 600; display: flex; align-items: center; gap: 10px;">Hosts &amp; nodes <span style="padding: 3px 10px; border-radius: 999px; border: 1px solid #5A4618; background: #221B0C; color: #F5C46B; font-family: 'IBM Plex Sans', sans-serif; font-size: 12px; font-weight: 500;">Owner only</span></h1>
+<span style="color: #93A0B4;">Every Proxmox host and cluster in one place. Adopt running nodes without reinstalling them.</span>
+</div>
+<button type="button" onClick="{{openWizard}}" style="min-height: 44px; padding: 0 16px; border: 0; border-radius: 10px; background: #4C9AFF; color: #06101F; font: inherit; font-weight: 600;">+ Connect a host</button>
+</div>
+
+<!-- host cards -->
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px;">
+<sc-for list="{{hosts}}" as="h" hint-placeholder-count="3">
+<article style="display: flex; flex-direction: column; gap: 12px; padding: 18px; background: #101828; border: 1px solid {{h.border}}; border-radius: 14px;">
+<div style="display: flex; justify-content: space-between; gap: 10px; align-items: flex-start;">
+<span style="display: flex; flex-direction: column;"><span style="font-family: 'Space Grotesk', sans-serif; font-size: 18px; font-weight: 600;">{{h.name}}</span><span style="font-size: 13px; color: #93A0B4;">{{h.kind}} · {{h.dc}}</span></span>
+<span style="padding: 3px 10px; border-radius: 999px; font-size: 12px; background: {{h.stateBg}}; color: {{h.stateFg}};">{{h.state}}</span>
+</div>
+<div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; font-size: 12px;">
+<span style="display: flex; flex-direction: column; padding: 8px 10px; border-radius: 8px; background: #0C1322;"><span style="color: #93A0B4;">Nodes</span><span style="font-family: 'JetBrains Mono', monospace; font-size: 15px;">{{h.nodes}}</span></span>
+<span style="display: flex; flex-direction: column; padding: 8px 10px; border-radius: 8px; background: #0C1322;"><span style="color: #93A0B4;">Guests</span><span style="font-family: 'JetBrains Mono', monospace; font-size: 15px;">{{h.guests}}</span></span>
+<span style="display: flex; flex-direction: column; padding: 8px 10px; border-radius: 8px; background: #0C1322;"><span style="color: #93A0B4;">PVE</span><span style="font-family: 'JetBrains Mono', monospace; font-size: 15px;">{{h.version}}</span></span>
+</div>
+<div style="display: flex; flex-direction: column; gap: 6px; font-size: 12px;">
+<span style="display: flex; justify-content: space-between;"><span style="color: #93A0B4;">CPU</span><span style="font-family: 'JetBrains Mono', monospace;">{{h.cpu}}</span></span>
+<span style="height: 5px; border-radius: 3px; background: #1C2638; overflow: hidden;"><span style="display: block; height: 5px; width: {{h.cpuW}}; background: #4C9AFF;"></span></span>
+<span style="display: flex; justify-content: space-between;"><span style="color: #93A0B4;">Memory</span><span style="font-family: 'JetBrains Mono', monospace;">{{h.ram}}</span></span>
+<span style="height: 5px; border-radius: 3px; background: #1C2638; overflow: hidden;"><span style="display: block; height: 5px; width: {{h.ramW}}; background: {{h.ramColor}};"></span></span>
+</div>
+<span style="font-size: 12px; color: #93A0B4;">{{h.note}}</span>
+</article>
+</sc-for>
+</div>
+
+<!-- onboarding wizard -->
+<sc-if value="{{wizardOpen}}" hint-placeholder-val="{{true}}">
+<section aria-labelledby="wz-h" style="background: #101828; border: 1px solid #2B4A80; border-radius: 16px; overflow: hidden;">
+<div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px; padding: 16px 20px; border-bottom: 1px solid #1C2638;">
+<h2 id="wz-h" style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 18px; font-weight: 600;">Connect a host · no reinstall</h2>
+<ol style="display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none;">
+<sc-for list="{{steps}}" as="s" hint-placeholder-count="3">
+<li><button type="button" onClick="{{s.pick}}" aria-current="{{s.current}}" style="min-height: 36px; padding: 0 12px; border-radius: 999px; border: 1px solid {{s.border}}; background: {{s.bg}}; color: #E6EBF2; font: inherit; font-size: 13px; cursor: pointer;"><span style="font-family: 'JetBrains Mono', monospace; color: {{s.numColor}};">{{s.n}}</span> {{s.label}}</button></li>
+</sc-for>
+</ol>
+</div>
+
+<sc-if value="{{step1}}" hint-placeholder-val="{{true}}">
+<div style="padding: 20px; display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px;">
+<label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: #C3CCDA;">Proxmox address<input type="text" value="https://10.20.0.11:8006" onChange="{{noop}}" style="min-height: 44px; padding: 0 12px; border: 1px solid #2A3750; border-radius: 10px; background: #0C1322; color: #E6EBF2; font-family: 'JetBrains Mono', monospace;"></label>
+<label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: #C3CCDA;">API token<input type="text" value="panel@pve!panel" onChange="{{noop}}" style="min-height: 44px; padding: 0 12px; border: 1px solid #2A3750; border-radius: 10px; background: #0C1322; color: #E6EBF2; font-family: 'JetBrains Mono', monospace;"></label>
+<label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: #C3CCDA;">Token secret<input type="password" value="placeholder-secret" onChange="{{noop}}" style="min-height: 44px; padding: 0 12px; border: 1px solid #2A3750; border-radius: 10px; background: #0C1322; color: #E6EBF2;"></label>
+<label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: #C3CCDA;">Discovery agent (SSH, optional)<select style="min-height: 44px; padding: 0 12px; border: 1px solid #2A3750; border-radius: 10px; background: #0C1322; color: #E6EBF2; font: inherit;"><option>Use SSH key "panel-discovery"</option><option>API only (no network/firewall scan)</option></select></label>
+<div style="grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 10px; align-items: center;">
+<button type="button" onClick="{{toStep2}}" style="min-height: 44px; padding: 0 16px; border: 0; border-radius: 10px; background: #4C9AFF; color: #06101F; font: inherit; font-weight: 600;">Test and scan</button>
+<span style="font-size: 12px; color: #93A0B4;">TLS fingerprint is pinned on first contact. The token needs the PanelCustomer role on the customers pool.</span>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{step2}}" hint-placeholder-val="{{false}}">
+<div style="padding: 20px; display: flex; flex-direction: column; gap: 14px;">
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px;">
+<sc-for list="{{found}}" as="f" hint-placeholder-count="5">
+<span style="display: flex; flex-direction: column; padding: 12px; border-radius: 10px; background: #0C1322; border: 1px solid #1F2A3F;"><span style="font-size: 12px; color: #93A0B4;">{{f.label}}</span><span style="font-family: 'Space Grotesk', sans-serif; font-size: 22px; font-weight: 600;">{{f.value}}</span></span>
+</sc-for>
+</div>
+<div style="border: 1px solid #1F2A3F; border-radius: 12px; overflow: hidden;">
+<sc-for list="{{discovered}}" as="d" hint-placeholder-count="5">
+<div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px; padding: 10px 14px; border-top: 1px solid #1C2638; font-size: 13px;">
+<span style="display: flex; gap: 10px; align-items: center;"><input type="checkbox" checked="{{d.checked}}" onChange="{{noop}}" aria-label="Import {{d.name}}" style="width: 16px; height: 16px; accent-color: #4C9AFF;"><span style="font-family: 'JetBrains Mono', monospace;">{{d.vmid}}</span><span style="font-weight: 500;">{{d.name}}</span></span>
+<span style="color: #93A0B4;">{{d.meta}}</span>
+<span style="color: {{d.ownerColor}};">{{d.owner}}</span>
+</div>
+</sc-for>
+</div>
+<div style="display: flex; gap: 10px;"><button type="button" onClick="{{toStep3}}" style="min-height: 44px; padding: 0 16px; border: 0; border-radius: 10px; background: #4C9AFF; color: #06101F; font: inherit; font-weight: 600;">Continue</button><span style="font-size: 12px; color: #93A0B4; align-self: center;">Nothing changes on the host: guests, storage and networks are only read.</span></div>
+</div>
+</sc-if>
+
+<sc-if value="{{step3}}" hint-placeholder-val="{{false}}">
+<div style="padding: 20px; display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px;">
+<label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: #C3CCDA;">Datacenter<select style="min-height: 44px; padding: 0 12px; border: 1px solid #2A3750; border-radius: 10px; background: #0C1322; color: #E6EBF2; font: inherit;"><option>New: Jakarta DC3 (jkt-dc3)</option><option>Jakarta DC1</option><option>Jakarta DC2</option></select></label>
+<label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: #C3CCDA;">Storage for new servers<select style="min-height: 44px; padding: 0 12px; border: 1px solid #2A3750; border-radius: 10px; background: #0C1322; color: #E6EBF2; font: inherit;"><option>ceph-nvme (shared)</option><option>local-zfs</option></select></label>
+<label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: #C3CCDA;">Customer pool for imported guests<select style="min-height: 44px; padding: 0 12px; border: 1px solid #2A3750; border-radius: 10px; background: #0C1322; color: #E6EBF2; font: inherit;"><option>customers</option></select></label>
+<div style="grid-column: 1 / -1; display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+<button type="button" onClick="{{finish}}" style="min-height: 44px; padding: 0 16px; border: 0; border-radius: 10px; background: #3DD68C; color: #06150D; font: inherit; font-weight: 600;">Import 29 guests</button>
+<span style="font-size: 12px; color: #93A0B4;">Owners can be assigned later in Guests. Imported guests keep running.</span>
+</div>
+</div>
+</sc-if>
+</section>
+</sc-if>
+
+<!-- nodes table -->
+<section aria-labelledby="nd-h" style="background: #101828; border: 1px solid #1F2A3F; border-radius: 14px; overflow: hidden;">
+<div style="padding: 14px 18px; border-bottom: 1px solid #1C2638;"><h2 id="nd-h" style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 18px; font-weight: 600;">Nodes</h2></div>
+<div style="overflow-x: auto;"><div style="min-width: 820px;">
+<div style="display: grid; grid-template-columns: 1.2fr 1fr 1fr 1fr 1.3fr 1fr 1.4fr; gap: 10px; padding: 10px 18px; color: #8492A8; font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 0.04em;">
+<span>NODE</span><span>DATACENTER</span><span>STATUS</span><span>UPTIME</span><span>KERNEL</span><span>CPU / RAM</span><span style="text-align: right;">ACTIONS</span>
+</div>
+<sc-for list="{{nodes}}" as="n" hint-placeholder-count="7">
+<div style="display: grid; grid-template-columns: 1.2fr 1fr 1fr 1fr 1.3fr 1fr 1.4fr; gap: 10px; align-items: center; padding: 10px 18px; border-top: 1px solid #1C2638; font-size: 13px;">
+<span style="font-weight: 500;">{{n.node}}</span><span style="color: #B8C2D1;">{{n.dc}}</span><span style="color: {{n.color}};">● {{n.status}}</span>
+<span style="font-family: 'JetBrains Mono', monospace; color: #B8C2D1;">{{n.uptime}}</span><span style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #93A0B4;">{{n.kernel}}</span>
+<span style="font-family: 'JetBrains Mono', monospace; color: #B8C2D1;">{{n.load}}</span>
+<span style="display: flex; justify-content: flex-end; gap: 6px;"><button type="button" style="min-height: 32px; padding: 0 10px; border: 1px solid #2A3750; border-radius: 8px; background: transparent; color: #8EC2FF; font: inherit; font-size: 12px;">Shell</button><button type="button" style="min-height: 32px; padding: 0 10px; border: 1px solid #2A3750; border-radius: 8px; background: transparent; color: #B8C2D1; font: inherit; font-size: 12px;">Reboot…</button></span>
+</div>
+</sc-for>
+</div></div>
+</section>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1500}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { open: true, step: 2 }; }
+  renderVals() {
+    const ok = ['#123326', '#7EE6B0'], bad = ['#3A1C1C', '#FF9B9B'];
+    const H = [
+      ['jkt-dc1', 'Cluster', 'Jakarta DC1', 'Healthy · quorum 4/4', ok, 4, 92, '9.0.10', '38%', '67%', '#4C9AFF', 'Shared storage: ceph-nvme · SDN zone panel'],
+      ['jkt-dc2', 'Cluster', 'Jakarta DC2', 'Healthy · quorum 2/2', ok, 2, 45, '9.0.10', '44%', '72%', '#4C9AFF', 'Shared storage: ceph-ssd'],
+      ['sby-edge', 'Single host', 'Surabaya edge', 'Unreachable since 00:41', bad, 1, 11, '8.4.5', 'n/a', '58%', '#4C9AFF', 'Dashboard shows the last snapshot (DB-backed)']
+    ];
+    const hosts = H.map((h) => ({ name: h[0], kind: h[1], dc: h[2], state: h[3], stateBg: h[4][0], stateFg: h[4][1], nodes: h[5], guests: h[6], version: h[7], cpu: h[8], cpuW: h[8] === 'n/a' ? '0%' : h[8], ram: h[9], ramW: h[9], ramColor: h[10], note: h[11], border: h[4] === bad ? '#5A2A2A' : '#1F2A3F' }));
+    const labels = ['Connect', 'Discover', 'Place & import'];
+    const steps = labels.map((l, i) => ({ n: i + 1, label: l, current: this.state.step === i + 1 ? 'step' : 'false', border: this.state.step === i + 1 ? '#4C9AFF' : '#2A3750', bg: this.state.step === i + 1 ? '#17284A' : 'transparent', numColor: this.state.step > i + 1 ? '#3DD68C' : '#8EC2FF', pick: () => this.setState({ step: i + 1 }) }));
+    const D = [
+      [3101, 'erp-prod', 'VM · 8 vCPU · 32 GB · Windows', 'Matched: CV Maju Bersama (by tag)', true],
+      [3102, 'erp-db', 'VM · 8 vCPU · 64 GB · Debian 12', 'Matched: CV Maju Bersama (by tag)', true],
+      [3140, 'lab-01', 'VM · 4 vCPU · 8 GB · Ubuntu 24.04', 'No owner yet', true],
+      [3200, 'dns-cache', 'LXC · 1 vCPU · 512 MB · Alpine', 'Internal (not imported)', false],
+      [9050, 'rocky9-cloud', 'Template · cloud-init', 'Offered as OS template', true]
+    ];
+    const discovered = D.map((d) => ({ vmid: d[0], name: d[1], meta: d[2], owner: d[3], checked: d[4], ownerColor: d[3].startsWith('Matched') ? '#7EE6B0' : (d[3].startsWith('No') ? '#F5C46B' : '#93A0B4') }));
+    const N = [
+      ['pve-jkt1-01', 'Jakarta DC1', 'Online', '41 d', '6.14.8-2-pve', '48% / 73%'],
+      ['pve-jkt1-02', 'Jakarta DC1', 'Online', '41 d', '6.14.8-2-pve', '28% / 55%'],
+      ['pve-jkt1-03', 'Jakarta DC1', 'Online', '12 d', '6.14.8-2-pve', '88% / 90%'],
+      ['pve-jkt1-04', 'Jakarta DC1', 'Maintenance', '2 h', '6.14.8-2-pve', '2% / 5%'],
+      ['pve-jkt2-01', 'Jakarta DC2', 'Online', '63 d', '6.14.8-2-pve', '47% / 83%'],
+      ['pve-jkt2-02', 'Jakarta DC2', 'Online', '63 d', '6.14.8-2-pve', '33% / 61%'],
+      ['pve-sby-01', 'Surabaya edge', 'Unreachable', 'n/a', '6.8.12-9-pve', 'n/a']
+    ];
+    const nodes = N.map((n) => ({ node: n[0], dc: n[1], status: n[2], uptime: n[3], kernel: n[4], load: n[5], color: n[2] === 'Online' ? '#3DD68C' : (n[2] === 'Maintenance' ? '#F5B94C' : '#FF8A8A') }));
+    return {
+      hosts, steps, discovered, nodes, noop: () => {},
+      wizardOpen: this.state.open, step1: this.state.step === 1, step2: this.state.step === 2, step3: this.state.step === 3,
+      openWizard: () => this.setState({ open: true, step: 1 }),
+      toStep2: () => this.setState({ step: 2 }), toStep3: () => this.setState({ step: 3 }),
+      finish: () => this.setState({ open: false }),
+      found: [
+        { label: 'VMs', value: 23 }, { label: 'Containers', value: 6 }, { label: 'Templates', value: 2 },
+        { label: 'Storages', value: 3 }, { label: 'Bridges / VNets', value: 4 }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

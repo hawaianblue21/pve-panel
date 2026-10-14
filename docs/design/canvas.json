@@ -1,0 +1,468 @@
+{
+  "v": 3,
+  "createdOnFiles": {
+    "v": 1,
+    "at": "2026-10-13T18:10:00Z"
+  },
+  "title": "PVE Panel App UI",
+  "launch": {
+    "view": "canvas"
+  },
+  "pages": [],
+  "boards": {
+    "Main.dc.html": {
+      "x": 0,
+      "y": 0,
+      "w": 1440,
+      "h": 1500,
+      "title": "Admin \u00b7 Multi-host dashboard",
+      "expand": "fill",
+      "is_interactive": true
+    },
+    "Admin-Guests.dc.html": {
+      "x": 1520,
+      "y": 0,
+      "w": 1440,
+      "h": 1500,
+      "title": "Admin \u00b7 Guests (all hosts)",
+      "expand": "fill",
+      "is_interactive": true
+    },
+    "Admin-Plans.dc.html": {
+      "x": 3040,
+      "y": 0,
+      "w": 1440,
+      "h": 1500,
+      "title": "Admin \u00b7 Plans",
+      "expand": "fill",
+      "is_interactive": true
+    },
+    "Admin-IPAM.dc.html": {
+      "x": 4560,
+      "y": 0,
+      "w": 1440,
+      "h": 1500,
+      "title": "Admin \u00b7 Networking & IPAM",
+      "expand": "fill",
+      "is_interactive": true
+    },
+    "Admin-Billing.dc.html": {
+      "x": 6080,
+      "y": 0,
+      "w": 1440,
+      "h": 1500,
+      "title": "Admin \u00b7 Billing overview",
+      "expand": "fill",
+      "is_interactive": true
+    },
+    "Admin-Invoice.dc.html": {
+      "x": 7600,
+      "y": 0,
+      "w": 1440,
+      "h": 1500,
+      "title": "Admin \u00b7 Invoice detail",
+      "expand": "fill",
+      "is_interactive": true
+    },
+    "Admin-Hosts.dc.html": {
+      "x": 0,
+      "y": 1920,
+      "w": 1440,
+      "h": 1500,
+      "title": "Admin \u00b7 Hosts & onboarding",
+      "expand": "fill",
+      "is_interactive": true
+    },
+    "Admin-Templates.dc.html": {
+      "x": 1520,
+      "y": 1920,
+      "w": 1440,
+      "h": 1500,
+      "title": "Admin \u00b7 Cloud-init & OS templates",
+      "expand": "fill",
+      "is_interactive": true
+    },
+    "Admin-Jobs.dc.html": {
+      "x": 3040,
+      "y": 1920,
+      "w": 1440,
+      "h": 1500,
+      "title": "Admin \u00b7 Provisioning jobs",
+      "expand": "fill",
+      "is_interactive": true
+    },
+    "Admin-Console.dc.html": {
+      "x": 4560,
+      "y": 1920,
+      "w": 1440,
+      "h": 1500,
+      "title": "Admin \u00b7 In-browser console",
+      "expand": "fill",
+      "is_interactive": true
+    },
+    "Admin-Access.dc.html": {
+      "x": 6080,
+      "y": 1920,
+      "w": 1440,
+      "h": 1500,
+      "title": "Admin \u00b7 Access & roles (RBAC)",
+      "expand": "fill",
+      "is_interactive": true
+    },
+    "Admin-Pools.dc.html": {
+      "x": 7600,
+      "y": 1920,
+      "w": 1440,
+      "h": 1500,
+      "title": "Admin \u00b7 Resource allocation pools",
+      "expand": "fill",
+      "is_interactive": true
+    },
+    "Admin-Storage.dc.html": {
+      "x": 9120,
+      "y": 1920,
+      "w": 1440,
+      "h": 1500,
+      "title": "Admin \u00b7 Object storage (SeaweedFS)",
+      "expand": "fill",
+      "is_interactive": true
+    },
+    "Admin-GPU.dc.html": {
+      "x": 10640,
+      "y": 1920,
+      "w": 1440,
+      "h": 1500,
+      "title": "Admin \u00b7 GPU compute",
+      "expand": "fill",
+      "is_interactive": true
+    },
+    "Customer-Servers.dc.html": {
+      "x": 0,
+      "y": 3840,
+      "w": 1440,
+      "h": 1500,
+      "title": "Customer \u00b7 My servers",
+      "expand": "fill",
+      "is_interactive": true
+    },
+    "Customer-Server.dc.html": {
+      "x": 1520,
+      "y": 3840,
+      "w": 1440,
+      "h": 1500,
+      "title": "Customer \u00b7 Server detail",
+      "expand": "fill",
+      "is_interactive": true
+    },
+    "Customer-Create.dc.html": {
+      "x": 3040,
+      "y": 3840,
+      "w": 1440,
+      "h": 1500,
+      "title": "Customer \u00b7 Create server",
+      "expand": "fill",
+      "is_interactive": true
+    },
+    "Customer-Billing.dc.html": {
+      "x": 4560,
+      "y": 3840,
+      "w": 1440,
+      "h": 1500,
+      "title": "Customer \u00b7 Billing & wallet",
+      "expand": "fill",
+      "is_interactive": true
+    },
+    "Customer-Invoice.dc.html": {
+      "x": 6080,
+      "y": 3840,
+      "w": 1440,
+      "h": 1500,
+      "title": "Customer \u00b7 Invoice & pay",
+      "expand": "fill",
+      "is_interactive": true
+    },
+    "Sidebar.dc.html": {
+      "x": 0,
+      "y": 7680,
+      "w": 260,
+      "h": 1240,
+      "title": "Component \u00b7 Sidebar"
+    },
+    "Customer-Block.dc.html": {
+      "x": 7600,
+      "y": 3840,
+      "w": 1440,
+      "h": 1500,
+      "title": "Customer \u00b7 Block storage",
+      "expand": "fill",
+      "is_interactive": true
+    },
+    "Customer-Object.dc.html": {
+      "x": 9120,
+      "y": 3840,
+      "w": 1440,
+      "h": 1500,
+      "title": "Customer \u00b7 Object storage",
+      "expand": "fill",
+      "is_interactive": true
+    },
+    "Customer-Network.dc.html": {
+      "x": 10640,
+      "y": 3840,
+      "w": 1440,
+      "h": 1500,
+      "title": "Customer \u00b7 Network & VPN",
+      "expand": "fill",
+      "is_interactive": true
+    },
+    "Customer-Security.dc.html": {
+      "x": 12160,
+      "y": 3840,
+      "w": 1440,
+      "h": 1500,
+      "title": "Customer \u00b7 Security & 2FA",
+      "expand": "fill",
+      "is_interactive": true
+    },
+    "Customer-Tickets.dc.html": {
+      "x": 13680,
+      "y": 3840,
+      "w": 1440,
+      "h": 1500,
+      "title": "Customer \u00b7 Support tickets",
+      "expand": "fill",
+      "is_interactive": true
+    },
+    "Customer-Assistant.dc.html": {
+      "x": 15200,
+      "y": 3840,
+      "w": 1440,
+      "h": 1500,
+      "title": "Customer \u00b7 AI assistant",
+      "expand": "fill",
+      "is_interactive": true
+    },
+    "Customer-KB.dc.html": {
+      "x": 16720,
+      "y": 3840,
+      "w": 1440,
+      "h": 1500,
+      "title": "Customer \u00b7 Knowledge base",
+      "expand": "fill",
+      "is_interactive": true
+    },
+    "Admin-Customers.dc.html": {
+      "x": 0,
+      "y": 5760,
+      "w": 1440,
+      "h": 1500,
+      "title": "Admin \u00b7 Customers & behaviour",
+      "expand": "fill",
+      "is_interactive": true
+    },
+    "Admin-Activity.dc.html": {
+      "x": 1520,
+      "y": 5760,
+      "w": 1440,
+      "h": 1500,
+      "title": "Admin \u00b7 Activity log",
+      "expand": "fill",
+      "is_interactive": true
+    },
+    "Admin-Support.dc.html": {
+      "x": 3040,
+      "y": 5760,
+      "w": 1440,
+      "h": 1500,
+      "title": "Admin \u00b7 Ticket desk (Zammad)",
+      "expand": "fill",
+      "is_interactive": true
+    },
+    "Admin-AI.dc.html": {
+      "x": 4560,
+      "y": 5760,
+      "w": 1440,
+      "h": 1500,
+      "title": "Admin \u00b7 AI assistant",
+      "expand": "fill",
+      "is_interactive": true
+    },
+    "Admin-KB.dc.html": {
+      "x": 6080,
+      "y": 5760,
+      "w": 1440,
+      "h": 1500,
+      "title": "Admin \u00b7 Knowledge base editor",
+      "expand": "fill",
+      "is_interactive": true
+    },
+    "Admin-Integrations.dc.html": {
+      "x": 7600,
+      "y": 5760,
+      "w": 1440,
+      "h": 1500,
+      "title": "Admin \u00b7 API tokens & integrations",
+      "expand": "fill",
+      "is_interactive": true
+    },
+    "Admin-Settings.dc.html": {
+      "x": 9120,
+      "y": 5760,
+      "w": 1440,
+      "h": 1500,
+      "title": "Admin \u00b7 Settings & white label",
+      "expand": "fill",
+      "is_interactive": true
+    },
+    "Admin-SupportFlow.dc.html": {
+      "x": 10640,
+      "y": 5760,
+      "w": 1440,
+      "h": 1500,
+      "title": "Flow \u00b7 Support integration",
+      "expand": "fill"
+    },
+    "Customer-Updates.dc.html": {
+      "x": 0,
+      "y": 9600,
+      "w": 1440,
+      "h": 1300,
+      "title": "Customer \u00b7 OS updates (Windows + Linux)",
+      "expand": "fill",
+      "is_interactive": true
+    },
+    "Customer-Expiry.dc.html": {
+      "x": 1520,
+      "y": 9600,
+      "w": 1440,
+      "h": 1400,
+      "title": "Customer \u00b7 Renewals & expiry",
+      "expand": "fill",
+      "is_interactive": true
+    },
+    "Customer-Preferences.dc.html": {
+      "x": 3040,
+      "y": 9600,
+      "w": 1440,
+      "h": 1250,
+      "title": "Customer \u00b7 Appearance & sign-in methods",
+      "expand": "fill",
+      "is_interactive": true
+    },
+    "Customer-SignIn.dc.html": {
+      "x": 4560,
+      "y": 9600,
+      "w": 1440,
+      "h": 900,
+      "title": "Customer \u00b7 Sign in with SSO",
+      "expand": "fill",
+      "is_interactive": true
+    },
+    "Admin-Updates.dc.html": {
+      "x": 6080,
+      "y": 9600,
+      "w": 1440,
+      "h": 1400,
+      "title": "Admin \u00b7 Patch management",
+      "expand": "fill",
+      "is_interactive": true
+    },
+    "Admin-Lifecycle.dc.html": {
+      "x": 7600,
+      "y": 9600,
+      "w": 1440,
+      "h": 1300,
+      "title": "Admin \u00b7 Server lifecycle (expiry)",
+      "expand": "fill",
+      "is_interactive": true
+    }
+  },
+  "order": [
+    "Main.dc.html",
+    "Admin-Guests.dc.html",
+    "Admin-Plans.dc.html",
+    "Admin-IPAM.dc.html",
+    "Admin-Billing.dc.html",
+    "Admin-Invoice.dc.html",
+    "Admin-Hosts.dc.html",
+    "Admin-Templates.dc.html",
+    "Admin-Jobs.dc.html",
+    "Admin-Console.dc.html",
+    "Admin-Access.dc.html",
+    "Admin-Pools.dc.html",
+    "Admin-Storage.dc.html",
+    "Admin-GPU.dc.html",
+    "Admin-Customers.dc.html",
+    "Admin-Activity.dc.html",
+    "Admin-Support.dc.html",
+    "Admin-AI.dc.html",
+    "Admin-KB.dc.html",
+    "Admin-Integrations.dc.html",
+    "Admin-Settings.dc.html",
+    "Admin-SupportFlow.dc.html",
+    "Customer-Servers.dc.html",
+    "Customer-Server.dc.html",
+    "Customer-Create.dc.html",
+    "Customer-Billing.dc.html",
+    "Customer-Invoice.dc.html",
+    "Customer-Block.dc.html",
+    "Customer-Object.dc.html",
+    "Customer-Network.dc.html",
+    "Customer-Security.dc.html",
+    "Customer-Tickets.dc.html",
+    "Customer-Assistant.dc.html",
+    "Customer-KB.dc.html",
+    "Sidebar.dc.html",
+    "Customer-Updates.dc.html",
+    "Customer-Expiry.dc.html",
+    "Customer-Preferences.dc.html",
+    "Customer-SignIn.dc.html",
+    "Admin-Updates.dc.html",
+    "Admin-Lifecycle.dc.html"
+  ],
+  "notes": {
+    "admin": {
+      "x": 0,
+      "y": -300,
+      "text": "Admin portal \u00b7 Operations & commerce",
+      "kind": "title1",
+      "maxW": 9040
+    },
+    "admin2": {
+      "x": 0,
+      "y": 1620,
+      "text": "Admin portal \u00b7 Infrastructure, access & resources",
+      "kind": "title1",
+      "maxW": 12080
+    },
+    "customer": {
+      "x": 0,
+      "y": 3540,
+      "text": "Customer portal",
+      "kind": "title1",
+      "maxW": 18160
+    },
+    "components": {
+      "x": 0,
+      "y": 7380,
+      "text": "Shared components",
+      "kind": "title1",
+      "maxW": 1800
+    },
+    "admin3": {
+      "x": 0,
+      "y": 5460,
+      "text": "Admin portal \u00b7 Customers, support & platform",
+      "kind": "title1",
+      "maxW": 12080
+    },
+    "lifecycle": {
+      "x": 0,
+      "y": 9300,
+      "text": "Updates, renewals, appearance & SSO (customer + admin)",
+      "kind": "title1",
+      "maxW": 9040
+    }
+  },
+  "designSystems": []
+}

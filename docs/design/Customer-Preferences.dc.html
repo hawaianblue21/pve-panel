@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Appearance and sign-in</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500&amp;family=Space+Grotesk:wght@500;600;700&amp;display=swap">
+<style>
+body{margin:0;background:#0A101C;}
+a{color:#8EC2FF;}a:hover{color:#C5E0FF;}
+</style>
+</helmet>
+<div style="min-height: 100vh; background: #0A101C; color: #E6EBF2; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 14px; line-height: 1.5; display: flex; flex-wrap: wrap; align-items: stretch;">
+
+<div style="flex: 1 1 240px; background: #0D1424; border-right: 1px solid #1C2638;">
+<dc-import name="Sidebar" portal="customer" active="prefs" hint-size="100%,1040px"></dc-import>
+</div>
+
+<main style="flex: 999 1 560px; min-width: 0; box-sizing: border-box; padding: 28px 32px 48px; display: flex; flex-direction: column; gap: 20px;">
+
+<div style="display: flex; flex-direction: column; gap: 2px;">
+<h1 style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 28px; font-weight: 600;">Appearance &amp; sign-in</h1>
+<span style="color: #93A0B4;">How the panel looks for you, and which accounts you can sign in with.</span>
+</div>
+
+<section aria-labelledby="ap-h" style="padding: 20px; background: #101828; border: 1px solid #1F2A3F; border-radius: 14px; display: flex; flex-direction: column; gap: 16px;">
+<div style="display: flex; flex-direction: column; gap: 2px;"><h2 id="ap-h" style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 18px; font-weight: 600;">Appearance</h2><span style="font-size: 13px; color: #93A0B4;">Only for your account, on every device. Your provider sets the default.</span></div>
+
+<div style="display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-start;">
+<div style="flex: 3 1 460px; min-width: 0; display: flex; flex-direction: column; gap: 14px;">
+<div role="radiogroup" aria-label="Color scheme" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px;">
+<sc-for list="{{schemes}}" as="s" hint-placeholder-count="6">
+<button type="button" role="radio" aria-checked="{{s.on}}" onClick="{{s.pick}}" style="display: flex; flex-direction: column; gap: 8px; padding: 10px; border-radius: 12px; border: 2px solid {{s.border}}; background: #0C1322; color: #E6EBF2; font: inherit; text-align: left; cursor: pointer;">
+<span aria-hidden="true" style="display: flex; height: 56px; border-radius: 8px; overflow: hidden; border: 1px solid #1F2A3F;"><span style="width: 34%; background: {{s.side}}; display: flex; flex-direction: column; gap: 4px; padding: 8px 6px; box-sizing: border-box;"><span style="height: 3px; border-radius: 2px; background: #FFFFFF55;"></span><span style="height: 3px; border-radius: 2px; background: #FFFFFF55;"></span><span style="height: 3px; border-radius: 2px; background: #FFFFFF55;"></span></span><span style="flex: 1; background: #EEF1F5; display: flex; flex-direction: column; gap: 4px; padding: 8px; box-sizing: border-box;"><span style="height: 3px; width: 80%; border-radius: 2px; background: #C8CED8;"></span><span style="height: 3px; width: 55%; border-radius: 2px; background: #C8CED8;"></span><span style="height: 10px; width: 40%; border-radius: 3px; background: {{s.accent}}; margin-top: 2px;"></span></span></span>
+<span style="display: flex; justify-content: space-between; align-items: center; gap: 6px;"><span style="font-weight: 600;">{{s.name}}</span><span style="font-size: 11px; color: #7EE6B0;">{{s.tag}}</span></span>
+<span style="font-size: 12px; color: #93A0B4;">{{s.desc}}</span>
+</button>
+</sc-for>
+</div>
+
+<div style="display: flex; flex-wrap: wrap; gap: 16px;">
+<fieldset style="border: 0; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px;"><legend style="font-size: 13px; font-weight: 600; padding: 0 0 6px;">Mode</legend>
+<div role="radiogroup" style="display: flex; gap: 4px; padding: 4px; border-radius: 10px; background: #0C1322; border: 1px solid #2A3750;">
+<sc-for list="{{modes}}" as="m" hint-placeholder-count="3"><button type="button" role="radio" aria-checked="{{m.on}}" onClick="{{m.pick}}" style="min-height: 36px; padding: 0 14px; border: 0; border-radius: 7px; background: {{m.bg}}; color: {{m.fg}}; font: inherit; font-size: 13px; cursor: pointer;">{{m.label}}</button></sc-for>
+</div></fieldset>
+<fieldset style="border: 0; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px;"><legend style="font-size: 13px; font-weight: 600; padding: 0 0 6px;">Density</legend>
+<div style="display: flex; gap: 4px; padding: 4px; border-radius: 10px; background: #0C1322; border: 1px solid #2A3750;"><button type="button" aria-pressed="true" style="min-height: 36px; padding: 0 14px; border: 0; border-radius: 7px; background: #17284A; color: #E6EBF2; font: inherit; font-size: 13px;">Comfortable</button><button type="button" aria-pressed="false" style="min-height: 36px; padding: 0 14px; border: 0; border-radius: 7px; background: transparent; color: #93A0B4; font: inherit; font-size: 13px;">Compact</button></div></fieldset>
+<label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 600;">Language<select style="min-height: 44px; padding: 0 10px; border: 1px solid #2A3750; border-radius: 10px; background: #0C1322; color: #E6EBF2; font: inherit; font-weight: 400;"><option>Bahasa Indonesia</option><option>English</option></select></label>
+<label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 600;">Time zone<select style="min-height: 44px; padding: 0 10px; border: 1px solid #2A3750; border-radius: 10px; background: #0C1322; color: #E6EBF2; font: inherit; font-weight: 400;"><option>Asia/Jakarta (WIB)</option><option>Asia/Makassar (WITA)</option><option>Asia/Jayapura (WIT)</option></select></label>
+</div>
+</div>
+
+<!-- live preview -->
+<div style="flex: 2 1 320px; min-width: 0; display: flex; flex-direction: column; gap: 6px;">
+<span style="font-size: 12px; color: #93A0B4;">Preview · {{pv.label}}</span>
+<div aria-hidden="true" style="display: flex; height: 230px; border-radius: 12px; overflow: hidden; border: 1px solid #2A3750;">
+<div style="width: 30%; background: {{pv.side}}; padding: 14px 10px; box-sizing: border-box; display: flex; flex-direction: column; gap: 8px;"><span style="height: 12px; width: 70%; border-radius: 3px; background: {{pv.accent}};"></span><span style="height: 6px; border-radius: 3px; background: #FFFFFF40;"></span><span style="height: 6px; border-radius: 3px; background: #FFFFFF40;"></span><span style="height: 18px; border-radius: 4px; background: #FFFFFF22;"></span><span style="height: 6px; border-radius: 3px; background: #FFFFFF40;"></span></div>
+<div style="flex: 1; background: {{pv.bg}}; padding: 16px; box-sizing: border-box; display: flex; flex-direction: column; gap: 10px;">
+<span style="font-family: 'Space Grotesk', sans-serif; font-size: 15px; font-weight: 600; color: {{pv.text}};">win-office</span>
+<span style="align-self: flex-start; padding: 1px 8px; border-radius: 999px; background: {{pv.okBg}}; color: {{pv.okFg}}; font-size: 11px;">● Running</span>
+<div style="display: flex; gap: 6px;"><span style="padding: 5px 10px; border-radius: 6px; background: {{pv.accent}}; color: #FFFFFF; font-size: 11px; font-weight: 600;">Install updates</span><span style="padding: 5px 10px; border-radius: 6px; border: 1px solid {{pv.line}}; color: {{pv.text}}; font-size: 11px;">Restart</span></div>
+<div style="flex: 1; border-radius: 8px; background: {{pv.card}}; border: 1px solid {{pv.line}};"></div>
+</div>
+</div>
+<div style="display: flex; gap: 8px; flex-wrap: wrap;"><button type="button" style="min-height: 40px; padding: 0 16px; border: 0; border-radius: 10px; background: #4C9AFF; color: #06101F; font: inherit; font-weight: 600;">Save</button><button type="button" onClick="{{reset}}" style="min-height: 40px; padding: 0 12px; border: 1px solid #2A3750; border-radius: 10px; background: transparent; color: #E6EBF2; font: inherit;">Use provider default</button></div>
+</div>
+</div>
+</section>
+
+<section aria-labelledby="sso-h" style="padding: 20px; background: #101828; border: 1px solid #1F2A3F; border-radius: 14px; display: flex; flex-direction: column; gap: 12px;">
+<div style="display: flex; flex-direction: column; gap: 2px;"><h2 id="sso-h" style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 18px; font-weight: 600;">Sign-in methods</h2><span style="font-size: 13px; color: #93A0B4;">Keep at least two, so you can still get in if one is lost. Removing one asks for your 2FA code.</span></div>
+<sc-for list="{{methods}}" as="m" hint-placeholder-count="5">
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 10px; background: #0C1322; border: 1px solid #1F2A3F;">
+<span style="flex: 1 1 220px; display: flex; flex-direction: column;"><span style="font-weight: 600;">{{m.name}}</span><span style="font-size: 12px; color: #93A0B4;">{{m.detail}}</span></span>
+<span style="font-size: 12px; color: {{m.color}};">{{m.status}}</span>
+<button type="button" style="min-height: 36px; padding: 0 12px; border: 1px solid {{m.btnBorder}}; border-radius: 8px; background: transparent; color: {{m.btnFg}}; font: inherit; font-size: 13px;">{{m.action}}</button>
+</div>
+</sc-for>
+</section>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1250}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { scheme: 'default', mode: 'system' }; }
+  renderVals() {
+    const S = [
+      ['default', 'Provider default', 'Currently Forest, set by your provider', '#1d7350', '#132a20'],
+      ['harbor', 'Harbor', 'Signal blue on slate', '#3558e6', '#172230'],
+      ['forest', 'Forest', 'Calm green on deep pine', '#1d7350', '#132a20'],
+      ['ember', 'Ember', 'Warm orange on dark brown', '#b9400f', '#2a1c15'],
+      ['orchid', 'Orchid', 'Violet on aubergine', '#7339e0', '#221836'],
+      ['graphite', 'Graphite', 'Neutral graphite with teal', '#0d7068', '#202427']
+    ];
+    const schemes = S.map(([id, name, desc, accent, side]) => ({ name, desc, accent, side, tag: id === 'default' ? 'default' : '', on: id === this.state.scheme, border: id === this.state.scheme ? accent : '#1F2A3F', pick: () => this.setState({ scheme: id }) }));
+    const sel = S.find((s) => s[0] === this.state.scheme);
+    const dark = this.state.mode === 'dark';
+    const M = [['system', 'Follow device'], ['light', 'Light'], ['dark', 'Dark']];
+    const modes = M.map(([k, l]) => ({ label: l, on: k === this.state.mode, bg: k === this.state.mode ? '#17284A' : 'transparent', fg: k === this.state.mode ? '#E6EBF2' : '#93A0B4', pick: () => this.setState({ mode: k }) }));
+    const pv = dark
+      ? { label: `${sel[1]} · dark`, side: sel[4], accent: sel[3], bg: '#11161D', card: '#171E27', text: '#E6EBF2', line: '#2A3442', okBg: '#123326', okFg: '#7EE6B0' }
+      : { label: `${sel[1]} · ${this.state.mode === 'light' ? 'light' : 'light (device)'}`, side: sel[4], accent: sel[3], bg: '#EEF1F5', card: '#FFFFFF', text: '#1A2230', line: '#D5DBE3', okBg: '#DDF3E7', okFg: '#1D6B45' };
+    return {
+      schemes, modes, pv, reset: () => this.setState({ scheme: 'default', mode: 'system' }),
+      methods: [
+        { name: 'Email and password', detail: 'rina@arunika.id', status: 'In use', color: '#7EE6B0', action: 'Change password', btnBorder: '#2A3750', btnFg: '#E6EBF2' },
+        { name: 'Passkey', detail: 'MacBook Air (Touch ID) · added 2 Sep', status: 'In use · counts as 2FA', color: '#7EE6B0', action: 'Manage', btnBorder: '#2A3750', btnFg: '#E6EBF2' },
+        { name: 'Google', detail: 'rina.arunika@gmail.com · linked 10 Oct', status: 'Linked', color: '#7EE6B0', action: 'Unlink', btnBorder: '#4A2A2A', btnFg: '#FF9B9B' },
+        { name: 'Microsoft (Office 365)', detail: 'Use your company email to sign in', status: 'Not linked', color: '#93A0B4', action: 'Link', btnBorder: '#2A3750', btnFg: '#E6EBF2' },
+        { name: 'GitHub', detail: 'For developers and the API', status: 'Not linked', color: '#93A0B4', action: 'Link', btnBorder: '#2A3750', btnFg: '#E6EBF2' }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

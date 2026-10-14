@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Platform settings</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500&amp;family=Space+Grotesk:wght@500;600;700&amp;display=swap">
+<style>
+body{margin:0;background:#0A101C;}
+a{color:#8EC2FF;}a:hover{color:#C5E0FF;}
+</style>
+</helmet>
+<div style="min-height: 100vh; background: #0A101C; color: #E6EBF2; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 14px; line-height: 1.5; display: flex; flex-wrap: wrap; align-items: stretch;">
+
+<div style="flex: 1 1 240px; background: #0D1424; border-right: 1px solid #1C2638;">
+<dc-import name="Sidebar" portal="admin" active="settings" hint-size="100%,1240px"></dc-import>
+</div>
+
+<main style="flex: 999 1 560px; min-width: 0; box-sizing: border-box; padding: 28px 32px 48px; display: flex; flex-direction: column; gap: 18px;">
+
+<div style="display: flex; flex-direction: column; gap: 2px;">
+<span style="display: flex; align-items: center; gap: 10px;"><h1 style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 28px; font-weight: 600;">Settings</h1><span style="padding: 2px 8px; border-radius: 6px; background: #3A2E10; color: #F5C46B; font-size: 12px; font-weight: 600;">Owner only</span></span>
+<span style="color: #93A0B4;">Connections to Proxmox, Proxmox Backup Server and object storage, white-label branding and platform defaults. Every save is written to the Activity log.</span>
+</div>
+
+<div style="display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-start;">
+<nav aria-label="Settings sections" style="flex: 1 1 200px; max-width: 240px; display: flex; flex-direction: column; gap: 2px;">
+<sc-for list="{{sections}}" as="s" hint-placeholder-count="7"><button type="button" onClick="{{s.pick}}" aria-current="{{s.current}}" style="min-height: 40px; padding: 0 12px; border: 0; border-radius: 8px; background: {{s.bg}}; color: {{s.fg}}; font: inherit; text-align: left; cursor: pointer;">{{s.label}}</button></sc-for>
+</nav>
+
+<div style="flex: 4 1 560px; min-width: 0; display: flex; flex-direction: column; gap: 16px;">
+
+<!-- PROXMOX -->
+<sc-if value="{{show.pve}}" hint-placeholder-val="{{true}}">
+<section aria-labelledby="pve-h" style="display: flex; flex-direction: column; gap: 12px;">
+<div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px;"><h2 id="pve-h" style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 18px; font-weight: 600;">Proxmox VE clusters</h2><button type="button" style="min-height: 40px; padding: 0 14px; border: 0; border-radius: 10px; background: #4C9AFF; color: #06101F; font: inherit; font-weight: 600;">+ Add cluster</button></div>
+<sc-for list="{{clusters}}" as="c" hint-placeholder-count="2">
+<div style="padding: 16px; background: #101828; border: 1px solid #1F2A3F; border-radius: 14px; display: flex; flex-direction: column; gap: 10px;">
+<div style="display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px;"><span style="font-weight: 600;">{{c.name}}</span><span style="font-size: 12px; color: {{c.color}};">{{c.status}}</span></div>
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px;">
+<sc-for list="{{c.fields}}" as="f" hint-placeholder-count="4"><label style="display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: #C3CCDA;">{{f.k}}<input type="text" value="{{f.v}}" onChange="{{noop}}" style="min-height: 38px; padding: 0 10px; border: 1px solid #2A3750; border-radius: 8px; background: #0C1322; color: #E6EBF2; font-family: 'JetBrains Mono', monospace; font-size: 12px;"></label></sc-for>
+</div>
+<div style="display: flex; flex-wrap: wrap; gap: 8px;"><button type="button" style="min-height: 36px; padding: 0 12px; border: 1px solid #2A3750; border-radius: 8px; background: transparent; color: #E6EBF2; font: inherit; font-size: 13px;">Test connection</button><button type="button" style="min-height: 36px; padding: 0 12px; border: 1px solid #2A3750; border-radius: 8px; background: transparent; color: #E6EBF2; font: inherit; font-size: 13px;">Show required PVE privileges</button></div>
+</div>
+</sc-for>
+<p style="margin: 0; font-size: 13px; color: #93A0B4;">Use an API token for a dedicated PVE user (for example <code style="font-family: 'JetBrains Mono', monospace;">pvepanel@pve!panel</code>) with privilege separation on, not root@pam. Pin the TLS fingerprint when the cluster uses a self-signed certificate.</p>
+</section>
+</sc-if>
+
+<!-- PBS -->
+<sc-if value="{{show.pbs}}" hint-placeholder-val="{{false}}">
+<section aria-labelledby="pbs-h" style="display: flex; flex-direction: column; gap: 12px;">
+<h2 id="pbs-h" style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 18px; font-weight: 600;">Proxmox Backup Server</h2>
+<div style="padding: 16px; background: #101828; border: 1px solid #1F2A3F; border-radius: 14px; display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px;">
+<sc-for list="{{pbs}}" as="f" hint-placeholder-count="6"><label style="display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: #C3CCDA;">{{f.k}}<input type="text" value="{{f.v}}" onChange="{{noop}}" style="min-height: 38px; padding: 0 10px; border: 1px solid #2A3750; border-radius: 8px; background: #0C1322; color: #E6EBF2; font-family: 'JetBrains Mono', monospace; font-size: 12px;"></label></sc-for>
+</div>
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px;">
+<sc-for list="{{pbsStats}}" as="k" hint-placeholder-count="4"><div style="padding: 12px 14px; background: #101828; border: 1px solid #1F2A3F; border-radius: 12px; display: flex; flex-direction: column;"><span style="font-size: 12px; color: #93A0B4;">{{k.label}}</span><span style="font-family: 'Space Grotesk', sans-serif; font-size: 20px; font-weight: 600;">{{k.value}}</span></div></sc-for>
+</div>
+<p style="margin: 0; font-size: 13px; color: #93A0B4;">Customers see backups of their own servers only (namespace per customer). Restores to a new VMID count against the customer's resource pool.</p>
+</section>
+</sc-if>
+
+<!-- OBJECT STORAGE -->
+<sc-if value="{{show.s3}}" hint-placeholder-val="{{false}}">
+<section aria-labelledby="s3-h" style="display: flex; flex-direction: column; gap: 12px;">
+<h2 id="s3-h" style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 18px; font-weight: 600;">Object storage API</h2>
+<div style="padding: 16px; background: #101828; border: 1px solid #1F2A3F; border-radius: 14px; display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px;">
+<sc-for list="{{s3}}" as="f" hint-placeholder-count="6"><label style="display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: #C3CCDA;">{{f.k}}<input type="text" value="{{f.v}}" onChange="{{noop}}" style="min-height: 38px; padding: 0 10px; border: 1px solid #2A3750; border-radius: 8px; background: #0C1322; color: #E6EBF2; font-family: 'JetBrains Mono', monospace; font-size: 12px;"></label></sc-for>
+</div>
+<span style="font-size: 13px;"><a href="Admin-Storage.dc.html">Buckets, quotas and customer keys →</a></span>
+</section>
+</sc-if>
+
+<!-- WHITE LABEL -->
+<sc-if value="{{show.brand}}" hint-placeholder-val="{{false}}">
+<section aria-labelledby="wl-h" style="display: flex; flex-direction: column; gap: 14px;">
+<h2 id="wl-h" style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 18px; font-weight: 600;">White-label</h2>
+<div style="display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start;">
+<div style="flex: 1 1 340px; padding: 16px; background: #101828; border: 1px solid #1F2A3F; border-radius: 14px; display: flex; flex-direction: column; gap: 12px;">
+<sc-for list="{{logos}}" as="l" hint-placeholder-count="4">
+<div style="display: flex; align-items: center; gap: 12px;">
+<div style="width: 64px; height: 40px; flex: none; border: 1px dashed #2A3750; border-radius: 8px; background: {{l.bg}}; display: flex; align-items: center; justify-content: center; font-family: 'Space Grotesk', sans-serif; font-size: 12px; font-weight: 700; color: {{l.fg}};">{{l.mark}}</div>
+<span style="flex: 1; display: flex; flex-direction: column;"><span style="font-weight: 500;">{{l.name}}</span><span style="font-size: 12px; color: #93A0B4;">{{l.spec}}</span></span>
+<button type="button" style="min-height: 36px; padding: 0 12px; border: 1px solid #2A3750; border-radius: 8px; background: transparent; color: #E6EBF2; font: inherit; font-size: 13px;">Upload</button>
+</div>
+</sc-for>
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; padding-top: 10px; border-top: 1px solid #1C2638;">
+<sc-for list="{{brandFields}}" as="f" hint-placeholder-count="6"><label style="display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: #C3CCDA;">{{f.k}}<input type="text" value="{{f.v}}" onChange="{{noop}}" style="min-height: 38px; padding: 0 10px; border: 1px solid #2A3750; border-radius: 8px; background: #0C1322; color: #E6EBF2; font-family: 'JetBrains Mono', monospace; font-size: 12px;"></label></sc-for>
+</div>
+</div>
+<div style="flex: 1 1 320px; display: flex; flex-direction: column; gap: 8px;">
+<span style="font-size: 13px; color: #93A0B4;">Login preview</span>
+<div style="padding: 28px; border-radius: 14px; background: linear-gradient(160deg, #0B2A2A, #08151C); border: 1px solid #1F2A3F; display: flex; flex-direction: column; align-items: center; gap: 14px;">
+<div style="display: flex; align-items: center; gap: 8px;"><span style="width: 30px; height: 30px; border-radius: 8px; background: #19C2A0; display: inline-flex; align-items: center; justify-content: center; color: #04201A; font-family: 'Space Grotesk', sans-serif; font-weight: 700;">N</span><span style="font-family: 'Space Grotesk', sans-serif; font-size: 18px; font-weight: 600;">Acme Cloud</span></div>
+<div style="width: 100%; max-width: 260px; display: flex; flex-direction: column; gap: 8px;">
+<div style="min-height: 36px; border: 1px solid #23413F; border-radius: 8px; background: #071512; padding: 0 10px; display: flex; align-items: center; font-size: 12px; color: #6F8F8A;">Email</div>
+<div style="min-height: 36px; border: 1px solid #23413F; border-radius: 8px; background: #071512; padding: 0 10px; display: flex; align-items: center; font-size: 12px; color: #6F8F8A;">Password</div>
+<div style="min-height: 36px; border-radius: 8px; background: #19C2A0; color: #04201A; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 600;">Sign in</div>
+</div>
+<span style="font-size: 11px; color: #6F8F8A;">cloud.example.com · Help: support.example.com</span>
+</div>
+<label style="display: flex; align-items: center; gap: 10px; font-size: 13px;"><input type="checkbox" checked="{{true}}" onChange="{{noop}}" style="width: 18px; height: 18px; accent-color: #4C9AFF;">Hide "Powered by PVE Panel" in the customer portal</label>
+</div>
+</div>
+</section>
+</sc-if>
+
+<!-- APPEARANCE -->
+<sc-if value="{{show.theme}}" hint-placeholder-val="{{false}}">
+<section aria-labelledby="th-h" style="display: flex; flex-direction: column; gap: 12px;">
+<div style="display: flex; flex-direction: column; gap: 2px;"><h2 id="th-h" style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 18px; font-weight: 600;">Appearance</h2><span style="font-size: 13px; color: #93A0B4;">Default color scheme for the admin interface, customer portal, sign-in pages and emails. Each has a light and a dark variant (WCAG AA contrast).</span></div>
+<div role="radiogroup" aria-label="Default scheme" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 10px;">
+<sc-for list="{{themes}}" as="s" hint-placeholder-count="6">
+<button type="button" role="radio" aria-checked="{{s.on}}" onClick="{{s.pick}}" style="display: flex; flex-direction: column; gap: 8px; padding: 10px; border-radius: 12px; border: 2px solid {{s.border}}; background: #101828; color: #E6EBF2; font: inherit; text-align: left; cursor: pointer;">
+<span aria-hidden="true" style="display: flex; height: 56px; border-radius: 8px; overflow: hidden; border: 1px solid #1F2A3F;"><span style="width: 34%; background: {{s.side}};"></span><span style="flex: 1; background: #EEF1F5; display: flex; align-items: flex-end; padding: 8px; box-sizing: border-box;"><span style="height: 10px; width: 45%; border-radius: 3px; background: {{s.accent}};"></span></span></span>
+<span style="display: flex; justify-content: space-between; gap: 6px;"><span style="font-weight: 600;">{{s.name}}</span><span style="font-size: 11px; color: #7EE6B0;">{{s.tag}}</span></span>
+<span style="font-size: 12px; color: #93A0B4;">{{s.desc}}</span>
+</button>
+</sc-for>
+</div>
+<div style="padding: 14px 16px; background: #101828; border: 1px solid #1F2A3F; border-radius: 14px; display: flex; flex-direction: column; gap: 8px;">
+<sc-for list="{{themeOpts}}" as="t" hint-placeholder-count="3"><label style="display: flex; align-items: flex-start; gap: 10px; font-size: 13px;"><input type="checkbox" checked="{{t.on}}" onChange="{{noop}}" style="width: 18px; height: 18px; margin-top: 2px; accent-color: #4C9AFF;"><span style="display: flex; flex-direction: column;"><span>{{t.label}}</span><span style="font-size: 12px; color: #93A0B4;">{{t.note}}</span></span></label></sc-for>
+</div>
+<span style="font-size: 12px; color: #93A0B4;">"Custom (white-label)" uses the primary and accent colors from White-label.</span>
+</section>
+</sc-if>
+
+<!-- SSO -->
+<sc-if value="{{show.sso}}" hint-placeholder-val="{{false}}">
+<section aria-labelledby="sso-h" style="display: flex; flex-direction: column; gap: 12px;">
+<div style="display: flex; flex-direction: column; gap: 2px;"><h2 id="sso-h" style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 18px; font-weight: 600;">Sign-in &amp; SSO</h2><span style="font-size: 13px; color: #93A0B4;">Authorization Code + PKCE. Redirect URI per portal: <code style="font-family: 'JetBrains Mono', monospace;">https://cloud.example.com/api/auth/sso/{provider}/callback</code></span></div>
+<sc-for list="{{idps}}" as="p" hint-placeholder-count="4">
+<div style="padding: 14px 16px; background: #101828; border: 1px solid #1F2A3F; border-radius: 14px; display: flex; flex-direction: column; gap: 10px;">
+<div style="display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; align-items: center;"><span style="display: flex; flex-direction: column;"><span style="font-weight: 600;">{{p.name}}</span><span style="font-size: 12px; color: #93A0B4;">{{p.proto}}</span></span><span style="display: flex; gap: 8px; align-items: center;"><span style="font-size: 12px; color: {{p.color}};">{{p.status}}</span><label style="display: flex; align-items: center; gap: 6px; font-size: 12px;"><input type="checkbox" checked="{{p.on}}" onChange="{{noop}}" style="width: 18px; height: 18px; accent-color: #4C9AFF;">Enabled</label></span></div>
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px;">
+<sc-for list="{{p.fields}}" as="f" hint-placeholder-count="3"><label style="display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: #C3CCDA;">{{f.k}}<input type="text" value="{{f.v}}" onChange="{{noop}}" style="min-height: 38px; padding: 0 10px; border: 1px solid #2A3750; border-radius: 8px; background: #0C1322; color: #E6EBF2; font-family: 'JetBrains Mono', monospace; font-size: 12px;"></label></sc-for>
+</div>
+</div>
+</sc-for>
+<div style="background: #101828; border: 1px solid #1F2A3F; border-radius: 14px; overflow: hidden;">
+<sc-for list="{{ssoPolicy}}" as="p" hint-placeholder-count="5"><div style="display: flex; flex-wrap: wrap; justify-content: space-between; gap: 10px; padding: 11px 16px; border-top: 1px solid #1C2638; font-size: 13px;"><span style="display: flex; flex-direction: column;"><span style="font-weight: 500;">{{p.k}}</span><span style="color: #93A0B4; font-size: 12px;">{{p.note}}</span></span><span style="font-family: 'JetBrains Mono', monospace; font-size: 12px; align-self: center;">{{p.v}}</span></div></sc-for>
+</div>
+</section>
+</sc-if>
+
+<!-- EMAIL -->
+<sc-if value="{{show.mail}}" hint-placeholder-val="{{false}}">
+<section aria-labelledby="ml-h" style="display: flex; flex-direction: column; gap: 12px;">
+<h2 id="ml-h" style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 18px; font-weight: 600;">Email &amp; notifications</h2>
+<div style="padding: 16px; background: #101828; border: 1px solid #1F2A3F; border-radius: 14px; display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px;">
+<sc-for list="{{mail}}" as="f" hint-placeholder-count="6"><label style="display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: #C3CCDA;">{{f.k}}<input type="text" value="{{f.v}}" onChange="{{noop}}" style="min-height: 38px; padding: 0 10px; border: 1px solid #2A3750; border-radius: 8px; background: #0C1322; color: #E6EBF2; font-family: 'JetBrains Mono', monospace; font-size: 12px;"></label></sc-for>
+</div>
+</section>
+</sc-if>
+
+<!-- SECURITY & POLICY -->
+<sc-if value="{{show.policy}}" hint-placeholder-val="{{false}}">
+<section aria-labelledby="po-h" style="display: flex; flex-direction: column; gap: 12px;">
+<h2 id="po-h" style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 18px; font-weight: 600;">Security &amp; platform policy</h2>
+<div style="background: #101828; border: 1px solid #1F2A3F; border-radius: 14px; overflow: hidden;">
+<sc-for list="{{policy}}" as="p" hint-placeholder-count="8"><div style="display: flex; flex-wrap: wrap; justify-content: space-between; gap: 10px; padding: 12px 16px; border-top: 1px solid #1C2638; font-size: 13px;"><span style="display: flex; flex-direction: column;"><span style="font-weight: 500;">{{p.k}}</span><span style="color: #93A0B4; font-size: 12px;">{{p.note}}</span></span><span style="font-family: 'JetBrains Mono', monospace; font-size: 12px; align-self: center;">{{p.v}}</span></div></sc-for>
+</div>
+</section>
+</sc-if>
+
+<div style="display: flex; flex-wrap: wrap; gap: 10px; padding-top: 6px;">
+<button type="button" style="min-height: 44px; padding: 0 18px; border: 0; border-radius: 10px; background: #4C9AFF; color: #06101F; font: inherit; font-weight: 600;">Save changes</button>
+<button type="button" style="min-height: 44px; padding: 0 14px; border: 1px solid #2A3750; border-radius: 10px; background: transparent; color: #E6EBF2; font: inherit;">Export config (secrets excluded)</button>
+</div>
+</div>
+</div>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1400}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { sec: 'pve' }; }
+  renderVals() {
+    const S = [['pve', 'Proxmox VE'], ['pbs', 'Proxmox Backup'], ['s3', 'Object storage API'], ['brand', 'White-label'], ['theme', 'Appearance'], ['sso', 'Sign-in & SSO'], ['mail', 'Email & notifications'], ['policy', 'Security & policy']];
+    const TH = [['harbor', 'Harbor', 'Signal blue on slate, the original look', '#3558e6', '#172230'], ['forest', 'Forest', 'Calm green on deep pine', '#1d7350', '#132a20'], ['ember', 'Ember', 'Warm orange on dark brown', '#b9400f', '#2a1c15'], ['orchid', 'Orchid', 'Violet on aubergine', '#7339e0', '#221836'], ['graphite', 'Graphite', 'Neutral graphite with teal', '#0d7068', '#202427'], ['custom', 'Custom (white-label)', 'Acme teal from White-label', '#19C2A0', '#0B2A2A']];
+    const th = this.state.theme || 'forest';
+    const themes = TH.map(([id, name, desc, accent, side]) => ({ name, desc, accent, side, tag: id === 'forest' ? 'Active' : '', on: id === th, border: id === th ? accent : '#1F2A3F', pick: () => this.setState({ theme: id }) }));
+    const sections = S.map(([k, l]) => ({ label: l, current: k === this.state.sec ? 'page' : 'false', bg: k === this.state.sec ? '#17284A' : 'transparent', fg: k === this.state.sec ? '#E6EBF2' : '#B8C2D1', pick: () => this.setState({ sec: k }) }));
+    const show = Object.fromEntries(S.map(([k]) => [k, k === this.state.sec]));
+    return {
+      sections, show, noop: () => {}, themes,
+      themeOpts: [
+        { label: 'Customers may choose their own scheme and light/dark mode', note: 'Appearance & sign-in page in the customer portal', on: true },
+        { label: 'Use the scheme in invoice and reminder emails', note: 'light variant', on: true },
+        { label: 'Preview before saving', note: 'applies on this page only until "Save for everyone"', on: true }
+      ],
+      idps: [
+        { name: 'Google', proto: 'OpenID Connect · accounts.google.com', status: 'Connected', color: '#7EE6B0', on: true, fields: [{ k: 'Client ID', v: '1234-abc.apps.googleusercontent.com' }, { k: 'Client secret', v: '•••••••• (sealed)' }, { k: 'Allowed domains (optional)', v: 'any · or e.g. bina.ac.id' }] },
+        { name: 'Microsoft (Office 365 / Entra ID)', proto: 'OpenID Connect · login.microsoftonline.com/organizations', status: 'Connected', color: '#7EE6B0', on: true, fields: [{ k: 'Application (client) ID', v: '6f1c…-…' }, { k: 'Client secret', v: '•••••••• (sealed, expires 2027-04)' }, { k: 'Tenant', v: 'organizations (any work account)' }] },
+        { name: 'GitHub', proto: 'OAuth 2.0 (not OIDC) · verified primary email from /user/emails', status: 'Connected', color: '#7EE6B0', on: true, fields: [{ k: 'Client ID', v: 'Ov23li…' }, { k: 'Client secret', v: '•••••••• (sealed)' }, { k: 'Scopes', v: 'read:user user:email' }] },
+        { name: 'Company IdP (generic OIDC)', proto: 'Keycloak, Authentik, Okta… via discovery URL', status: 'Not configured', color: '#93A0B4', on: false, fields: [{ k: 'Issuer URL', v: 'https://sso.example.com/realms/main' }, { k: 'Client ID', v: '' }, { k: 'Client secret', v: '' }] }
+      ],
+      ssoPolicy: [
+        { k: 'Portals', note: 'where SSO buttons are shown', v: 'Customer: all · Admin: Microsoft only' },
+        { k: 'New customers via SSO', note: 'create an account on first sign-in', v: 'Allowed · default pool "starter"' },
+        { k: 'Account linking', note: 'by provider + subject; first link needs password + 2FA', v: 'Confirmed only' },
+        { k: 'Domain enforcement', note: 'emails of these domains must use their company IdP', v: 'arunika.id → Microsoft' },
+        { k: 'Password sign-in', note: 'admin portal', v: 'Off (SSO + passkey only)' }
+      ],
+      clusters: [
+        { name: 'JKT-DC1 cluster · 6 nodes', status: 'Connected · PVE 9.0 · quorum OK', color: '#7EE6B0', fields: [{ k: 'API URL', v: 'https://10.10.0.11:8006' }, { k: 'Token ID', v: 'pvepanel@pve!panel' }, { k: 'Token secret', v: '•••••••• (sealed)' }, { k: 'TLS fingerprint', v: 'AB:3F:…:91' }] },
+        { name: 'SBY-DC1 cluster · 3 nodes', status: 'Connected · PVE 9.0', color: '#7EE6B0', fields: [{ k: 'API URL', v: 'https://10.20.0.11:8006' }, { k: 'Token ID', v: 'pvepanel@pve!panel' }, { k: 'Token secret', v: '•••••••• (sealed)' }, { k: 'TLS fingerprint', v: '7C:02:…:E4' }] }
+      ],
+      pbs: [{ k: 'PBS URL', v: 'https://10.10.0.40:8007' }, { k: 'Token ID', v: 'pvepanel@pbs!panel' }, { k: 'Token secret', v: '•••••••• (sealed)' }, { k: 'Datastore', v: 'ds-customer' }, { k: 'Namespace pattern', v: 'cust/{customerId}' }, { k: 'Default retention', v: 'keep-daily=7, keep-weekly=4' }],
+      pbsStats: [{ label: 'Datastore used', value: '41.2 / 96 TB' }, { label: 'Dedup factor', value: '3.4×' }, { label: 'Last verify', value: 'OK · 02:00' }, { label: 'Jobs failed (24 h)', value: '0' }],
+      s3: [{ k: 'Engine', v: 'SeaweedFS (S3 + IAM)' }, { k: 'S3 endpoint', v: 'https://s3.example.com' }, { k: 'IAM endpoint', v: 'same as S3 (:8333)' }, { k: 'Admin access key', v: 'AKIA•••• (sealed)' }, { k: 'Master / shell', v: '10.10.0.60:9333' }, { k: 'Bucket prefix', v: 'pp' }],
+      logos: [
+        { name: 'Login page logo', spec: 'SVG or PNG, 320×80, transparent', mark: 'Acme', bg: '#0B2A2A', fg: '#19C2A0' },
+        { name: 'Dashboard logo (sidebar)', spec: 'SVG, 160×40, light on dark', mark: 'N', bg: '#0D1424', fg: '#19C2A0' },
+        { name: 'Favicon', spec: 'PNG 64×64', mark: 'N', bg: '#19C2A0', fg: '#04201A' },
+        { name: 'Invoice & email header', spec: 'PNG 600×120, white background', mark: 'Acme', bg: '#FFFFFF', fg: '#0B5C4C' }
+      ],
+      brandFields: [{ k: 'Product name', v: 'Acme Cloud' }, { k: 'Primary color', v: '#19C2A0' }, { k: 'Accent color', v: '#0B5C4C' }, { k: 'Customer portal domain', v: 'cloud.example.com' }, { k: 'Admin portal domain', v: 'admin.example.com' }, { k: 'Support link', v: 'support.example.com' }],
+      mail: [{ k: 'SMTP host', v: 'smtp.example.com:587' }, { k: 'Username', v: 'noreply@example.com' }, { k: 'Password', v: '•••••••• (sealed)' }, { k: 'From name', v: 'Acme Cloud' }, { k: 'Invoice reminders', v: 'D-7, D-1, D+3 (suspend at D+7)' }, { k: 'Admin alerts to', v: 'noc@example.com' }],
+      policy: [
+        { k: 'Admin 2FA', note: 'all admin roles must use TOTP or passkey', v: 'Required' },
+        { k: 'Customer 2FA', note: 'customers can turn it on; required for API tokens', v: 'Optional · required for tokens' },
+        { k: 'Session lifetime', note: 'admin / customer', v: '8 h / 7 d' },
+        { k: 'Admin IP allow-list', note: 'admin portal and admin tokens', v: '10.0.0.0/8, 103.x.x.0/24' },
+        { k: 'Activity log retention', note: 'append-only, forwarded to SIEM', v: '400 days' },
+        { k: 'New customer default pool', note: 'applied at sign-up', v: 'starter (4 vCPU, 8 GB, 1 IP)' },
+        { k: 'Tax', note: 'added to invoices', v: 'PPN 11%' },
+        { k: 'Currency', note: 'billing and invoices', v: 'IDR' }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

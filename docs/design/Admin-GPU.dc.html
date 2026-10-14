@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>GPU compute</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500&amp;family=Space+Grotesk:wght@500;600;700&amp;display=swap">
+<style>
+body{margin:0;background:#0A101C;}
+a{color:#8EC2FF;}a:hover{color:#C5E0FF;}
+</style>
+</helmet>
+<div style="min-height: 100vh; background: #0A101C; color: #E6EBF2; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 14px; line-height: 1.5; display: flex; flex-wrap: wrap; align-items: stretch;">
+
+<div style="flex: 1 1 240px; background: #0D1424; border-right: 1px solid #1C2638;">
+<dc-import name="Sidebar" portal="admin" active="gpu" hint-size="100%,1100px"></dc-import>
+</div>
+
+<main style="flex: 999 1 560px; min-width: 0; box-sizing: border-box; padding: 28px 32px 48px; display: flex; flex-direction: column; gap: 20px;">
+
+<div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px;">
+<div style="display: flex; flex-direction: column; gap: 2px;">
+<h1 style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 28px; font-weight: 600;">GPU compute</h1>
+<span style="color: #93A0B4;">Whole GPUs (PCI passthrough) and shared GPUs (NVIDIA vGPU) on Proxmox resource mappings</span>
+</div>
+<div style="display: flex; flex-wrap: wrap; gap: 10px;">
+<button type="button" style="min-height: 44px; padding: 0 14px; border: 1px solid #2A3750; border-radius: 10px; background: #101828; color: #E6EBF2; font: inherit;">+ GPU profile</button>
+<button type="button" onClick="{{openAttach}}" style="min-height: 44px; padding: 0 16px; border: 0; border-radius: 10px; background: #4C9AFF; color: #06101F; font: inherit; font-weight: 600;">Attach GPU to server</button>
+</div>
+</div>
+
+<!-- profiles -->
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px;">
+<sc-for list="{{profiles}}" as="p" hint-placeholder-count="4">
+<article style="display: flex; flex-direction: column; gap: 10px; padding: 16px 18px; background: #101828; border: 1px solid #1F2A3F; border-radius: 14px;">
+<div style="display: flex; justify-content: space-between; gap: 8px;">
+<span style="display: flex; flex-direction: column;"><span style="font-family: 'Space Grotesk', sans-serif; font-size: 17px; font-weight: 600;">{{p.name}}</span><span style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #93A0B4;">mapping={{p.mapping}}{{p.mdev}}</span></span>
+<span style="align-self: flex-start; padding: 3px 9px; border-radius: 6px; font-size: 12px; background: {{p.modeBg}}; color: {{p.modeFg}};">{{p.mode}}</span>
+</div>
+<span style="display: flex; justify-content: space-between; font-size: 13px;"><span style="color: #93A0B4;">In use</span><span style="font-family: 'JetBrains Mono', monospace;">{{p.used}} / {{p.total}}</span></span>
+<span style="height: 7px; border-radius: 4px; background: #1C2638; overflow: hidden;"><span style="display: block; height: 7px; width: {{p.pct}}; background: {{p.color}};"></span></span>
+<span style="font-size: 12px; color: #93A0B4;">{{p.note}}</span>
+</article>
+</sc-for>
+</div>
+
+<sc-if value="{{attachOpen}}" hint-placeholder-val="{{false}}">
+<section aria-labelledby="at-h" style="padding: 18px; background: #101828; border: 1px solid #2B4A80; border-radius: 14px; display: flex; flex-direction: column; gap: 12px;">
+<h2 id="at-h" style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 18px; font-weight: 600;">Attach a GPU</h2>
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px;">
+<label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: #C3CCDA;">Server<select style="min-height: 44px; padding: 0 12px; border: 1px solid #2A3750; border-radius: 10px; background: #0C1322; color: #E6EBF2; font: inherit;"><option>1201 · ml-train-02 (stopped) · rina@arunika.id</option><option>1188 · ml-train-01 (running)</option></select></label>
+<label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: #C3CCDA;">GPU profile<select style="min-height: 44px; padding: 0 12px; border: 1px solid #2A3750; border-radius: 10px; background: #0C1322; color: #E6EBF2; font: inherit;"><option>RTX 4090 (24 GB) · 1 free</option><option>A16 vGPU 4 GB · 9 free</option></select></label>
+</div>
+<span style="font-size: 13px; color: #B8C2D1;">Writes <span style="font-family: 'JetBrains Mono', monospace;">hostpci0: mapping=rtx4090,pcie=1</span> (q35 guest). Counts 1 GPU against the pool "Arunika Group" (1 of 2 used).</span>
+<div style="display: flex; gap: 8px;"><button type="button" onClick="{{closeAttach}}" style="min-height: 40px; padding: 0 16px; border: 0; border-radius: 10px; background: #4C9AFF; color: #06101F; font: inherit; font-weight: 600;">Attach</button><button type="button" onClick="{{closeAttach}}" style="min-height: 40px; padding: 0 14px; border: 1px solid #2A3750; border-radius: 10px; background: transparent; color: #E6EBF2; font: inherit;">Cancel</button></div>
+</section>
+</sc-if>
+
+<div style="display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-start;">
+<!-- inventory -->
+<section aria-labelledby="inv-h" style="flex: 3 1 560px; min-width: 0; background: #101828; border: 1px solid #1F2A3F; border-radius: 14px; overflow: hidden;">
+<div style="padding: 14px 18px; border-bottom: 1px solid #1C2638;"><h2 id="inv-h" style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 18px; font-weight: 600;">Devices in resource mappings</h2></div>
+<div style="overflow-x: auto;"><div style="min-width: 680px;">
+<div style="display: grid; grid-template-columns: 1fr 1.1fr 1.7fr 0.7fr 1.4fr; gap: 10px; padding: 10px 18px; color: #8492A8; font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 0.04em;">
+<span>NODE</span><span>PCI ADDRESS</span><span>DEVICE</span><span>IOMMU</span><span>HELD BY</span>
+</div>
+<sc-for list="{{devices}}" as="d" hint-placeholder-count="6">
+<div style="display: grid; grid-template-columns: 1fr 1.1fr 1.7fr 0.7fr 1.4fr; gap: 10px; align-items: center; padding: 10px 18px; border-top: 1px solid #1C2638; font-size: 13px;">
+<span>{{d.node}}</span><span style="font-family: 'JetBrains Mono', monospace; font-size: 12px;">{{d.path}}</span><span style="display: flex; flex-direction: column;"><span>{{d.device}}</span><span style="font-family: 'JetBrains Mono', monospace; font-size: 11px; color: #7D8BA1;">{{d.mapping}}</span></span><span style="font-family: 'JetBrains Mono', monospace;">{{d.iommu}}</span><span style="color: {{d.color}};">{{d.held}}</span>
+</div>
+</sc-for>
+</div></div>
+</section>
+
+<!-- vGPU types -->
+<aside aria-labelledby="vg-h" style="flex: 2 1 320px; min-width: 0; padding: 16px 18px; background: #101828; border: 1px solid #1F2A3F; border-radius: 14px; display: flex; flex-direction: column; gap: 10px;">
+<h2 id="vg-h" style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 18px; font-weight: 600;">vGPU types · A16 (pve-jkt1-03)</h2>
+<sc-for list="{{mdev}}" as="m" hint-placeholder-count="4">
+<div style="display: flex; justify-content: space-between; gap: 10px; padding: 10px 12px; border-radius: 10px; background: #0C1322; font-size: 13px;">
+<span style="display: flex; flex-direction: column;"><span style="font-weight: 500;">{{m.name}}</span><span style="font-family: 'JetBrains Mono', monospace; font-size: 11px; color: #7D8BA1;">{{m.type}} · {{m.desc}}</span></span>
+<span style="font-family: 'JetBrains Mono', monospace; color: {{m.color}};">{{m.free}} free</span>
+</div>
+</sc-for>
+<span style="font-size: 12px; color: #93A0B4;">Proxmox reports free instances per type. Mixing types on one physical GPU depends on the NVIDIA vGPU mode.</span>
+</aside>
+</div>
+
+<section aria-labelledby="as-h" style="background: #101828; border: 1px solid #1F2A3F; border-radius: 14px; overflow: hidden;">
+<div style="padding: 14px 18px; border-bottom: 1px solid #1C2638;"><h2 id="as-h" style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 18px; font-weight: 600;">GPUs on servers</h2></div>
+<sc-for list="{{assignments}}" as="a" hint-placeholder-count="4">
+<div style="display: grid; grid-template-columns: 1.3fr 1.3fr 1.3fr 0.8fr 0.9fr 0.9fr; gap: 10px; align-items: center; padding: 10px 18px; border-top: 1px solid #1C2638; font-size: 13px;">
+<span style="display: flex; flex-direction: column;"><span style="font-weight: 500;">{{a.server}}</span><span style="font-family: 'JetBrains Mono', monospace; font-size: 11px; color: #7D8BA1;">VMID {{a.vmid}}</span></span>
+<span style="color: #C3CCDA;">{{a.owner}}</span><span>{{a.profile}}</span><span style="font-family: 'JetBrains Mono', monospace; font-size: 12px;">{{a.slot}}</span><span style="color: {{a.color}};">● {{a.status}}</span>
+<span style="text-align: right;"><button type="button" disabled="{{a.running}}" style="min-height: 32px; padding: 0 10px; border: 1px solid #2A3750; border-radius: 8px; background: transparent; color: #FF8A8A; font: inherit; font-size: 12px;">Detach</button></span>
+</div>
+</sc-for>
+</section>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1500}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { attach: true }; }
+  renderVals() {
+    const P = [
+      ['RTX 4090 (24 GB)', 'rtx4090', '', 'Passthrough', 3, 4, 'Whole GPU · pve-jkt1-03, pve-jkt1-04'],
+      ['A16 vGPU 4 GB', 'a16', ',mdev=nvidia-660', 'vGPU', 7, 16, 'nvidia-660 (A16-4Q) · 4 GPUs on one card'],
+      ['A16 vGPU 8 GB', 'a16', ',mdev=nvidia-661', 'vGPU', 2, 8, 'nvidia-661 (A16-8Q) · shares the same A16'],
+      ['L40S (48 GB)', 'l40s', '', 'Passthrough', 2, 2, 'Fully used · add a node to the mapping']
+    ];
+    const profiles = P.map((p) => {
+      const pct = Math.round(p[4] / p[5] * 100);
+      return { name: p[0], mapping: p[1], mdev: p[2], mode: p[3], used: p[4], total: p[5], pct: pct + '%', color: pct >= 100 ? '#F5B94C' : '#4C9AFF', note: p[6],
+        modeBg: p[3] === 'vGPU' ? '#262046' : '#12213D', modeFg: p[3] === 'vGPU' ? '#C7B8FF' : '#9CC8FF' };
+    });
+    const D = [
+      ['pve-jkt1-03', '0000:01:00.0', 'AD102 [GeForce RTX 4090]', 'rtx4090', 14, 'ml-train-01 (1188)'],
+      ['pve-jkt1-03', '0000:02:00.0', 'AD102 [GeForce RTX 4090]', 'rtx4090', 15, 'render-01 (1190)'],
+      ['pve-jkt1-04', '0000:01:00.0', 'AD102 [GeForce RTX 4090]', 'rtx4090', 12, 'Free'],
+      ['pve-jkt1-04', '0000:02:00.0', 'AD102 [GeForce RTX 4090]', 'rtx4090', 13, 'cv-api (1194)'],
+      ['pve-jkt1-03', '0000:41:00.0', 'GA107GL [A16] · vGPU host', 'a16 (mdev)', 30, '9 vGPU slices in use'],
+      ['pve-jkt2-01', '0000:81:00.0', 'AD102GL [L40S]', 'l40s', 42, 'llm-serve (2210)']
+    ];
+    const devices = D.map((d) => ({ node: d[0], path: d[1], device: d[2], mapping: `mapping ${d[3]}`, iommu: d[4], held: d[5], color: d[5] === 'Free' ? '#3DD68C' : '#E6EBF2' }));
+    return {
+      profiles, devices,
+      attachOpen: this.state.attach,
+      openAttach: () => this.setState({ attach: true }), closeAttach: () => this.setState({ attach: false }),
+      mdev: [
+        { name: 'NVIDIA A16-2Q', type: 'nvidia-659', desc: '2 GB framebuffer', free: 0, color: '#FF8A8A' },
+        { name: 'NVIDIA A16-4Q', type: 'nvidia-660', desc: '4 GB framebuffer', free: 9, color: '#3DD68C' },
+        { name: 'NVIDIA A16-8Q', type: 'nvidia-661', desc: '8 GB framebuffer', free: 6, color: '#3DD68C' },
+        { name: 'NVIDIA A16-16Q', type: 'nvidia-662', desc: '16 GB framebuffer', free: 0, color: '#FF8A8A' }
+      ],
+      assignments: [
+        { server: 'ml-train-01', vmid: 1188, owner: 'rina@arunika.id', profile: 'RTX 4090 (24 GB)', slot: 'hostpci0', status: 'Running', color: '#3DD68C', running: true },
+        { server: 'lab-k8s-03', vmid: 3002, owner: 'lab01@bina.ac.id', profile: 'A16 vGPU 4 GB', slot: 'hostpci0', status: 'Running', color: '#3DD68C', running: true },
+        { server: 'ml-train-02', vmid: 1201, owner: 'rina@arunika.id', profile: 'RTX 4090 (24 GB)', slot: 'reserved', status: 'Creating', color: '#F5B94C', running: true },
+        { server: 'cv-api', vmid: 1194, owner: 'devops@arunika.id', profile: 'RTX 4090 (24 GB)', slot: 'hostpci0', status: 'Stopped', color: '#93A0B4', running: false }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

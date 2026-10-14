@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>OS templates</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500&amp;family=Space+Grotesk:wght@500;600;700&amp;display=swap">
+<style>
+body{margin:0;background:#0A101C;}
+a{color:#8EC2FF;}a:hover{color:#C5E0FF;}
+</style>
+</helmet>
+<div style="min-height: 100vh; background: #0A101C; color: #E6EBF2; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 14px; line-height: 1.5; display: flex; flex-wrap: wrap; align-items: stretch;">
+
+<div style="flex: 1 1 240px; background: #0D1424; border-right: 1px solid #1C2638;">
+<dc-import name="Sidebar" portal="admin" active="templates" hint-size="100%,1240px"></dc-import>
+</div>
+
+<main style="flex: 999 1 560px; min-width: 0; box-sizing: border-box; padding: 28px 32px 48px; display: flex; flex-direction: column; gap: 20px;">
+
+<div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px;">
+<div style="display: flex; flex-direction: column; gap: 2px;">
+<h1 style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 28px; font-weight: 600; display: flex; align-items: center; gap: 10px;">OS templates <span style="padding: 3px 10px; border-radius: 999px; border: 1px solid #5A4618; background: #221B0C; color: #F5C46B; font-family: 'IBM Plex Sans', sans-serif; font-size: 12px; font-weight: 500;">Owner only</span></h1>
+<span style="color: #93A0B4;">Import images, prepare cloud-init and the guest agent, collect telemetry, and offer them to customers</span>
+</div>
+<button type="button" onClick="{{openImport}}" style="min-height: 44px; padding: 0 16px; border: 0; border-radius: 10px; background: #4C9AFF; color: #06101F; font: inherit; font-weight: 600;">+ Import image</button>
+</div>
+
+<!-- import wizard -->
+<sc-if value="{{importOpen}}" hint-placeholder-val="{{true}}">
+<section aria-labelledby="im-h" style="background: #101828; border: 1px solid #2B4A80; border-radius: 16px; overflow: hidden;">
+<div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px; padding: 16px 20px; border-bottom: 1px solid #1C2638;">
+<h2 id="im-h" style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 18px; font-weight: 600;">Import an image</h2>
+<button type="button" onClick="{{closeImport}}" style="min-height: 36px; padding: 0 12px; border: 1px solid #2A3750; border-radius: 8px; background: transparent; color: #B8C2D1; font: inherit; font-size: 13px;">Close</button>
+</div>
+<div style="padding: 20px; display: flex; flex-direction: column; gap: 16px;">
+<div role="radiogroup" aria-label="Image format" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px;">
+<sc-for list="{{formats}}" as="f" hint-placeholder-count="4">
+<button type="button" role="radio" aria-checked="{{f.on}}" onClick="{{f.pick}}" style="display: flex; flex-direction: column; align-items: flex-start; gap: 4px; padding: 12px 14px; border-radius: 12px; border: 1px solid {{f.border}}; background: {{f.bg}}; color: #E6EBF2; font: inherit; text-align: left; cursor: pointer;"><span style="font-family: 'JetBrains Mono', monospace; font-weight: 600;">{{f.ext}}</span><span style="font-size: 12px; color: #93A0B4;">{{f.desc}}</span></button>
+</sc-for>
+</div>
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px;">
+<label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: #C3CCDA;">Source<input type="text" value="{{fmt.source}}" onChange="{{noop}}" style="min-height: 44px; padding: 0 12px; border: 1px solid #2A3750; border-radius: 10px; background: #0C1322; color: #E6EBF2; font-family: 'JetBrains Mono', monospace; font-size: 13px;"></label>
+<label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: #C3CCDA;">Checksum (SHA-256)<input type="text" value="verify automatically from SHA256SUMS" onChange="{{noop}}" style="min-height: 44px; padding: 0 12px; border: 1px solid #2A3750; border-radius: 10px; background: #0C1322; color: #E6EBF2; font-family: 'JetBrains Mono', monospace; font-size: 13px;"></label>
+<label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: #C3CCDA;">Target<select style="min-height: 44px; padding: 0 12px; border: 1px solid #2A3750; border-radius: 10px; background: #0C1322; color: #E6EBF2; font: inherit;"><option>ceph-nvme · all datacenters</option><option>local-zfs · pve-jkt1-03</option></select></label>
+</div>
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px;">
+<sc-for list="{{fmt.steps}}" as="s" hint-placeholder-count="4">
+<div style="display: flex; gap: 10px; padding: 10px 12px; border-radius: 10px; background: #0C1322; border: 1px solid #1C2638; font-size: 13px;"><span style="font-family: 'JetBrains Mono', monospace; color: #8EC2FF;">{{s.n}}</span><span style="display: flex; flex-direction: column;"><span style="font-weight: 500;">{{s.t}}</span><span style="font-family: 'JetBrains Mono', monospace; font-size: 11px; color: #7D8BA1;">{{s.cmd}}</span></span></div>
+</sc-for>
+</div>
+<fieldset style="margin: 0; padding: 14px 16px; border: 1px solid #1F2A3F; border-radius: 12px; display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px;">
+<legend style="padding: 0 6px; font-weight: 600;">Prepare the template</legend>
+<sc-for list="{{prep}}" as="p" hint-placeholder-count="5">
+<label style="display: flex; gap: 10px; align-items: flex-start; font-size: 13px;"><input type="checkbox" checked="{{p.on}}" onChange="{{p.toggle}}" style="width: 18px; height: 18px; margin-top: 2px; accent-color: #4C9AFF;"><span style="display: flex; flex-direction: column;"><span style="font-weight: 500;">{{p.label}}</span><span style="font-size: 12px; color: #93A0B4;">{{p.desc}}</span></span></label>
+</sc-for>
+</fieldset>
+<div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;"><button type="button" style="min-height: 44px; padding: 0 16px; border: 0; border-radius: 10px; background: #4C9AFF; color: #06101F; font: inherit; font-weight: 600;">Import and build template</button><span style="font-size: 12px; color: #93A0B4;">Runs as a provisioning job; a test VM boots once to check cloud-init and the guest agent, then becomes the template.</span></div>
+</div>
+</section>
+</sc-if>
+
+<!-- templates table -->
+<section aria-labelledby="tl-h" style="background: #101828; border: 1px solid #1F2A3F; border-radius: 14px; overflow: hidden;">
+<div style="padding: 14px 18px; border-bottom: 1px solid #1C2638;"><h2 id="tl-h" style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 18px; font-weight: 600;">Templates</h2></div>
+<div style="overflow-x: auto;"><div style="min-width: 900px;">
+<div style="display: grid; grid-template-columns: 1.8fr 0.9fr 1fr 1fr 1fr 1.2fr 0.8fr; gap: 10px; padding: 10px 18px; color: #8492A8; font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 0.04em;">
+<span>TEMPLATE</span><span>SOURCE</span><span>CLOUD-INIT</span><span>GUEST AGENT</span><span>TELEMETRY</span><span>USED BY</span><span>STATE</span>
+</div>
+<sc-for list="{{templates}}" as="t" hint-placeholder-count="6">
+<div style="display: grid; grid-template-columns: 1.8fr 0.9fr 1fr 1fr 1fr 1.2fr 0.8fr; gap: 10px; align-items: center; padding: 11px 18px; border-top: 1px solid #1C2638; font-size: 13px;">
+<span style="display: flex; flex-direction: column;"><span style="font-weight: 600;">{{t.name}}</span><span style="font-family: 'JetBrains Mono', monospace; font-size: 11px; color: #7D8BA1;">VMID {{t.vmid}} · {{t.group}}</span></span>
+<span style="font-family: 'JetBrains Mono', monospace; font-size: 12px;">{{t.src}}</span>
+<span style="color: {{t.ciColor}};">{{t.ci}}</span><span style="color: {{t.qgaColor}};">{{t.qga}}</span><span style="color: {{t.telColor}};">{{t.tel}}</span>
+<span style="color: #B8C2D1;">{{t.used}}</span><span style="color: {{t.stColor}};">{{t.state}}</span>
+</div>
+</sc-for>
+</div></div>
+</section>
+
+<section aria-labelledby="te-h" style="display: flex; flex-wrap: wrap; gap: 16px;">
+<div style="flex: 1 1 360px; padding: 16px 18px; background: #101828; border: 1px solid #1F2A3F; border-radius: 14px; display: flex; flex-direction: column; gap: 8px;">
+<h2 id="te-h" style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 16px; font-weight: 600;">Guest telemetry (via QEMU guest agent)</h2>
+<span style="font-size: 13px; color: #B8C2D1;">Read-only, per guest: OS version, IPs, filesystem usage, logged-in users count, last boot, pending updates. Customers can turn it off per server; nothing leaves the panel.</span>
+<span style="font-size: 13px; color: #93A0B4;">131 guests report · 9 guests without agent · 3 agents outdated</span>
+</div>
+<div style="flex: 1 1 360px; padding: 16px 18px; background: #101828; border: 1px solid #1F2A3F; border-radius: 14px; display: flex; flex-direction: column; gap: 8px;">
+<span style="font-family: 'Space Grotesk', sans-serif; font-size: 16px; font-weight: 600;">Cloud-init vendor data</span>
+<pre style="margin: 0; padding: 12px; border-radius: 10px; background: #070C16; font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #C3CCDA; white-space: pre-wrap;">#cloud-config
+packages: [qemu-guest-agent]
+runcmd:
+  - systemctl enable --now qemu-guest-agent
+  - timedatectl set-timezone Asia/Jakarta</pre>
+</div>
+</section>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1500}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { open: true, fmt: 'qcow2', prep: { ci: true, qga: true, tel: true, sysprep: false, virtio: false } }; }
+  renderVals() {
+    const F = {
+      qcow2: { ext: '.qcow2 / .img', desc: 'Cloud images (Ubuntu, Debian, Rocky)', source: 'https://cloud-images.ubuntu.com/noble/current/noble-server-cloudimg-amd64.img',
+        steps: [['Download & verify', 'download-url + sha256'], ['Create VM', 'qm create 9301 --scsihw virtio-scsi-pci'], ['Import disk', 'qm disk import 9301 noble.img ceph-nvme'], ['Add cloud-init drive', 'qm set 9301 --ide2 ceph-nvme:cloudinit']] },
+      vmdk: { ext: '.vmdk', desc: 'Disks from VMware ESXi / Workstation', source: 'upload: erp-appliance-disk1.vmdk',
+        steps: [['Upload to import storage', 'storage content: import'], ['Create VM', 'qm create 9302 --ostype l26'], ['Convert & import disk', 'qm disk import 9302 disk1.vmdk ceph-nvme --format raw'], ['Swap to VirtIO drivers', 'scsihw + net model']] },
+      ova: { ext: '.ova / .ovf', desc: 'Appliances with VM settings', source: 'https://vendor.example.com/appliance-2.4.ova',
+        steps: [['Upload OVA to import storage', 'Proxmox VE 8.2+ import'], ['Read OVF settings', 'CPU, memory, disks, NICs'], ['Create VM from OVF', 'qm importovf 9303 appliance.ovf ceph-nvme'], ['Review NIC and disk bus', 'virtio recommended']] },
+      iso: { ext: '.iso', desc: 'Installer media (Windows, BSD)', source: 'upload: SERVER_EVAL_x64FRE_en-us.iso',
+        steps: [['Upload ISO', 'storage content: iso'], ['Attach VirtIO drivers ISO', 'virtio-win.iso'], ['Install & Sysprep in console', 'unattend.xml provided'], ['Convert to template', 'qm template 9304']] }
+    };
+    const formats = Object.entries(F).map(([id, f]) => ({ ext: f.ext, desc: f.desc, on: id === this.state.fmt, border: id === this.state.fmt ? '#4C9AFF' : '#2A3750', bg: id === this.state.fmt ? '#101C33' : 'transparent', pick: () => this.setState({ fmt: id }) }));
+    const f = F[this.state.fmt];
+    const P = [
+      ['ci', 'Cloud-init drive and vendor data', 'Hostname, user, SSH keys, network at first boot'],
+      ['qga', 'Install QEMU guest agent', 'Needed for IPs, passwords, shutdown, Windows setup'],
+      ['tel', 'Guest telemetry', 'OS version, filesystem usage, pending updates (read-only)'],
+      ['sysprep', 'Windows: Sysprep with unattend.xml', 'Only for ISO / Windows images'],
+      ['virtio', 'Windows: inject VirtIO drivers', 'Storage and network drivers for KVM']
+    ];
+    const ok = '#7EE6B0', warn = '#F5C46B', mute = '#93A0B4';
+    const T = [
+      ['Ubuntu 24.04 LTS', 9001, 'Linux', 'qcow2', 'Yes', 'Yes', 'On', '61 servers', 'Offered'],
+      ['Debian 12', 9000, 'Linux', 'qcow2', 'Yes', 'Yes', 'On', '38 servers', 'Offered'],
+      ['Windows Server 2022', 9100, 'Windows', 'iso', 'Sysprep', 'Yes', 'On', '17 servers', 'Offered'],
+      ['Ubuntu 24.04 + CUDA 12', 9200, 'GPU / AI', 'qcow2', 'Yes', 'Yes', 'On', '6 servers', 'Offered'],
+      ['ERP appliance 2.4', 9302, 'Apps', 'vmdk', 'No', 'Missing', 'Off', '—', 'Needs agent'],
+      ['Docker host (Debian 12)', 9300, 'Apps', 'qcow2', 'Yes', 'Yes', 'On', '—', 'Draft']
+    ];
+    const templates = T.map((t) => ({ name: t[0], vmid: t[1], group: t[2], src: t[3], ci: t[4], ciColor: t[4] === 'No' ? warn : ok, qga: t[5], qgaColor: t[5] === 'Missing' ? warn : ok, tel: t[6], telColor: t[6] === 'On' ? ok : mute, used: t[7], state: t[8], stColor: t[8] === 'Offered' ? ok : warn }));
+    return {
+      formats, templates, noop: () => {},
+      importOpen: this.state.open, openImport: () => this.setState({ open: true }), closeImport: () => this.setState({ open: false }),
+      fmt: { source: f.source, steps: f.steps.map(([t, cmd], i) => ({ n: i + 1, t, cmd })) },
+      prep: P.map(([id, label, desc]) => ({ label, desc, on: !!this.state.prep[id], toggle: () => this.setState({ prep: { ...this.state.prep, [id]: !this.state.prep[id] } }) }))
+    };
+  }
+}
+</script>
+</body>
+</html>

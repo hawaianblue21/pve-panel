@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Billing and wallet</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500&amp;family=Space+Grotesk:wght@500;600;700&amp;display=swap">
+<style>
+body{margin:0;background:#0A101C;}
+a{color:#8EC2FF;}a:hover{color:#C5E0FF;}
+</style>
+</helmet>
+<div style="min-height: 100vh; background: #0A101C; color: #E6EBF2; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 14px; line-height: 1.5; display: flex; flex-wrap: wrap; align-items: stretch;">
+
+<div style="flex: 1 1 240px; background: #0D1424; border-right: 1px solid #1C2638;">
+<dc-import name="Sidebar" portal="customer" active="billing" hint-size="100%,960px"></dc-import>
+</div>
+
+<main style="flex: 999 1 560px; min-width: 0; box-sizing: border-box; padding: 28px 32px 48px; display: flex; flex-direction: column; gap: 20px;">
+
+<div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px;">
+<div style="display: flex; flex-direction: column; gap: 2px;">
+<h1 style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 28px; font-weight: 600;">Billing &amp; wallet</h1>
+<span style="color: #93A0B4;">PT Arunika Digital · billing date the 5th of each month</span>
+</div>
+<button type="button" style="min-height: 44px; padding: 0 14px; border: 1px solid #2A3750; border-radius: 10px; background: #101828; color: #E6EBF2; font: inherit;">Billing details &amp; NPWP</button>
+</div>
+
+<div style="display: flex; flex-wrap: wrap; gap: 16px; align-items: stretch;">
+
+<!-- wallet + top up -->
+<section aria-labelledby="w-h" style="flex: 2 1 460px; min-width: 0; padding: 18px; background: #101828; border: 1px solid #22314C; border-radius: 14px; display: flex; flex-direction: column; gap: 14px;">
+<div style="display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px;">
+<span style="display: flex; flex-direction: column;"><h2 id="w-h" style="margin: 0; font-size: 13px; font-weight: 500; color: #93A0B4;">Wallet balance</h2><span style="font-family: 'Space Grotesk', sans-serif; font-size: 32px; font-weight: 700;">Rp 250.000</span></span>
+<span style="display: flex; flex-direction: column; text-align: right;"><span style="font-size: 13px; color: #93A0B4;">Amount due now</span><span style="font-family: 'Space Grotesk', sans-serif; font-size: 22px; font-weight: 600; color: #F5C46B;">Rp 1.075.120</span><a href="Customer-Invoice.dc.html" style="font-size: 13px;">Pay INV-2026-10-0142</a></span>
+</div>
+<div style="display: flex; flex-direction: column; gap: 8px;">
+<span style="font-size: 13px; color: #C3CCDA;">Top up</span>
+<div role="radiogroup" aria-label="Top-up amount" style="display: flex; flex-wrap: wrap; gap: 8px;">
+<sc-for list="{{amounts}}" as="a" hint-placeholder-count="5">
+<button type="button" role="radio" aria-checked="{{a.on}}" onClick="{{a.pick}}" style="min-height: 44px; padding: 0 14px; border-radius: 10px; border: 1px solid {{a.border}}; background: {{a.bg}}; color: #E6EBF2; font-family: 'JetBrains Mono', monospace; font-size: 13px; cursor: pointer;">{{a.label}}</button>
+</sc-for>
+</div>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center;">
+<button type="button" style="min-height: 44px; padding: 0 16px; border: 0; border-radius: 10px; background: #4C9AFF; color: #06101F; font: inherit; font-weight: 600;">Top up {{topLabel}}</button>
+<span style="font-size: 12px; color: #93A0B4;">{{topNote}}</span>
+</div>
+</div>
+</section>
+
+<!-- auto pay + methods -->
+<section aria-labelledby="ap-h" style="flex: 1 1 320px; min-width: 0; padding: 18px; background: #101828; border: 1px solid #1F2A3F; border-radius: 14px; display: flex; flex-direction: column; gap: 12px;">
+<h2 id="ap-h" style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 16px; font-weight: 600;">Payment settings</h2>
+<label style="display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; cursor: pointer;">
+<span style="display: flex; flex-direction: column;"><span style="font-weight: 500;">Pay invoices from wallet</span><span style="font-size: 12px; color: #93A0B4;">Charged on the due date when the balance covers the invoice</span></span>
+<input type="checkbox" checked="{{autopay}}" onChange="{{toggleAuto}}" style="width: 20px; height: 20px; margin-top: 2px; accent-color: #4C9AFF;">
+</label>
+<label style="display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; cursor: pointer;">
+<span style="display: flex; flex-direction: column;"><span style="font-weight: 500;">Low balance alert</span><span style="font-size: 12px; color: #93A0B4;">Email me below Rp 200.000</span></span>
+<input type="checkbox" checked="{{yes}}" onChange="{{noop}}" style="width: 20px; height: 20px; margin-top: 2px; accent-color: #4C9AFF;">
+</label>
+<div style="display: flex; flex-direction: column; gap: 6px; padding-top: 10px; border-top: 1px solid #1C2638; font-size: 13px;">
+<span style="color: #93A0B4;">Ways to pay</span>
+<span>Virtual account (bank transfer)</span>
+<span>QRIS and e-wallets</span>
+<span style="color: #7D8BA1;">Card · coming soon</span>
+</div>
+</section>
+</div>
+
+<div style="display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-start;">
+
+<!-- invoices -->
+<section aria-labelledby="ci-h" style="flex: 3 1 560px; min-width: 0; background: #101828; border: 1px solid #1F2A3F; border-radius: 14px; overflow: hidden;">
+<div style="padding: 14px 18px; border-bottom: 1px solid #1C2638;"><h2 id="ci-h" style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 18px; font-weight: 600;">Invoices</h2></div>
+<div style="overflow-x: auto;">
+<div style="min-width: 600px;">
+<div style="display: grid; grid-template-columns: 1.5fr 1fr 1fr 1.1fr 0.9fr 0.9fr; gap: 10px; padding: 10px 18px; color: #8492A8; font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 0.04em;">
+<span>INVOICE</span><span>PERIOD</span><span>DUE</span><span style="text-align: right;">AMOUNT</span><span>STATUS</span><span style="text-align: right;">PDF</span>
+</div>
+<sc-for list="{{invoices}}" as="v" hint-placeholder-count="4">
+<div style="display: grid; grid-template-columns: 1.5fr 1fr 1fr 1.1fr 0.9fr 0.9fr; gap: 10px; align-items: center; padding: 12px 18px; border-top: 1px solid #1C2638; font-size: 13px;">
+<a href="{{v.href}}" style="font-family: 'JetBrains Mono', monospace; text-decoration: none;">{{v.no}}</a>
+<span style="color: #B8C2D1;">{{v.period}}</span>
+<span style="color: {{v.dueColor}};">{{v.due}}</span>
+<span style="text-align: right; font-family: 'JetBrains Mono', monospace;">{{v.amount}}</span>
+<span style="justify-self: start; padding: 2px 8px; border-radius: 6px; font-size: 12px; background: {{v.bg}}; color: {{v.fg}};">{{v.status}}</span>
+<span style="text-align: right;"><button type="button" aria-label="Download {{v.no}}" style="min-height: 32px; padding: 0 10px; border: 1px solid #2A3750; border-radius: 8px; background: transparent; color: #8EC2FF; font: inherit; font-size: 12px;">Download</button></span>
+</div>
+</sc-for>
+</div>
+</div>
+</section>
+
+<!-- costs by server -->
+<section aria-labelledby="cs-h" style="flex: 2 1 340px; min-width: 0; background: #101828; border: 1px solid #1F2A3F; border-radius: 14px; padding: 14px 18px; display: flex; flex-direction: column; gap: 10px;">
+<h2 id="cs-h" style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 18px; font-weight: 600;">Next invoice estimate · 05 Nov</h2>
+<sc-for list="{{costs}}" as="c" hint-placeholder-count="4">
+<div style="display: flex; flex-direction: column; gap: 4px; padding-top: 10px; border-top: 1px solid #1C2638;">
+<span style="display: flex; justify-content: space-between; gap: 10px;"><span style="font-weight: 500;">{{c.name}}</span><span style="font-family: 'JetBrains Mono', monospace;">{{c.amount}}</span></span>
+<span style="font-size: 12px; color: #93A0B4;">{{c.sub}}</span>
+</div>
+</sc-for>
+<span style="display: flex; justify-content: space-between; padding-top: 10px; border-top: 1px solid #2A3750; font-size: 13px;"><span style="color: #B8C2D1;">Subtotal · PPN 11%</span><span style="font-family: 'JetBrains Mono', monospace;">Rp 1.250.000 · Rp 137.500</span></span>
+<span style="display: flex; justify-content: space-between; font-weight: 600;"><span>Estimated total</span><span style="font-family: 'JetBrains Mono', monospace;">Rp 1.387.500</span></span>
+<span style="font-size: 12px; color: #93A0B4;">Traffic overage, resizes and new servers will be added when they happen.</span>
+</section>
+</div>
+
+<!-- ledger -->
+<section aria-labelledby="lg-h" style="background: #101828; border: 1px solid #1F2A3F; border-radius: 14px; overflow: hidden;">
+<div style="padding: 14px 18px; border-bottom: 1px solid #1C2638;"><h2 id="lg-h" style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 18px; font-weight: 600;">Wallet transactions</h2></div>
+<sc-for list="{{ledger}}" as="t" hint-placeholder-count="4">
+<div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px; padding: 12px 18px; border-top: 1px solid #1C2638; font-size: 13px;">
+<span style="display: flex; flex-direction: column;"><span style="font-weight: 500;">{{t.title}}</span><span style="font-size: 12px; color: #93A0B4;">{{t.when}}</span></span>
+<span style="display: flex; gap: 24px; font-family: 'JetBrains Mono', monospace;"><span style="color: {{t.color}};">{{t.amount}}</span><span style="color: #93A0B4; min-width: 110px; text-align: right;">{{t.bal}}</span></span>
+</div>
+</sc-for>
+</section>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1500}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { amt: 1000000, auto: true }; }
+  renderVals() {
+    const rp = (n) => 'Rp ' + n.toLocaleString('id-ID');
+    const vals = [100000, 250000, 500000, 1000000, 2000000];
+    const amounts = vals.map((v) => ({ label: rp(v), on: v === this.state.amt, border: v === this.state.amt ? '#4C9AFF' : '#2A3750', bg: v === this.state.amt ? '#17284A' : 'transparent', pick: () => this.setState({ amt: v }) }));
+    const after = 250000 + this.state.amt;
+    const covers = after >= 1075120;
+    const st = { Paid: ['#123326', '#7EE6B0'], Overdue: ['#3A2E10', '#F5C46B'] };
+    const inv = [
+      ['INV-2026-10-0142', 'Oct 2026', '12 Oct', 'Rp 1.075.120', 'Overdue', 'Customer-Invoice.dc.html'],
+      ['INV-2026-09-0101', '26–30 Sep', '03 Oct', 'Rp 412.500', 'Paid', '#'],
+      ['INV-2026-09-0064', '15–30 Sep', '22 Sep', 'Rp 321.900', 'Paid', '#']
+    ];
+    return {
+      amounts, yes: true, noop: () => {},
+      topLabel: rp(this.state.amt),
+      topNote: covers ? 'Balance after: ' + rp(after) + ' · enough to pay the overdue invoice' : 'Balance after: ' + rp(after) + ' · not yet enough for the overdue invoice',
+      autopay: this.state.auto, toggleAuto: () => this.setState({ auto: !this.state.auto }),
+      invoices: inv.map((v) => ({ no: v[0], period: v[1], due: v[2], amount: v[3], status: v[4], href: v[5], bg: st[v[4]][0], fg: st[v[4]][1], dueColor: v[4] === 'Overdue' ? '#F5C46B' : '#B8C2D1' })),
+      costs: [
+        { name: 'web-prod-01', amount: 'Rp 650.000', sub: 'Business Rp 550.000 + 2 × IPv4 Rp 100.000' },
+        { name: 'ad-dc-01', amount: 'Rp 450.000', sub: 'Standard Rp 290.000 + 4 GB memory Rp 160.000' },
+        { name: 'redis-cache', amount: 'Rp 150.000', sub: 'Starter, first full month' }
+      ],
+      ledger: [
+        { title: 'Coupon WELCOME100 applied to INV-2026-10-0142', when: '05 Oct 2026, 00:00', amount: '−Rp 100.000', bal: 'Rp 250.000', color: '#E6EBF2' },
+        { title: 'Coupon WELCOME100 credited', when: '05 Oct 2026, 00:00', amount: '+Rp 100.000', bal: 'Rp 350.000', color: '#7EE6B0' },
+        { title: 'Top-up via QRIS', when: '28 Sep 2026, 16:22', amount: '+Rp 250.000', bal: 'Rp 250.000', color: '#7EE6B0' }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

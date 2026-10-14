@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Object storage SeaweedFS</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500&amp;family=Space+Grotesk:wght@500;600;700&amp;display=swap">
+<style>
+body{margin:0;background:#0A101C;}
+a{color:#8EC2FF;}a:hover{color:#C5E0FF;}
+</style>
+</helmet>
+<div style="min-height: 100vh; background: #0A101C; color: #E6EBF2; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 14px; line-height: 1.5; display: flex; flex-wrap: wrap; align-items: stretch;">
+
+<div style="flex: 1 1 240px; background: #0D1424; border-right: 1px solid #1C2638;">
+<dc-import name="Sidebar" portal="admin" active="storage" hint-size="100%,1100px"></dc-import>
+</div>
+
+<main style="flex: 999 1 560px; min-width: 0; box-sizing: border-box; padding: 28px 32px 48px; display: flex; flex-direction: column; gap: 20px;">
+
+<div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px;">
+<div style="display: flex; flex-direction: column; gap: 2px;">
+<h1 style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 28px; font-weight: 600;">Object storage · SeaweedFS</h1>
+<span style="color: #93A0B4;">S3-compatible buckets for customers, scoped by IAM policy and capped by their resource pool</span>
+</div>
+<div style="display: flex; flex-wrap: wrap; gap: 10px;">
+<button type="button" style="min-height: 44px; padding: 0 14px; border: 1px solid #2A3750; border-radius: 10px; background: #101828; color: #E6EBF2; font: inherit;">Test connection</button>
+<button type="button" style="min-height: 44px; padding: 0 16px; border: 0; border-radius: 10px; background: #4C9AFF; color: #06101F; font: inherit; font-weight: 600;">+ Create bucket</button>
+</div>
+</div>
+
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px;">
+<sc-for list="{{kpis}}" as="k" hint-placeholder-count="5">
+<div style="display: flex; flex-direction: column; gap: 4px; padding: 14px 16px; background: #101828; border: 1px solid #1F2A3F; border-radius: 12px;">
+<span style="font-size: 13px; color: #93A0B4;">{{k.label}}</span><span style="font-family: 'Space Grotesk', sans-serif; font-size: 24px; font-weight: 600;">{{k.value}}</span><span style="font-size: 12px; color: {{k.color}};">{{k.sub}}</span>
+</div>
+</sc-for>
+</div>
+
+<div style="display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-start;">
+
+<section aria-labelledby="cn-h" style="flex: 1 1 360px; min-width: 0; padding: 18px; background: #101828; border: 1px solid #1F2A3F; border-radius: 14px; display: flex; flex-direction: column; gap: 12px;">
+<h2 id="cn-h" style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 18px; font-weight: 600;">Connection</h2>
+<sc-for list="{{endpoints}}" as="e" hint-placeholder-count="4">
+<div style="display: flex; justify-content: space-between; gap: 10px; align-items: center; padding: 10px 12px; border-radius: 10px; background: #0C1322; font-size: 13px;">
+<span style="display: flex; flex-direction: column;"><span style="font-weight: 500;">{{e.name}}</span><span style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #93A0B4;">{{e.url}}</span></span>
+<span style="color: {{e.color}}; flex: none;">● {{e.state}}</span>
+</div>
+</sc-for>
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px;">
+<label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: #C3CCDA;">Admin access key<input type="text" value="panel-admin" onChange="{{noop}}" style="min-height: 40px; padding: 0 10px; border: 1px solid #2A3750; border-radius: 8px; background: #0C1322; color: #E6EBF2; font-family: 'JetBrains Mono', monospace;"></label>
+<label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: #C3CCDA;">Admin secret key<input type="password" placeholder="Stored (leave empty to keep)" onChange="{{noop}}" style="min-height: 40px; padding: 0 10px; border: 1px solid #2A3750; border-radius: 8px; background: #0C1322; color: #E6EBF2;"></label>
+<label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: #C3CCDA;">Region<input type="text" value="us-east-1" onChange="{{noop}}" style="min-height: 40px; padding: 0 10px; border: 1px solid #2A3750; border-radius: 8px; background: #0C1322; color: #E6EBF2; font-family: 'JetBrains Mono', monospace;"></label>
+<label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: #C3CCDA;">Bucket prefix<input type="text" value="pp" onChange="{{noop}}" style="min-height: 40px; padding: 0 10px; border: 1px solid #2A3750; border-radius: 8px; background: #0C1322; color: #E6EBF2; font-family: 'JetBrains Mono', monospace;"></label>
+</div>
+<span style="font-size: 12px; color: #93A0B4;">Requests are signed with AWS Signature V4. The secret key is encrypted at rest and never shown again.</span>
+</section>
+
+<section aria-labelledby="qt-h" style="flex: 1 1 360px; min-width: 0; padding: 18px; background: #101828; border: 1px solid #1F2A3F; border-radius: 14px; display: flex; flex-direction: column; gap: 10px;">
+<h2 id="qt-h" style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 18px; font-weight: 600;">Quota enforcement</h2>
+<span style="font-size: 13px; color: #B8C2D1;">Quotas are counted against pools in the panel and enforced by SeaweedFS. Buckets over quota become read-only.</span>
+<pre style="margin: 0; padding: 12px; border-radius: 10px; background: #070C16; font-family: 'JetBrains Mono', monospace; font-size: 12.5px; color: #C3CCDA; white-space: pre-wrap;">$ weed shell
+&gt; s3.bucket.quota -name pp12-backups -sizeMB 102400
+&gt; s3.bucket.quota.enforce -apply      # schedule every 10 min</pre>
+<span style="display: flex; justify-content: space-between; font-size: 13px;"><span style="color: #93A0B4;">Last enforce run</span><span style="font-family: 'JetBrains Mono', monospace;">00:50 · 1 bucket read-only</span></span>
+</section>
+</div>
+
+<section aria-labelledby="bk-h" style="background: #101828; border: 1px solid #1F2A3F; border-radius: 14px; overflow: hidden;">
+<div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px; padding: 14px 18px; border-bottom: 1px solid #1C2638;">
+<h2 id="bk-h" style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 18px; font-weight: 600;">Buckets</h2>
+<div role="tablist" aria-label="Bucket filter" style="display: flex; gap: 6px;">
+<sc-for list="{{tabs}}" as="t" hint-placeholder-count="3"><button type="button" role="tab" aria-selected="{{t.on}}" onClick="{{t.pick}}" style="min-height: 34px; padding: 0 12px; border-radius: 999px; border: 1px solid {{t.border}}; background: {{t.bg}}; color: #E6EBF2; font: inherit; font-size: 13px; cursor: pointer;">{{t.label}}</button></sc-for>
+</div>
+</div>
+<div style="overflow-x: auto;"><div style="min-width: 820px;">
+<div style="display: grid; grid-template-columns: 1.6fr 1.4fr 1.1fr 1.6fr 1fr 0.9fr; gap: 10px; padding: 10px 18px; color: #8492A8; font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 0.04em;">
+<span>BUCKET</span><span>CUSTOMER / POOL</span><span>QUOTA</span><span>USED</span><span>STATE</span><span style="text-align: right;">ACTIONS</span>
+</div>
+<sc-for list="{{buckets}}" as="b" hint-placeholder-count="6">
+<div style="display: grid; grid-template-columns: 1.6fr 1.4fr 1.1fr 1.6fr 1fr 0.9fr; gap: 10px; align-items: center; padding: 11px 18px; border-top: 1px solid #1C2638; font-size: 13px;">
+<span style="font-family: 'JetBrains Mono', monospace;">{{b.name}}</span>
+<span style="display: flex; flex-direction: column;"><span style="color: {{b.ownerColor}};">{{b.owner}}</span><span style="font-size: 12px; color: #93A0B4;">{{b.pool}}</span></span>
+<span style="font-family: 'JetBrains Mono', monospace;">{{b.quota}}</span>
+<span style="display: flex; flex-direction: column; gap: 4px;"><span style="font-family: 'JetBrains Mono', monospace; font-size: 12px;">{{b.used}}</span><span style="height: 5px; border-radius: 3px; background: #1C2638; overflow: hidden;"><span style="display: block; height: 5px; width: {{b.pct}}; background: {{b.color}};"></span></span></span>
+<span style="justify-self: start; padding: 2px 8px; border-radius: 6px; font-size: 12px; background: {{b.stBg}}; color: {{b.stFg}};">{{b.state}}</span>
+<span style="text-align: right;"><button type="button" style="min-height: 32px; padding: 0 10px; border: 1px solid #2A3750; border-radius: 8px; background: transparent; color: #8EC2FF; font: inherit; font-size: 12px;">{{b.action}}</button></span>
+</div>
+</sc-for>
+</div></div>
+</section>
+
+<section aria-labelledby="ky-h" style="background: #101828; border: 1px solid #1F2A3F; border-radius: 14px; overflow: hidden;">
+<div style="padding: 14px 18px; border-bottom: 1px solid #1C2638;"><h2 id="ky-h" style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 18px; font-weight: 600;">Customer identities &amp; access keys</h2></div>
+<sc-for list="{{keys}}" as="k" hint-placeholder-count="3">
+<div style="display: grid; grid-template-columns: 1.4fr 1fr 1.3fr 1fr 1fr; gap: 10px; align-items: center; padding: 11px 18px; border-top: 1px solid #1C2638; font-size: 13px;">
+<span>{{k.email}}</span><span style="font-family: 'JetBrains Mono', monospace; color: #B8C2D1;">{{k.iam}}</span><span style="font-family: 'JetBrains Mono', monospace;">{{k.akid}}</span><span style="color: #93A0B4;">{{k.policy}}</span>
+<span style="text-align: right;"><button type="button" style="min-height: 32px; padding: 0 10px; border: 1px solid #2A3750; border-radius: 8px; background: transparent; color: #8EC2FF; font: inherit; font-size: 12px;">Rotate key</button></span>
+</div>
+</sc-for>
+</section>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1500}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { tab: 'All' }; }
+  renderVals() {
+    const S = { ok: ['#123326', '#7EE6B0'], ro: ['#3A2E10', '#F5C46B'], orphan: ['#2A1414', '#FF9B9B'] };
+    const B = [
+      ['pp12-backups', 'rina@arunika.id', 'Arunika Group', 100, 63.2, 'ok', 'Active', 'Usage'],
+      ['pp12-media', 'rina@arunika.id', 'Arunika Group', 50, 51.4, 'ro', 'Read-only (over quota)', 'Raise quota'],
+      ['pp31-lab-datasets', 'lab01@bina.ac.id', 'Universitas Bina', 10, 2.1, 'ok', 'Active', 'Usage'],
+      ['pp31-lab-models', 'lab01@bina.ac.id', 'Universitas Bina', 10, 7.8, 'ok', 'Active', 'Usage'],
+      ['pp4-monitoring', 'ops@example.com', 'Internal', 0, 38.9, 'ok', 'Active · no quota', 'Usage'],
+      ['pp19-archive', 'No owner (customer deleted)', '—', 20, 11.0, 'orphan', 'Kept, no owner', 'Delete…']
+    ];
+    const tab = this.state.tab;
+    const tabs = ['All', 'Near quota', 'No owner'].map((t) => ({ label: t, on: t === tab, border: t === tab ? '#4C9AFF' : '#2A3750', bg: t === tab ? '#17284A' : 'transparent', pick: () => this.setState({ tab: t }) }));
+    const buckets = B.filter((b) => tab === 'All' || (tab === 'Near quota' ? b[3] && b[4] / b[3] >= 0.85 : b[5] === 'orphan')).map((b) => {
+      const p = b[3] ? Math.min(100, Math.round(b[4] / b[3] * 100)) : 20;
+      return { name: b[0], owner: b[1], pool: b[2], quota: b[3] ? `${b[3]} GB` : 'none', used: `${b[4].toFixed(1)} GB${b[3] ? ` · ${p}%` : ''}`, pct: p + '%', color: p >= 90 ? '#F5B94C' : '#4C9AFF',
+        state: b[6], stBg: S[b[5]][0], stFg: S[b[5]][1], action: b[7], ownerColor: b[5] === 'orphan' ? '#FF9B9B' : '#E6EBF2' };
+    });
+    return {
+      tabs, buckets, noop: () => {},
+      kpis: [
+        { label: 'Buckets', value: '46', sub: 'across 3 pools', color: '#93A0B4' },
+        { label: 'Stored', value: '774 GB', sub: '1.9 M objects', color: '#93A0B4' },
+        { label: 'Quota allocated', value: '1.6 TB', sub: 'of 2.6 TB pool caps', color: '#93A0B4' },
+        { label: 'Read-only buckets', value: '1', sub: 'over their quota', color: '#F5C46B' },
+        { label: 'Customer identities', value: '44', sub: 'IAM users with policy', color: '#93A0B4' }
+      ],
+      endpoints: [
+        { name: 'S3 gateway', url: 'http://seaweedfs-s3.internal:8333', state: 'OK · 12 ms', color: '#3DD68C' },
+        { name: 'IAM API (embedded)', url: 'http://seaweedfs-s3.internal:8333', state: 'OK', color: '#3DD68C' },
+        { name: 'Public endpoint', url: 'https://s3.example.com', state: 'Shown to customers', color: '#93A0B4' }
+      ],
+      keys: [
+        { email: 'rina@arunika.id', iam: 'ppu12', akid: 'AKSW9F3K2L7Q1X', policy: '2 buckets' },
+        { email: 'lab01@bina.ac.id', iam: 'ppu31', akid: 'AKSW0B7N4M2P8D', policy: '2 buckets' },
+        { email: 'ops@example.com', iam: 'ppu4', akid: 'AKSW5T1C9R6E3H', policy: '1 bucket' }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Provisioning jobs</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500&amp;family=Space+Grotesk:wght@500;600;700&amp;display=swap">
+<style>
+body{margin:0;background:#0A101C;}
+a{color:#8EC2FF;}a:hover{color:#C5E0FF;}
+</style>
+</helmet>
+<div style="min-height: 100vh; background: #0A101C; color: #E6EBF2; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 14px; line-height: 1.5; display: flex; flex-wrap: wrap; align-items: stretch;">
+
+<div style="flex: 1 1 240px; background: #0D1424; border-right: 1px solid #1C2638;">
+<dc-import name="Sidebar" portal="admin" active="jobs" hint-size="100%,1100px"></dc-import>
+</div>
+
+<main style="flex: 999 1 560px; min-width: 0; box-sizing: border-box; padding: 28px 32px 48px; display: flex; flex-direction: column; gap: 20px;">
+
+<div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px;">
+<div style="display: flex; flex-direction: column; gap: 2px;">
+<h1 style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 28px; font-weight: 600;">Provisioning jobs</h1>
+<span style="color: #93A0B4;">Create, reinstall, resize, delete and power actions run as background jobs with live progress</span>
+</div>
+<span style="display: flex; gap: 8px; font-size: 13px;"><span style="padding: 6px 12px; border-radius: 999px; background: #152645; color: #9CC8FF;">4 running</span><span style="padding: 6px 12px; border-radius: 999px; background: #3A1C1C; color: #FF9B9B;">1 failed today</span></span>
+</div>
+
+<div role="tablist" aria-label="Job filter" style="display: flex; flex-wrap: wrap; gap: 6px;">
+<sc-for list="{{tabs}}" as="t" hint-placeholder-count="4">
+<button type="button" role="tab" aria-selected="{{t.on}}" onClick="{{t.pick}}" style="min-height: 36px; padding: 0 14px; border-radius: 999px; border: 1px solid {{t.border}}; background: {{t.bg}}; color: #E6EBF2; font: inherit; font-size: 13px; cursor: pointer;">{{t.label}}</button>
+</sc-for>
+</div>
+
+<div style="display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-start;">
+<section aria-label="Jobs" style="flex: 3 1 560px; min-width: 0; background: #101828; border: 1px solid #1F2A3F; border-radius: 14px; overflow: hidden;">
+<sc-for list="{{jobs}}" as="j" hint-placeholder-count="7">
+<button type="button" onClick="{{j.pick}}" aria-pressed="{{j.on}}" style="width: 100%; display: grid; grid-template-columns: 1.4fr 1.4fr 1fr 1.5fr; gap: 12px; align-items: center; padding: 13px 18px; border: 0; border-top: 1px solid #1C2638; background: {{j.bg}}; color: #E6EBF2; font: inherit; text-align: left; cursor: pointer;">
+<span style="display: flex; flex-direction: column;"><span style="font-weight: 600;">{{j.action}}</span><span style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #93A0B4;">{{j.id}}</span></span>
+<span style="display: flex; flex-direction: column;"><span>{{j.target}}</span><span style="font-size: 12px; color: #93A0B4;">{{j.by}}</span></span>
+<span style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #B8C2D1;">{{j.when}}</span>
+<span style="display: flex; flex-direction: column; gap: 4px;"><span style="font-size: 12px; color: {{j.color}};">{{j.status}}</span><span style="height: 5px; border-radius: 3px; background: #1C2638; overflow: hidden;"><span style="display: block; height: 5px; width: {{j.pct}}; background: {{j.color}};"></span></span></span>
+</button>
+</sc-for>
+</section>
+
+<aside aria-labelledby="jd-h" style="flex: 2 1 360px; min-width: 0; padding: 18px; background: #101828; border: 1px solid #1F2A3F; border-radius: 14px; display: flex; flex-direction: column; gap: 12px;">
+<h2 id="jd-h" style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 18px; font-weight: 600;">{{cur.action}} · {{cur.target}}</h2>
+<span style="font-size: 13px; color: #93A0B4;">{{cur.by}} · started {{cur.when}}</span>
+<ol style="margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 2px;">
+<sc-for list="{{cur.steps}}" as="s" hint-placeholder-count="6">
+<li style="display: flex; gap: 12px; align-items: flex-start;">
+<span style="display: flex; flex-direction: column; align-items: center;"><span style="width: 12px; height: 12px; margin-top: 4px; border-radius: 50%; border: 2px solid {{s.color}}; background: {{s.fill}};"></span><span style="width: 2px; height: 22px; background: #1F2A3F;"></span></span>
+<span style="display: flex; flex-direction: column;"><span style="font-weight: 500; color: {{s.text}};">{{s.label}}</span><span style="font-size: 12px; color: #93A0B4;">{{s.meta}}</span></span>
+</li>
+</sc-for>
+</ol>
+<sc-if value="{{cur.failed}}" hint-placeholder-val="{{false}}">
+<div style="padding: 12px; border-radius: 10px; background: #2A1414; border: 1px solid #5A2A2A; font-size: 13px; color: #FFC1C1;">{{cur.error}}</div>
+</sc-if>
+<div style="display: flex; gap: 8px; flex-wrap: wrap;">
+<button type="button" style="min-height: 40px; padding: 0 14px; border: 1px solid #2A3750; border-radius: 10px; background: transparent; color: #E6EBF2; font: inherit;">Open Proxmox task log</button>
+<sc-if value="{{cur.failed}}" hint-placeholder-val="{{false}}"><button type="button" style="min-height: 40px; padding: 0 14px; border: 0; border-radius: 10px; background: #4C9AFF; color: #06101F; font: inherit; font-weight: 600;">Retry</button></sc-if>
+</div>
+</aside>
+</div>
+
+<section aria-labelledby="api-h" style="padding: 16px 18px; background: #101828; border: 1px solid #1F2A3F; border-radius: 14px; display: flex; flex-direction: column; gap: 10px;">
+<h2 id="api-h" style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 16px; font-weight: 600;">Automate it</h2>
+<pre style="margin: 0; padding: 14px; border-radius: 10px; background: #070C16; font-family: 'JetBrains Mono', monospace; font-size: 12.5px; color: #C3CCDA; white-space: pre-wrap; word-break: break-word;">curl -X POST https://panel.example.com/api/v1/guests \
+  -H "Authorization: Bearer $PANEL_TOKEN" \
+  -d '{"plan":"business","template":"ubuntu-24.04","datacenter":"jkt-dc1","gpuProfile":"rtx4090"}'
+# 202 {"job":"job_7f3a","guest":1201}   then GET /api/v1/jobs/job_7f3a</pre>
+</section>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1500}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { tab: 'All', picked: 'job_7f3a' }; }
+  renderVals() {
+    const C = { run: '#4C9AFF', ok: '#3DD68C', bad: '#FF8A8A', wait: '#F5B94C' };
+    const J = [
+      ['job_7f3a', 'Create server', 'ml-train-02 · Business + RTX 4090', 'rina@arunika.id', '01:02', 'Configuring GPU (4 of 6)', 64, 'run', 'Running'],
+      ['job_7f39', 'Reinstall', 'web-shop-02 · Debian 12', 'tokosinar@jaya.id', '00:58', 'Copying the image (2 of 6)', 30, 'run', 'Running'],
+      ['job_7f37', 'Bulk power: reboot', '12 guests on pve-jkt2-01', 'ops@example.com', '00:55', '9 of 12 done', 75, 'run', 'Running'],
+      ['job_7f36', 'Import host', 'jkt-dc3 · 29 guests', 'ops@example.com', '00:51', 'Reading guest configs', 40, 'run', 'Running'],
+      ['job_7f31', 'Create server', 'win-app-01 · Windows Server 2022', 'it@klinik.id', '00:20', 'Failed: OOBE timeout', 100, 'bad', 'Failed'],
+      ['job_7f2e', 'Resize', 'erp-app · 8 → 12 vCPU', 'majubersama@cv.id', '23:48', 'Done in 14 s', 100, 'ok', 'Done'],
+      ['job_7f2c', 'Delete server', 'old-crm (expired)', 'Expiry rule', '23:30', 'Done in 22 s', 100, 'ok', 'Done']
+    ];
+    const tab = this.state.tab;
+    const tabs = ['All', 'Running', 'Failed', 'Done'].map((t) => ({ label: t, on: t === tab, border: t === tab ? '#4C9AFF' : '#2A3750', bg: t === tab ? '#17284A' : 'transparent', pick: () => this.setState({ tab: t }) }));
+    const jobs = J.filter((j) => tab === 'All' || j[8] === tab).map((j) => ({
+      id: j[0], action: j[1], target: j[2], by: j[3], when: j[4], status: j[5], pct: j[6] + '%', color: C[j[7]],
+      on: j[0] === this.state.picked, bg: j[0] === this.state.picked ? '#121F38' : 'transparent', pick: () => this.setState({ picked: j[0] })
+    }));
+    const c = J.find((j) => j[0] === this.state.picked) || J[0];
+    const failed = c[7] === 'bad';
+    const names = c[1] === 'Create server'
+      ? ['Validate plan, pool and datacenter', 'Reserve VMID and clone image', 'Configure CPU, memory and network', 'Configure GPU', 'Resize disk and first boot', 'Guest setup and readiness check']
+      : ['Validate', 'Stop guest', 'Run Proxmox task', 'Apply configuration', 'Start guest', 'Verify'];
+    const doneUntil = failed ? 5 : (c[7] === 'ok' ? 6 : Math.round(c[6] / 100 * 6));
+    const steps = names.map((n, i) => {
+      const done = i < doneUntil - (failed ? 0 : 0) && !(failed && i === 5);
+      const active = !failed && c[7] === 'run' && i === doneUntil;
+      const bad = failed && i === 5;
+      return { label: n, meta: bad ? 'Windows stayed at its setup screen for 15 minutes' : done ? 'Done' : active ? 'In progress' : 'Waiting',
+        color: bad ? C.bad : done ? C.ok : active ? C.run : '#3A4760', fill: done ? C.ok : 'transparent', text: done || active || bad ? '#E6EBF2' : '#93A0B4' };
+    });
+    return {
+      tabs, jobs,
+      cur: { action: c[1], target: c[2], by: c[3], when: c[4], steps, failed, error: 'Proxmox task OK, but the guest agent reported IMAGE_STATE_SPECIALIZE_RESEAL_TO_OOBE. Check the unattend.xml of template 9100, then retry.' }
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Knowledge base</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500&amp;family=Space+Grotesk:wght@500;600;700&amp;display=swap">
+<style>
+body{margin:0;background:#0A101C;}
+a{color:#8EC2FF;}a:hover{color:#C5E0FF;}
+</style>
+</helmet>
+<div style="min-height: 100vh; background: #0A101C; color: #E6EBF2; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 14px; line-height: 1.5; display: flex; flex-wrap: wrap; align-items: stretch;">
+
+<div style="flex: 1 1 240px; background: #0D1424; border-right: 1px solid #1C2638;">
+<dc-import name="Sidebar" portal="customer" active="kb" hint-size="100%,1100px"></dc-import>
+</div>
+
+<main style="flex: 999 1 560px; min-width: 0; box-sizing: border-box; padding: 28px 32px 48px; display: flex; flex-direction: column; gap: 20px;">
+
+<div style="display: flex; flex-direction: column; gap: 12px; padding: 24px; background: #101828; border: 1px solid #1F2A3F; border-radius: 16px;">
+<h1 style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 28px; font-weight: 600;">Knowledge base</h1>
+<label style="display: flex; align-items: center; gap: 10px; min-height: 52px; padding: 0 16px; border: 1px solid #2A3750; border-radius: 12px; background: #0C1322; max-width: 720px;">
+<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#93A0B4" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-4-4"></path></svg>
+<span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0);">Search articles</span>
+<input type="search" placeholder="Search: mount volume, reverse DNS, rclone, Windows password…" onChange="{{noop}}" style="flex: 1; min-width: 0; background: transparent; border: 0; outline: none; color: #E6EBF2; font: inherit; font-size: 15px;">
+</label>
+<span style="font-size: 13px; color: #93A0B4;">Can't find it? <a href="Customer-Assistant.dc.html">Ask the AI assistant</a> or <a href="Customer-Tickets.dc.html">open a ticket</a>.</span>
+</div>
+
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px;">
+<sc-for list="{{cats}}" as="c" hint-placeholder-count="6">
+<button type="button" onClick="{{c.pick}}" aria-pressed="{{c.on}}" style="display: flex; flex-direction: column; align-items: flex-start; gap: 4px; padding: 14px; border-radius: 12px; border: 1px solid {{c.border}}; background: {{c.bg}}; color: #E6EBF2; font: inherit; text-align: left; cursor: pointer;"><span style="font-weight: 600;">{{c.name}}</span><span style="font-size: 12px; color: #93A0B4;">{{c.count}} articles</span></button>
+</sc-for>
+</div>
+
+<div style="display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-start;">
+
+<nav aria-label="Articles" style="flex: 1 1 300px; min-width: 0; background: #101828; border: 1px solid #1F2A3F; border-radius: 14px; overflow: hidden;">
+<div style="padding: 12px 16px; border-bottom: 1px solid #1C2638; font-size: 13px; color: #93A0B4;">{{catName}}</div>
+<sc-for list="{{articles}}" as="a" hint-placeholder-count="5">
+<button type="button" onClick="{{a.pick}}" aria-current="{{a.current}}" style="width: 100%; display: flex; flex-direction: column; gap: 2px; padding: 12px 16px; border: 0; border-top: 1px solid #1C2638; background: {{a.bg}}; color: #E6EBF2; font: inherit; text-align: left; cursor: pointer;"><span style="font-weight: 500;">{{a.title}}</span><span style="font-size: 12px; color: #93A0B4;">{{a.meta}}</span></button>
+</sc-for>
+</nav>
+
+<article aria-labelledby="ar-h" style="flex: 3 1 520px; min-width: 0; padding: 22px 24px; background: #101828; border: 1px solid #1F2A3F; border-radius: 14px; display: flex; flex-direction: column; gap: 14px;">
+<span style="font-size: 12px; color: #93A0B4;">{{cur.cat}} · updated {{cur.updated}} · {{cur.read}} read</span>
+<h2 id="ar-h" style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 22px; font-weight: 600;">{{cur.title}}</h2>
+<p style="margin: 0; color: #C3CCDA;">{{cur.intro}}</p>
+<ol style="margin: 0; padding-left: 22px; display: flex; flex-direction: column; gap: 10px; color: #D7DEE8;">
+<sc-for list="{{cur.steps}}" as="s" hint-placeholder-count="4"><li>{{s}}</li></sc-for>
+</ol>
+<pre style="margin: 0; padding: 14px; border-radius: 10px; background: #070C16; font-family: 'JetBrains Mono', monospace; font-size: 12.5px; color: #C3CCDA; white-space: pre-wrap; word-break: break-word;">{{cur.code}}</pre>
+<div style="padding: 12px 14px; border-radius: 10px; background: #221B0C; border: 1px solid #5A4618; font-size: 13px; color: #F5D99A;">{{cur.tip}}</div>
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding-top: 12px; border-top: 1px solid #1C2638;">
+<span style="font-size: 13px; color: #93A0B4;">Did this help?</span>
+<sc-if value="{{voted}}" hint-placeholder-val="{{false}}"><span style="font-size: 13px; color: #7EE6B0;">Thanks for the feedback.</span></sc-if>
+<sc-if value="{{notVoted}}" hint-placeholder-val="{{true}}">
+<button type="button" onClick="{{vote}}" style="min-height: 36px; padding: 0 12px; border: 1px solid #2A3750; border-radius: 8px; background: transparent; color: #E6EBF2; font: inherit; font-size: 13px;">Yes</button>
+<button type="button" onClick="{{vote}}" style="min-height: 36px; padding: 0 12px; border: 1px solid #2A3750; border-radius: 8px; background: transparent; color: #E6EBF2; font: inherit; font-size: 13px;">No</button>
+</sc-if>
+<a href="Customer-Tickets.dc.html" style="margin-left: auto; font-size: 13px;">Still stuck? Open a ticket</a>
+</div>
+</article>
+</div>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1500}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { cat: 'storage', art: 'mount', voted: false }; }
+  renderVals() {
+    const C = [['start', 'Getting started', 12], ['servers', 'Servers & OS', 24], ['storage', 'Storage', 15], ['network', 'Network & VPN', 18], ['security', 'Security & 2FA', 9], ['billing', 'Billing', 11]];
+    const A = {
+      storage: [
+        ['mount', 'Mount a block volume on Linux and Windows', '3 min read · popular'],
+        ['rclone', 'Back up to object storage with rclone or restic', '5 min read'],
+        ['quota', 'My bucket became read-only (quota)', '2 min read'],
+        ['resize', 'Grow a block volume without downtime', '3 min read'],
+        ['snap', 'Volume snapshots vs. backups', '4 min read']
+      ]
+    };
+    const cats = C.map(([id, name, count]) => ({ name, count, on: id === this.state.cat, border: id === this.state.cat ? '#4C9AFF' : '#1F2A3F', bg: id === this.state.cat ? '#101C33' : '#101828', pick: () => this.setState({ cat: id }) }));
+    const list = A[this.state.cat] ?? [['x', 'Articles in this category', 'Select Storage to see a sample article']];
+    const articles = list.map(([id, title, meta]) => ({ title, meta, current: id === this.state.art ? 'page' : 'false', bg: id === this.state.art ? '#121F38' : 'transparent', pick: () => this.setState({ art: id, voted: false }) }));
+    const BODY = {
+      mount: {
+        title: 'Mount a block volume on Linux and Windows', intro: 'A new volume is an empty disk. Attach it in Block storage, then format it once and mount it inside the server.',
+        steps: ['In Block storage, choose the volume and click Attach, then pick the server (same datacenter).', 'Linux: find the new disk with lsblk, usually /dev/sdb.', 'Format it once (this erases it) and mount it. Add it to /etc/fstab by UUID so it comes back after a reboot.', 'Windows: open Disk Management, bring the disk online, initialise it as GPT and create a new NTFS volume.'],
+        code: 'lsblk\nsudo mkfs.ext4 /dev/sdb\nsudo mkdir -p /data && sudo mount /dev/sdb /data\necho "UUID=$(sudo blkid -s UUID -o value /dev/sdb) /data ext4 defaults,nofail 0 2" | sudo tee -a /etc/fstab',
+        tip: 'Never run mkfs on a volume that already holds data: it erases everything on it. Detaching a volume while it is mounted can corrupt files; unmount first.',
+        updated: '10 Oct 2026', read: '3 min', cat: 'Storage'
+      },
+      rclone: {
+        title: 'Back up to object storage with rclone or restic', intro: 'Use your access key from Object storage. Keep backups in a separate bucket from your app data.',
+        steps: ['Create a bucket, e.g. backups, and an access key in Object storage.', 'Configure rclone or restic with the endpoint https://s3.example.com.', 'Schedule the job with cron or a systemd timer outside business hours.'],
+        code: 'restic -r s3:https://s3.example.com/pp12-backups init\nrestic -r s3:https://s3.example.com/pp12-backups backup /etc /srv\nrestic -r s3:https://s3.example.com/pp12-backups forget --keep-daily 7 --prune',
+        tip: 'Writing backups to the same disk as your database slows the database down. Object storage or a separate volume avoids that.',
+        updated: '05 Oct 2026', read: '5 min', cat: 'Storage'
+      }
+    };
+    const cur = BODY[this.state.art] ?? BODY.mount;
+    return {
+      cats, articles, cur, noop: () => {},
+      catName: (C.find((c) => c[0] === this.state.cat) ?? C[2])[1],
+      voted: this.state.voted, notVoted: !this.state.voted, vote: () => this.setState({ voted: true })
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Admin overview</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500&amp;family=Space+Grotesk:wght@500;600;700&amp;display=swap">
+<style>
+body{margin:0;background:#0A101C;}
+a{color:#8EC2FF;}a:hover{color:#C5E0FF;}
+</style>
+</helmet>
+<div style="min-height: 100vh; background: #0A101C; color: #E6EBF2; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 14px; line-height: 1.5; display: flex; flex-wrap: wrap; align-items: stretch;">
+
+<div style="flex: 1 1 240px; background: #0D1424; border-right: 1px solid #1C2638;">
+<dc-import name="Sidebar" portal="admin" active="dashboard" hint-size="100%,960px"></dc-import>
+</div>
+
+<main style="flex: 999 1 560px; min-width: 0; box-sizing: border-box; padding: 28px 32px 48px; display: flex; flex-direction: column; gap: 24px;">
+
+<!-- top bar -->
+<div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px;">
+<div style="display: flex; flex-direction: column; gap: 2px;">
+<h1 style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 28px; font-weight: 600; letter-spacing: -0.01em;">Overview</h1>
+<span style="color: #93A0B4;">3 hosts · 7 nodes · data as of 14 Oct 2026, 01:04 WIB</span>
+</div>
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px;">
+<label style="display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 12px; border: 1px solid #2A3750; border-radius: 10px; background: #101828;">
+<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#93A0B4" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-4-4"></path></svg>
+<span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0);">Search</span>
+<input type="search" placeholder="Search guests, IPs, customers, invoices" style="width: 280px; max-width: 50vw; background: transparent; border: 0; outline: none; color: #E6EBF2; font: inherit;">
+</label>
+<button type="button" style="min-height: 44px; padding: 0 14px; border: 1px solid #2A3750; border-radius: 10px; background: #101828; color: #E6EBF2; font: inherit; font-weight: 500;">Scope: All hosts</button>
+<button type="button" style="min-height: 44px; padding: 0 16px; border: 0; border-radius: 10px; background: {{accent}}; color: #06101F; font: inherit; font-weight: 600;">+ Connect host</button>
+</div>
+</div>
+
+<!-- KPI row -->
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px;">
+<sc-for list="{{kpis}}" as="k" hint-placeholder-count="6">
+<a href="{{k.href}}" style="display: flex; flex-direction: column; gap: 6px; padding: 16px; background: #101828; border: 1px solid #1F2A3F; border-radius: 12px; text-decoration: none; color: #E6EBF2;">
+<span style="font-size: 13px; color: #93A0B4;">{{k.label}}</span>
+<span style="font-family: 'Space Grotesk', sans-serif; font-size: 26px; font-weight: 600; letter-spacing: -0.01em;">{{k.value}}</span>
+<span style="font-size: 12px; color: {{k.subColor}};">{{k.sub}}</span>
+</a>
+</sc-for>
+</div>
+
+<div style="display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-start;">
+
+<!-- nodes table -->
+<section aria-labelledby="nodes-h" style="flex: 3 1 640px; min-width: 0; background: #101828; border: 1px solid #1F2A3F; border-radius: 14px; overflow: hidden;">
+<div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; padding: 16px 18px; border-bottom: 1px solid #1C2638;">
+<h2 id="nodes-h" style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 18px; font-weight: 600;">All nodes</h2>
+<div style="display: flex; gap: 6px; font-size: 12px; font-family: 'JetBrains Mono', monospace;">
+<span style="padding: 4px 10px; border-radius: 999px; background: #17284A; color: #FFFFFF;">All 7</span>
+<span style="padding: 4px 10px; border-radius: 999px; border: 1px solid #2A3750; color: #B8C2D1;">jkt-dc1</span>
+<span style="padding: 4px 10px; border-radius: 999px; border: 1px solid #2A3750; color: #B8C2D1;">jkt-dc2</span>
+<span style="padding: 4px 10px; border-radius: 999px; border: 1px solid #2A3750; color: #B8C2D1;">sby-edge</span>
+</div>
+</div>
+<div style="overflow-x: auto;">
+<div style="min-width: 780px; font-size: 13px;">
+<div style="display: grid; grid-template-columns: 1.3fr 0.9fr 1fr 1.5fr 1.6fr 1.2fr 0.9fr 0.6fr; gap: 8px; padding: 10px 18px; color: #8492A8; font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 0.04em;">
+<span>NODE</span><span>HOST</span><span>STATUS</span><span>CPU (1 H)</span><span>RAM</span><span>STORAGE</span><span>NET</span><span style="text-align: right;">GUESTS</span>
+</div>
+<sc-for list="{{nodes}}" as="n" hint-placeholder-count="7">
+<div style="display: grid; grid-template-columns: 1.3fr 0.9fr 1fr 1.5fr 1.6fr 1.2fr 0.9fr 0.6fr; gap: 8px; align-items: center; padding: 12px 18px; border-top: 1px solid #1C2638;">
+<span style="font-weight: 500;">{{n.node}}</span>
+<span style="color: #B8C2D1;">{{n.host}}</span>
+<span style="color: {{n.statusColor}};">● {{n.status}}</span>
+<span style="display: flex; align-items: center; gap: 8px;"><svg width="96" height="26" viewBox="0 0 96 26" aria-hidden="true"><polyline points="{{n.pts}}" fill="none" stroke="#4C9AFF" stroke-width="1.6" stroke-linejoin="round"></polyline></svg><span style="font-family: 'JetBrains Mono', monospace; color: #B8C2D1;">{{n.cpu}}%</span></span>
+<span style="display: flex; align-items: center; gap: 8px;"><span style="width: 60px; height: 6px; flex: none; border-radius: 3px; background: #1C2638; overflow: hidden;"><span style="display: block; height: 6px; width: {{n.ramW}}; background: {{n.ramColor}};"></span></span><span style="font-family: 'JetBrains Mono', monospace; color: #B8C2D1;">{{n.ram}}</span></span>
+<span style="font-family: 'JetBrains Mono', monospace; color: #B8C2D1;">{{n.disk}}</span>
+<span style="font-family: 'JetBrains Mono', monospace; color: #B8C2D1;">{{n.net}}</span>
+<span style="text-align: right; font-family: 'JetBrains Mono', monospace;">{{n.guests}}</span>
+</div>
+</sc-for>
+</div>
+</div>
+</section>
+
+<!-- right column -->
+<div style="flex: 1 1 320px; min-width: 0; display: flex; flex-direction: column; gap: 20px;">
+
+<section aria-labelledby="alerts-h" style="background: #101828; border: 1px solid #1F2A3F; border-radius: 14px; padding: 16px 18px; display: flex; flex-direction: column; gap: 12px;">
+<div style="display: flex; justify-content: space-between; align-items: center;"><h2 id="alerts-h" style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 18px; font-weight: 600;">Alerts</h2><span style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #F5B94C;">4 open</span></div>
+<sc-for list="{{alerts}}" as="a" hint-placeholder-count="4">
+<div style="display: flex; gap: 10px; padding-top: 10px; border-top: 1px solid #1C2638;">
+<span style="margin-top: 6px; width: 8px; height: 8px; flex: none; border-radius: 2px; background: {{a.color}};"></span>
+<span style="display: flex; flex-direction: column;"><span style="font-weight: 500;">{{a.title}}</span><span style="color: #93A0B4; font-size: 13px;">{{a.sub}}</span></span>
+</div>
+</sc-for>
+</section>
+
+<section aria-labelledby="money-h" style="background: #101828; border: 1px solid #1F2A3F; border-radius: 14px; padding: 16px 18px; display: flex; flex-direction: column; gap: 12px;">
+<div style="display: flex; justify-content: space-between; align-items: center;"><h2 id="money-h" style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 18px; font-weight: 600;">October billing</h2><a href="Admin-Billing.dc.html" style="font-size: 13px;">Open billing</a></div>
+<div style="display: flex; height: 10px; border-radius: 5px; overflow: hidden; background: #1C2638;">
+<span style="width: 71%; background: #3DD68C;"></span><span style="width: 23%; background: #4C9AFF;"></span><span style="width: 6%; background: #F5B94C;"></span>
+</div>
+<div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; font-size: 12px;">
+<span style="display: flex; flex-direction: column;"><span style="color: #93A0B4;">Collected</span><span style="font-family: 'JetBrains Mono', monospace; font-size: 13px; color: #E6EBF2;">Rp 131,2 jt</span></span>
+<span style="display: flex; flex-direction: column;"><span style="color: #93A0B4;">Open</span><span style="font-family: 'JetBrains Mono', monospace; font-size: 13px; color: #E6EBF2;">Rp 42,5 jt</span></span>
+<span style="display: flex; flex-direction: column;"><span style="color: #93A0B4;">Overdue</span><span style="font-family: 'JetBrains Mono', monospace; font-size: 13px; color: #F5C46B;">Rp 10,9 jt</span></span>
+</div>
+</section>
+
+<section aria-labelledby="act-h" style="background: #101828; border: 1px solid #1F2A3F; border-radius: 14px; padding: 16px 18px; display: flex; flex-direction: column; gap: 10px;">
+<h2 id="act-h" style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 18px; font-weight: 600;">Latest activity</h2>
+<sc-for list="{{activity}}" as="e" hint-placeholder-count="5">
+<div style="display: flex; justify-content: space-between; gap: 10px; padding-top: 8px; border-top: 1px solid #1C2638; font-size: 13px;">
+<span style="color: #C3CCDA;">{{e.text}}</span><span style="flex: none; font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #8492A8;">{{e.time}}</span>
+</div>
+</sc-for>
+</section>
+
+</div>
+</div>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"accent":{"editor":"color","default":"#4C9AFF","options":["#4C9AFF","#3DD68C","#F5B94C","#B79CFF"]},"$preview":{"width":1440,"height":1500}}'>
+class Component extends DCLogic {
+  spark(vals) {
+    const max = 100, w = 96, h = 26;
+    return vals.map((v, i) => (i * (w / (vals.length - 1))).toFixed(1) + ',' + (h - 2 - (v / max) * (h - 4)).toFixed(1)).join(' ');
+  }
+  renderVals() {
+    const ok = '#3DD68C', warn = '#F5B94C', bad = '#FF8A8A', muted = '#93A0B4';
+    const raw = [
+      ['pve-jkt1-01', 'jkt-dc1', 'Online', [32,38,35,41,44,40,47,52,49,46,44,48], '186 / 256 GB', 73, '7,1 / 15,3 TB', '412 Mb/s', 31],
+      ['pve-jkt1-02', 'jkt-dc1', 'Online', [22,25,24,28,26,30,29,27,31,33,30,28], '142 / 256 GB', 55, '6,4 / 15,3 TB', '288 Mb/s', 27],
+      ['pve-jkt1-03', 'jkt-dc1', 'Online', [61,66,70,72,75,78,81,79,83,86,84,88], '231 / 256 GB', 90, '11,9 / 15,3 TB', '934 Mb/s', 34],
+      ['pve-jkt1-04', 'jkt-dc1', 'Maintenance', [8,6,7,5,4,6,3,2,2,3,2,2], '12 / 256 GB', 5, '1,2 / 15,3 TB', '3 Mb/s', 0],
+      ['pve-jkt2-01', 'jkt-dc2', 'Online', [40,42,39,45,48,46,44,50,53,51,49,47], '160 / 192 GB', 83, '5,5 / 7,6 TB', '366 Mb/s', 24],
+      ['pve-jkt2-02', 'jkt-dc2', 'Online', [28,30,33,29,31,35,34,32,36,38,35,33], '118 / 192 GB', 61, '4,1 / 7,6 TB', '201 Mb/s', 21],
+      ['pve-sby-01', 'sby-edge', 'Unreachable', [35,37,36,38,40,0,0,0,0,0,0,0], '74 / 128 GB', 58, '2,3 / 3,8 TB', 'n/a', 11]
+    ];
+    const nodes = raw.map((r) => ({
+      node: r[0], host: r[1], status: r[2],
+      statusColor: r[2] === 'Online' ? ok : (r[2] === 'Maintenance' ? warn : bad),
+      pts: this.spark(r[3]), cpu: r[3][r[3].length - 1], ram: r[4], ramW: r[5] + '%',
+      ramColor: r[5] >= 85 ? warn : '#4C9AFF', disk: r[6], net: r[7], guests: r[8]
+    }));
+    return {
+      accent: this.props.accent ?? '#4C9AFF',
+      nodes,
+      kpis: [
+        { label: 'Guests', value: '148', sub: '131 running · 13 stopped', subColor: muted, href: 'Admin-Guests.dc.html' },
+        { label: 'Hosts / nodes', value: '3 / 7', sub: '1 node unreachable', subColor: bad, href: '#' },
+        { label: 'Plan-suspended', value: '4', sub: '2 traffic · 2 overdue', subColor: warn, href: 'Admin-Guests.dc.html' },
+        { label: 'Monthly recurring', value: 'Rp 184,6 jt', sub: '+6,2% vs September', subColor: ok, href: 'Admin-Billing.dc.html' },
+        { label: 'Overdue invoices', value: '6', sub: 'Rp 10,9 jt outstanding', subColor: warn, href: 'Admin-Billing.dc.html' },
+        { label: 'Public IPv4', value: '212 / 256', sub: '83% of pools allocated', subColor: muted, href: 'Admin-IPAM.dc.html' }
+      ],
+      alerts: [
+        { title: 'pve-sby-01 unreachable', sub: 'Last seen 00:41 · 11 guests showing cached state', color: bad },
+        { title: 'pve-jkt1-03 memory at 90%', sub: 'Placement will skip this node for new guests', color: warn },
+        { title: 'Pool public-jkt1 at 91%', sub: '23 of 254 addresses free', color: warn },
+        { title: 'Invoice INV-2026-10-0142 overdue', sub: 'PT Arunika Digital · suspension on 15 Oct', color: warn }
+      ],
+      activity: [
+        { text: 'rina@arunika.id created redis-cache (Starter)', time: '00:58' },
+        { text: 'Payment Rp 1.287.600 received · INV-2026-10-0139', time: '00:52' },
+        { text: 'web-shop-02 resized to 8 vCPU / 16 GB', time: '00:37' },
+        { text: 'Traffic limit reached · cdn-edge-04 suspended', time: '00:20' },
+        { text: 'Discovery imported 6 guests from pve-jkt2-02', time: '23:55' }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

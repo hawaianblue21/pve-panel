@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>API and integrations</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500&amp;family=Space+Grotesk:wght@500;600;700&amp;display=swap">
+<style>
+body{margin:0;background:#0A101C;}
+a{color:#8EC2FF;}a:hover{color:#C5E0FF;}
+</style>
+</helmet>
+<div style="min-height: 100vh; background: #0A101C; color: #E6EBF2; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 14px; line-height: 1.5; display: flex; flex-wrap: wrap; align-items: stretch;">
+
+<div style="flex: 1 1 240px; background: #0D1424; border-right: 1px solid #1C2638;">
+<dc-import name="Sidebar" portal="admin" active="api" hint-size="100%,1240px"></dc-import>
+</div>
+
+<main style="flex: 999 1 560px; min-width: 0; box-sizing: border-box; padding: 28px 32px 48px; display: flex; flex-direction: column; gap: 18px;">
+
+<div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px;">
+<div style="display: flex; flex-direction: column; gap: 2px;">
+<span style="display: flex; align-items: center; gap: 10px;"><h1 style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 28px; font-weight: 600;">API &amp; integrations</h1><span style="padding: 2px 8px; border-radius: 6px; background: #3A2E10; color: #F5C46B; font-size: 12px; font-weight: 600;">Owner only</span></span>
+<span style="color: #93A0B4;">API tokens, payment gateways, helpdesk ticketing and the AI provider. Secrets are sealed at rest and never shown again after saving.</span>
+</div>
+</div>
+
+<div role="tablist" aria-label="Integration area" style="display: flex; flex-wrap: wrap; gap: 6px; border-bottom: 1px solid #1C2638;">
+<sc-for list="{{tabs}}" as="t" hint-placeholder-count="5"><button type="button" role="tab" aria-selected="{{t.on}}" onClick="{{t.pick}}" style="min-height: 44px; padding: 0 14px; border: 0; border-bottom: 2px solid {{t.line}}; background: transparent; color: {{t.fg}}; font: inherit; font-weight: 500; cursor: pointer;">{{t.label}}</button></sc-for>
+</div>
+
+<!-- TOKENS -->
+<sc-if value="{{show.tokens}}" hint-placeholder-val="{{true}}">
+<section aria-labelledby="tk-h" style="display: flex; flex-direction: column; gap: 14px;">
+<div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px;"><h2 id="tk-h" style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 18px; font-weight: 600;">API tokens</h2><button type="button" style="min-height: 44px; padding: 0 16px; border: 0; border-radius: 10px; background: #4C9AFF; color: #06101F; font: inherit; font-weight: 600;">+ New token</button></div>
+<div style="background: #101828; border: 1px solid #1F2A3F; border-radius: 14px; overflow: hidden;">
+<div style="display: grid; grid-template-columns: 1.4fr 1fr 2fr 1fr 1fr 0.6fr; gap: 10px; padding: 10px 16px; font-size: 12px; color: #93A0B4; text-transform: uppercase; letter-spacing: 0.04em;"><span>Name</span><span>Kind</span><span>Scopes</span><span>Last used</span><span>Expires</span><span></span></div>
+<sc-for list="{{tokens}}" as="t" hint-placeholder-count="5">
+<div style="display: grid; grid-template-columns: 1.4fr 1fr 2fr 1fr 1fr 0.6fr; gap: 10px; align-items: center; padding: 11px 16px; border-top: 1px solid #1C2638; font-size: 13px;">
+<span style="display: flex; flex-direction: column;"><span style="font-weight: 500;">{{t.name}}</span><span style="font-family: 'JetBrains Mono', monospace; font-size: 11px; color: #93A0B4;">{{t.prefix}}</span></span>
+<span>{{t.kind}}</span>
+<span style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #B8C2D1;">{{t.scopes}}</span>
+<span style="color: #93A0B4;">{{t.used}}</span>
+<span style="color: {{t.expColor}};">{{t.exp}}</span>
+<button type="button" style="min-height: 34px; padding: 0 10px; border: 1px solid #4A2A2A; border-radius: 8px; background: transparent; color: #FF9B9B; font: inherit; font-size: 12px;">Revoke</button>
+</div>
+</sc-for>
+</div>
+<p style="margin: 0; font-size: 13px; color: #93A0B4;">Admin tokens carry an RBAC role (same permission map as the portal). Customer tokens are created by customers and are limited to their own servers and buckets; you can list and revoke them here.</p>
+</section>
+</sc-if>
+
+<!-- PAYMENTS -->
+<sc-if value="{{show.pay}}" hint-placeholder-val="{{false}}">
+<section aria-labelledby="pg-h" style="display: flex; flex-direction: column; gap: 14px;">
+<h2 id="pg-h" style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 18px; font-weight: 600;">Payment gateways</h2>
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px;">
+<sc-for list="{{gateways}}" as="g" hint-placeholder-count="3">
+<div style="padding: 16px; background: #101828; border: 1px solid #1F2A3F; border-radius: 14px; display: flex; flex-direction: column; gap: 10px;">
+<div style="display: flex; justify-content: space-between; align-items: center; gap: 8px;"><span style="font-family: 'Space Grotesk', sans-serif; font-size: 16px; font-weight: 600;">{{g.name}}</span><span style="padding: 2px 8px; border-radius: 6px; font-size: 11px; background: {{g.stBg}}; color: {{g.stFg}};">{{g.status}}</span></div>
+<span style="font-size: 13px; color: #93A0B4;">{{g.methods}}</span>
+<sc-for list="{{g.fields}}" as="f" hint-placeholder-count="3"><label style="display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: #C3CCDA;">{{f.k}}<input type="text" value="{{f.v}}" onChange="{{noop}}" style="min-height: 38px; padding: 0 10px; border: 1px solid #2A3750; border-radius: 8px; background: #0C1322; color: #E6EBF2; font-family: 'JetBrains Mono', monospace; font-size: 12px;"></label></sc-for>
+<div style="display: flex; flex-wrap: wrap; gap: 8px;"><button type="button" style="min-height: 38px; padding: 0 12px; border: 1px solid #2A3750; border-radius: 8px; background: transparent; color: #E6EBF2; font: inherit; font-size: 13px;">Send test webhook</button><button type="button" style="min-height: 38px; padding: 0 12px; border: 0; border-radius: 8px; background: #1E3A66; color: #CFE3FF; font: inherit; font-size: 13px;">Save</button></div>
+</div>
+</sc-for>
+</div>
+<div style="padding: 14px 16px; background: #101828; border: 1px solid #1F2A3F; border-radius: 14px; font-size: 13px; color: #B8C2D1; display: flex; flex-direction: column; gap: 4px;">
+<span style="font-weight: 600; color: #E6EBF2;">Rules</span>
+<span>Webhook signatures are verified before an invoice changes state; unsigned calls are logged as Security events. Amounts are checked against the invoice total in IDR. Refunds are recorded as credit notes, never as edits to a paid invoice.</span>
+</div>
+</section>
+</sc-if>
+
+<!-- TICKETING -->
+<sc-if value="{{show.ticket}}" hint-placeholder-val="{{false}}">
+<section aria-labelledby="zm-h" style="display: flex; flex-direction: column; gap: 14px;">
+<div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px;"><h2 id="zm-h" style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 18px; font-weight: 600;">Ticketing · Zammad (optional)</h2><span style="padding: 2px 8px; border-radius: 6px; background: #123326; color: #7EE6B0; font-size: 12px;">Connected · last sync 40 s ago</span></div>
+<div style="display: flex; flex-wrap: wrap; gap: 14px; align-items: flex-start;">
+<div style="flex: 1 1 340px; padding: 16px; background: #101828; border: 1px solid #1F2A3F; border-radius: 14px; display: flex; flex-direction: column; gap: 10px;">
+<sc-for list="{{zammad}}" as="f" hint-placeholder-count="4"><label style="display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: #C3CCDA;">{{f.k}}<input type="text" value="{{f.v}}" onChange="{{noop}}" style="min-height: 38px; padding: 0 10px; border: 1px solid #2A3750; border-radius: 8px; background: #0C1322; color: #E6EBF2; font-family: 'JetBrains Mono', monospace; font-size: 12px;"></label></sc-for>
+<span style="font-size: 12px; color: #93A0B4;">Tickets created in the customer portal go to Zammad with the customer, server and AI triage attached. Agent replies come back by webhook and show in the portal.</span>
+</div>
+<div style="flex: 1 1 340px; display: flex; flex-direction: column; gap: 14px;">
+<div style="padding: 16px; background: #101828; border: 1px solid #1F2A3F; border-radius: 14px; display: flex; flex-direction: column; gap: 8px;">
+<span style="font-weight: 600;">Group routing</span>
+<sc-for list="{{groups}}" as="g" hint-placeholder-count="3"><span style="display: flex; justify-content: space-between; gap: 10px; font-size: 13px;"><span>{{g.name}}</span><span style="color: #93A0B4; text-align: right;">{{g.rule}}</span></span></sc-for>
+</div>
+<div style="padding: 16px; background: #101828; border: 1px solid #1F2A3F; border-radius: 14px; display: flex; flex-direction: column; gap: 8px;">
+<span style="font-weight: 600;">Channels</span>
+<sc-for list="{{channels}}" as="c" hint-placeholder-count="4"><label style="display: flex; align-items: center; gap: 10px; min-height: 32px; font-size: 13px;"><input type="checkbox" checked="{{c.on}}" onChange="{{noop}}" style="width: 18px; height: 18px; accent-color: #4C9AFF;">{{c.name}}<span style="margin-left: auto; color: #93A0B4; font-size: 12px;">{{c.note}}</span></label></sc-for>
+</div>
+</div>
+</div>
+</section>
+</sc-if>
+
+<!-- AI -->
+<sc-if value="{{show.ai}}" hint-placeholder-val="{{false}}">
+<section aria-labelledby="ai-h" style="display: flex; flex-direction: column; gap: 14px;">
+<h2 id="ai-h" style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 18px; font-weight: 600;">AI provider</h2>
+<div style="display: flex; flex-wrap: wrap; gap: 14px; align-items: flex-start;">
+<div style="flex: 1 1 340px; padding: 16px; background: #101828; border: 1px solid #1F2A3F; border-radius: 14px; display: flex; flex-direction: column; gap: 10px;">
+<sc-for list="{{aiFields}}" as="f" hint-placeholder-count="4"><label style="display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: #C3CCDA;">{{f.k}}<input type="text" value="{{f.v}}" onChange="{{noop}}" style="min-height: 38px; padding: 0 10px; border: 1px solid #2A3750; border-radius: 8px; background: #0C1322; color: #E6EBF2; font-family: 'JetBrains Mono', monospace; font-size: 12px;"></label></sc-for>
+<button type="button" style="align-self: flex-start; min-height: 38px; padding: 0 12px; border: 1px solid #2A3750; border-radius: 8px; background: transparent; color: #E6EBF2; font: inherit; font-size: 13px;">Test with a sample question</button>
+</div>
+<div style="flex: 1 1 340px; padding: 16px; background: #101828; border: 1px solid #1F2A3F; border-radius: 14px; display: flex; flex-direction: column; gap: 8px;">
+<span style="font-weight: 600;">Where the AI is used</span>
+<sc-for list="{{aiUses}}" as="u" hint-placeholder-count="4"><label style="display: flex; align-items: flex-start; gap: 10px; font-size: 13px;"><input type="checkbox" checked="{{u.on}}" onChange="{{noop}}" style="width: 18px; height: 18px; margin-top: 2px; accent-color: #4C9AFF;"><span style="display: flex; flex-direction: column;"><span>{{u.name}}</span><span style="color: #93A0B4; font-size: 12px;">{{u.note}}</span></span></label></sc-for>
+<a href="Admin-AI.dc.html" style="font-size: 13px;">Behaviour, tools and guardrails →</a>
+</div>
+</div>
+</section>
+</sc-if>
+
+<!-- WEBHOOKS -->
+<sc-if value="{{show.hooks}}" hint-placeholder-val="{{false}}">
+<section aria-labelledby="wh-h" style="display: flex; flex-direction: column; gap: 14px;">
+<div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px;"><h2 id="wh-h" style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 18px; font-weight: 600;">Outgoing webhooks</h2><button type="button" style="min-height: 44px; padding: 0 16px; border: 0; border-radius: 10px; background: #4C9AFF; color: #06101F; font: inherit; font-weight: 600;">+ Add endpoint</button></div>
+<div style="background: #101828; border: 1px solid #1F2A3F; border-radius: 14px; overflow: hidden;">
+<sc-for list="{{hooks}}" as="h" hint-placeholder-count="3">
+<div style="display: grid; grid-template-columns: 2fr 2fr 1fr; gap: 10px; align-items: center; padding: 11px 16px; border-top: 1px solid #1C2638; font-size: 13px;"><span style="font-family: 'JetBrains Mono', monospace; font-size: 12px; word-break: break-all;">{{h.url}}</span><span style="color: #B8C2D1;">{{h.events}}</span><span style="color: {{h.color}};">{{h.status}}</span></div>
+</sc-for>
+</div>
+</section>
+</sc-if>
+
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1400}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { tab: 'tokens' }; }
+  renderVals() {
+    const T = [['tokens', 'API tokens'], ['pay', 'Payment gateways'], ['ticket', 'Ticketing'], ['ai', 'AI provider'], ['hooks', 'Webhooks']];
+    const tabs = T.map(([k, l]) => ({ label: l, on: k === this.state.tab, line: k === this.state.tab ? '#4C9AFF' : 'transparent', fg: k === this.state.tab ? '#E6EBF2' : '#93A0B4', pick: () => this.setState({ tab: k }) }));
+    const show = Object.fromEntries(T.map(([k]) => [k, k === this.state.tab]));
+    const st = (s) => s === 'Active' ? ['#123326', '#7EE6B0'] : s === 'Sandbox' ? ['#3A2E10', '#F5C46B'] : ['#1C2638', '#B8C2D1'];
+    const gateways = [
+      { name: '[PROVIDER A]', status: 'Active', methods: 'QRIS · Virtual account (BCA, BNI, Mandiri) · e-wallet', fields: [{ k: 'Merchant ID', v: 'M-0042••••' }, { k: 'Server key', v: '•••••••••••• (sealed)' }, { k: 'Webhook URL', v: 'https://panel.example.com/api/pay/a/webhook' }] },
+      { name: '[PROVIDER B]', status: 'Sandbox', methods: 'Credit card · recurring', fields: [{ k: 'API key', v: '•••••••••••• (sealed)' }, { k: 'Callback token', v: '••••••••' }, { k: 'Webhook URL', v: 'https://panel.example.com/api/pay/b/webhook' }] },
+      { name: 'Bank transfer (manual)', status: 'Active', methods: 'Customer uploads proof, finance confirms', fields: [{ k: 'Account shown on invoice', v: '[BANK] · [ACCOUNT NAME]' }, { k: 'Confirm role', v: 'Owner, Operator' }] }
+    ].map((g) => ({ ...g, stBg: st(g.status)[0], stFg: st(g.status)[1] }));
+    return {
+      tabs, show, noop: () => {}, gateways,
+      tokens: [
+        { name: 'billing-sync', prefix: 'ppa_7f3c…', kind: 'Admin · Operator', scopes: 'billing.*, customers.read', used: '2 min ago', exp: '12 Jan 2027', expColor: '#B8C2D1' },
+        { name: 'monitoring', prefix: 'ppa_19e0…', kind: 'Admin · read-only', scopes: 'servers.read, audit.read', used: '30 s ago', exp: 'never', expColor: '#F5C46B' },
+        { name: 'zammad-bridge', prefix: 'ppa_c41a…', kind: 'Integration', scopes: 'support.*, customers.read', used: '40 s ago', exp: '01 Mar 2027', expColor: '#B8C2D1' },
+        { name: 'lab-cli', prefix: 'ppc_88b2…', kind: 'Customer · lab01@bina.ac.id', scopes: 'servers.*, storage.*', used: '1 h ago', exp: '20 Oct 2026', expColor: '#FF9B9B' },
+        { name: 'terraform', prefix: 'ppc_0d71…', kind: 'Customer · rina@arunika.id', scopes: 'servers.*', used: 'yesterday', exp: '30 Jun 2027', expColor: '#B8C2D1' }
+      ],
+      zammad: [{ k: 'Zammad URL', v: 'https://support.example.com' }, { k: 'API token', v: '•••••••••••• (sealed)' }, { k: 'Inbound webhook (Zammad → panel)', v: 'https://panel.example.com/api/support/zammad' }, { k: 'Webhook HMAC secret', v: '•••••••• (sealed)' }],
+      groups: [
+        { name: 'L1 · Service desk', rule: 'first response for all new tickets' },
+        { name: 'L2 · Network / Compute', rule: 'AI triage = network, storage, performance' },
+        { name: 'L3 · Security', rule: 'abuse, compromise, 2FA reset, Urgent' }
+      ],
+      channels: [
+        { name: 'Customer portal form', note: 'creates ticket with server context', on: true },
+        { name: 'AI assistant handover', note: 'chat transcript attached', on: true },
+        { name: 'WhatsApp', note: 'via Zammad channel', on: true },
+        { name: 'Phone', note: 'agent logs call in Zammad', on: true },
+        { name: 'Email', note: 'support@example.com', on: false }
+      ],
+      aiFields: [{ k: 'Provider', v: 'Anthropic (Claude API)' }, { k: 'API key', v: '•••••••••••• (sealed)' }, { k: 'Model', v: 'claude-sonnet-5-5' }, { k: 'Monthly spend cap', v: 'Rp 3.000.000 · alert at 80%' }],
+      aiUses: [
+        { name: 'Customer AI assistant', note: 'answers from KB and the customer’s own servers, read-only tools', on: true },
+        { name: 'Ticket triage', note: 'sets category, priority and target group in Zammad', on: true },
+        { name: 'Agent reply suggestions', note: 'draft from KB, agent always sends', on: true },
+        { name: 'KB drafts from repeated tickets', note: 'saved as AI draft, needs human publish', on: true }
+      ],
+      hooks: [
+        { url: 'https://siem.example.com/ingest/pvepanel', events: 'activity.* (all events)', status: '200 · 99.98%', color: '#7EE6B0' },
+        { url: 'https://erp.example.com/hooks/invoice', events: 'invoice.paid, invoice.overdue', status: '200 · 100%', color: '#7EE6B0' },
+        { url: 'https://hooks.slack.example/T0…', events: 'server.suspended, ticket.urgent', status: '3 failures today', color: '#F5C46B' }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

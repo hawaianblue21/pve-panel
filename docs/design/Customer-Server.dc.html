@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Server detail</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500&amp;family=Space+Grotesk:wght@500;600;700&amp;display=swap">
+<style>
+body{margin:0;background:#0A101C;}
+a{color:#8EC2FF;}a:hover{color:#C5E0FF;}
+</style>
+</helmet>
+<div style="min-height: 100vh; background: #0A101C; color: #E6EBF2; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 14px; line-height: 1.5; display: flex; flex-wrap: wrap; align-items: stretch;">
+
+<div style="flex: 1 1 240px; background: #0D1424; border-right: 1px solid #1C2638;">
+<dc-import name="Sidebar" portal="customer" active="servers" hint-size="100%,960px"></dc-import>
+</div>
+
+<main style="flex: 999 1 560px; min-width: 0; box-sizing: border-box; padding: 28px 32px 48px; display: flex; flex-direction: column; gap: 20px;">
+
+<a href="Customer-Servers.dc.html" style="font-size: 13px; text-decoration: none;">‹ My servers</a>
+
+<div style="display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 16px;">
+<div style="display: flex; flex-direction: column; gap: 6px;">
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px;">
+<h1 style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 28px; font-weight: 600;">web-prod-01</h1>
+<span style="padding: 3px 10px; border-radius: 999px; background: #123326; color: #7EE6B0; font-size: 13px; font-weight: 500;">● Running · up 18 d</span>
+</div>
+<span style="color: #93A0B4; font-family: 'JetBrains Mono', monospace; font-size: 13px;">Ubuntu 24.04 · Business plan · Jakarta DC1 · 103.28.14.21</span>
+</div>
+<div style="display: flex; flex-wrap: wrap; gap: 8px;">
+<button type="button" style="min-height: 44px; padding: 0 16px; border: 0; border-radius: 10px; background: #4C9AFF; color: #06101F; font: inherit; font-weight: 600;">Open console</button>
+<button type="button" style="min-height: 44px; padding: 0 14px; border: 1px solid #2A3750; border-radius: 10px; background: #101828; color: #E6EBF2; font: inherit;">Restart</button>
+<button type="button" style="min-height: 44px; padding: 0 14px; border: 1px solid #2A3750; border-radius: 10px; background: #101828; color: #E6EBF2; font: inherit;">Shut down</button>
+<button type="button" style="min-height: 44px; padding: 0 14px; border: 1px solid #4A2A2A; border-radius: 10px; background: #101828; color: #FF8A8A; font: inherit;">Force stop</button>
+</div>
+</div>
+
+<!-- tabs -->
+<div role="tablist" aria-label="Server sections" style="display: flex; flex-wrap: wrap; gap: 4px; border-bottom: 1px solid #1F2A3F;">
+<sc-for list="{{tabs}}" as="t" hint-placeholder-count="8">
+<button type="button" role="tab" aria-selected="{{t.on}}" onClick="{{t.pick}}" style="min-height: 44px; padding: 0 14px; border: 0; border-bottom: 2px solid {{t.line}}; background: transparent; color: {{t.color}}; font: inherit; font-weight: 500; cursor: pointer;">{{t.label}}</button>
+</sc-for>
+</div>
+
+<sc-if value="{{isOverview}}" hint-placeholder-val="{{true}}">
+<div style="display: flex; flex-direction: column; gap: 20px;">
+
+<!-- donuts + net -->
+<div style="display: flex; flex-wrap: wrap; gap: 16px;">
+<sc-for list="{{gauges}}" as="g" hint-placeholder-count="3">
+<div style="flex: 1 1 180px; display: flex; align-items: center; gap: 16px; padding: 16px 18px; background: #101828; border: 1px solid #1F2A3F; border-radius: 14px;">
+<svg width="72" height="72" viewBox="0 0 72 72" role="img" aria-label="{{g.label}} {{g.pct}} percent"><circle cx="36" cy="36" r="30" fill="none" stroke="#1C2638" stroke-width="8"></circle><circle cx="36" cy="36" r="30" fill="none" stroke="{{g.color}}" stroke-width="8" stroke-linecap="round" stroke-dasharray="{{g.dash}}" transform="rotate(-90 36 36)"></circle><text x="36" y="41" text-anchor="middle" fill="#E6EBF2" font-family="JetBrains Mono, monospace" font-size="14">{{g.pct}}%</text></svg>
+<span style="display: flex; flex-direction: column;"><span style="font-weight: 600;">{{g.label}}</span><span style="font-size: 13px; color: #93A0B4;">{{g.sub}}</span></span>
+</div>
+</sc-for>
+<div style="flex: 2 1 320px; min-width: 0; padding: 16px 18px; background: #101828; border: 1px solid #1F2A3F; border-radius: 14px; display: flex; flex-direction: column; gap: 8px;">
+<span style="display: flex; justify-content: space-between; gap: 10px;"><span style="font-weight: 600;">Network, last 24 h</span><span style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #93A0B4;">in 212 Mb/s · out 86 Mb/s</span></span>
+<svg viewBox="0 0 400 80" preserveAspectRatio="none" style="width: 100%; height: 80px;" role="img" aria-label="Network traffic over the last 24 hours, peaking in the evening"><polyline points="{{netIn}}" fill="none" stroke="#4C9AFF" stroke-width="2"></polyline><polyline points="{{netOut}}" fill="none" stroke="#F5B94C" stroke-width="2"></polyline></svg>
+</div>
+</div>
+
+<div style="display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-start;">
+
+<div style="flex: 2 1 520px; min-width: 0; display: flex; flex-direction: column; gap: 20px;">
+<!-- snapshots -->
+<section aria-labelledby="snap-h" style="background: #101828; border: 1px solid #1F2A3F; border-radius: 14px; overflow: hidden;">
+<div style="display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 14px 18px; border-bottom: 1px solid #1C2638;">
+<h2 id="snap-h" style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 18px; font-weight: 600;">Snapshots <span style="font-size: 13px; color: #93A0B4; font-weight: 400;">2 of 3 on plan</span></h2>
+<button type="button" style="min-height: 36px; padding: 0 12px; border: 1px solid #2A3750; border-radius: 8px; background: transparent; color: #E6EBF2; font: inherit; font-size: 13px;">+ Take snapshot</button>
+</div>
+<sc-for list="{{snaps}}" as="s" hint-placeholder-count="2">
+<div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px; padding: 12px 18px; border-top: 1px solid #1C2638;">
+<span style="display: flex; flex-direction: column;"><span style="font-weight: 500;">{{s.name}}</span><span style="font-size: 12px; color: #93A0B4;">{{s.sub}}</span></span>
+<span style="display: flex; gap: 8px;"><button type="button" style="min-height: 34px; padding: 0 10px; border: 1px solid #2A3750; border-radius: 8px; background: transparent; color: #8EC2FF; font: inherit; font-size: 12px;">Restore</button><button type="button" style="min-height: 34px; padding: 0 10px; border: 1px solid #2A3750; border-radius: 8px; background: transparent; color: #B8C2D1; font: inherit; font-size: 12px;">Delete</button></span>
+</div>
+</sc-for>
+</section>
+
+<!-- activity -->
+<section aria-labelledby="act-h" style="background: #101828; border: 1px solid #1F2A3F; border-radius: 14px; padding: 14px 18px; display: flex; flex-direction: column; gap: 8px;">
+<h2 id="act-h" style="margin: 0 0 4px; font-family: 'Space Grotesk', sans-serif; font-size: 18px; font-weight: 600;">Activity</h2>
+<sc-for list="{{activity}}" as="e" hint-placeholder-count="5">
+<div style="display: flex; justify-content: space-between; gap: 10px; padding-top: 8px; border-top: 1px solid #1C2638; font-size: 13px;"><span style="color: #C3CCDA;">{{e.text}}</span><span style="flex: none; font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #8492A8;">{{e.time}}</span></div>
+</sc-for>
+</section>
+</div>
+
+<div style="flex: 1 1 300px; min-width: 0; display: flex; flex-direction: column; gap: 20px;">
+<!-- details -->
+<section aria-labelledby="det-h" style="background: #101828; border: 1px solid #1F2A3F; border-radius: 14px; padding: 14px 18px; display: flex; flex-direction: column; gap: 8px;">
+<h2 id="det-h" style="margin: 0 0 4px; font-family: 'Space Grotesk', sans-serif; font-size: 18px; font-weight: 600;">Details</h2>
+<sc-for list="{{details}}" as="d" hint-placeholder-count="8">
+<span style="display: flex; justify-content: space-between; gap: 10px; font-size: 13px;"><span style="color: #93A0B4;">{{d.k}}</span><span style="font-family: 'JetBrains Mono', monospace; text-align: right;">{{d.v}}</span></span>
+</sc-for>
+</section>
+
+<!-- billing for this server -->
+<section aria-labelledby="sb-h" style="background: #101828; border: 1px solid #1F2A3F; border-radius: 14px; padding: 14px 18px; display: flex; flex-direction: column; gap: 10px;">
+<h2 id="sb-h" style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 18px; font-weight: 600;">Billing</h2>
+<span style="display: flex; justify-content: space-between; font-size: 13px;"><span style="color: #93A0B4;">Plan</span><span>Business · Rp 550.000 /mo</span></span>
+<span style="display: flex; justify-content: space-between; font-size: 13px;"><span style="color: #93A0B4;">Add-ons</span><span>2 × IPv4 · Rp 100.000</span></span>
+<span style="display: flex; justify-content: space-between; font-size: 13px;"><span style="color: #93A0B4;">Renews</span><span>05 Nov 2026</span></span>
+<span style="display: flex; flex-direction: column; gap: 4px; font-size: 13px;"><span style="display: flex; justify-content: space-between;"><span style="color: #93A0B4;">Traffic this month</span><span style="font-family: 'JetBrains Mono', monospace;">2,1 / 5 TB</span></span><span style="height: 6px; border-radius: 3px; background: #1C2638; overflow: hidden;"><span style="display: block; height: 6px; width: 42%; background: #4C9AFF;"></span></span><span style="font-size: 12px; color: #93A0B4;">Overage billed at Rp 200 per GB</span></span>
+<div style="display: flex; gap: 8px; flex-wrap: wrap;">
+<a href="Customer-Create.dc.html" style="display: inline-flex; align-items: center; min-height: 40px; padding: 0 12px; border: 1px solid #2A3750; border-radius: 10px; color: #E6EBF2; text-decoration: none; font-size: 13px;">Change plan</a>
+<a href="Customer-Invoice.dc.html" style="display: inline-flex; align-items: center; min-height: 40px; padding: 0 12px; border: 1px solid #2A3750; border-radius: 10px; color: #E6EBF2; text-decoration: none; font-size: 13px;">Latest invoice</a>
+</div>
+</section>
+</div>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{isOther}}" hint-placeholder-val="{{false}}">
+<div style="padding: 48px 24px; border: 1px dashed #2A3750; border-radius: 14px; text-align: center; color: #93A0B4;">{{otherNote}}<sc-if value="{{otherLink}}" hint-placeholder-val="{{false}}"><br><a href="{{otherHref}}" style="display: inline-block; margin-top: 10px;">{{otherLinkLabel}}</a></sc-if></div>
+</sc-if>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1500}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { tab: 'Overview' }; }
+  line(vals) { return vals.map((v, i) => (i * 400 / (vals.length - 1)).toFixed(1) + ',' + (78 - v * 0.7).toFixed(1)).join(' '); }
+  renderVals() {
+    const tab = this.state.tab;
+    const names = ['Overview', 'Console', 'Snapshots', 'Network', 'Resize', 'Reinstall', 'Backups', 'Updates', 'Renewal', 'Billing'];
+    const tabs = names.map((n) => ({ label: n, on: n === tab, line: n === tab ? '#4C9AFF' : 'transparent', color: n === tab ? '#FFFFFF' : '#B8C2D1', pick: () => this.setState({ tab: n }) }));
+    const C = 2 * Math.PI * 30;
+    const g = (label, pct, sub, color) => ({ label, pct, sub, color, dash: (C * pct / 100).toFixed(1) + ' ' + C.toFixed(1) });
+    const notes = {
+      Console: 'Single-use console session, proxied through the panel. xterm serial with noVNC fallback.',
+      Snapshots: 'Create, restore and delete snapshots, optionally including RAM. 2 of 3 used on this plan.',
+      Network: 'Public and private addresses, reverse DNS, firewall rules, Tailscale and port forwards for this server.',
+      Resize: 'Change CPU and memory within the plan or upgrade to a bigger plan, with a pro-rated price shown before you confirm.',
+      Reinstall: 'Pick any template that fits the disk. Name, size and IP stay the same; all data and snapshots are erased.',
+      Backups: 'Daily backups kept 7 days on this plan. Restore to this server or to a new one.',
+      Updates: 'Security and package updates for this server (apt, dnf or Windows Update), with a snapshot first. Open the Updates page for the full flow.',
+      Renewal: 'End date 8 Dec 2026, auto-renew from wallet is on. Reminders 7 and 1 days before; see Renewals.',
+      Billing: 'Plan, add-ons, traffic usage and every invoice line for this server.'
+    };
+    return {
+      tabs, isOverview: tab === 'Overview', isOther: tab !== 'Overview', otherNote: notes[tab] || '', otherLink: tab === 'Updates' || tab === 'Renewal', otherHref: tab === 'Updates' ? 'Customer-Updates.dc.html' : 'Customer-Expiry.dc.html', otherLinkLabel: tab === 'Updates' ? 'Open Updates →' : 'Open Renewals →',
+      gauges: [g('CPU', 38, '8 vCPU', '#4C9AFF'), g('Memory', 64, '10,2 of 16 GB', '#4C9AFF'), g('Disk', 71, '178 of 250 GB', '#F5B94C')],
+      netIn: this.line([20, 18, 15, 12, 10, 12, 18, 30, 42, 48, 52, 55, 50, 47, 52, 60, 72, 84, 92, 88, 76, 60, 44, 30]),
+      netOut: this.line([8, 7, 6, 5, 5, 6, 9, 14, 18, 20, 22, 24, 21, 20, 22, 26, 31, 36, 39, 37, 32, 25, 18, 12]),
+      snaps: [
+        { name: 'before-php-upgrade', sub: '12 Oct 2026, 22:10 · with RAM · 14,2 GB' },
+        { name: 'weekly-auto', sub: '07 Oct 2026, 02:00 · disk only · 9,8 GB' }
+      ],
+      details: [
+        { k: 'VMID', v: '1012' }, { k: 'Location', v: 'Jakarta DC1' }, { k: 'Public IPv4', v: '103.28.14.21' },
+        { k: 'Extra IPv4', v: '.22, .23' }, { k: 'IPv6', v: '2401:7a0:1c:12::/64' }, { k: 'Private', v: '10.100.1.11' },
+        { k: 'MAC', v: 'BC:24:11:3A:9F:02' }, { k: 'Created', v: '26 Sep 2026' }
+      ],
+      activity: [
+        { text: 'Snapshot before-php-upgrade created', time: '12 Oct 22:10' },
+        { text: 'Restarted from the panel', time: '12 Oct 22:31' },
+        { text: 'Reverse DNS set to web.arunika.id', time: '03 Oct 10:02' },
+        { text: '2 extra IPv4 addresses assigned', time: '01 Oct 09:40' },
+        { text: 'Server created from Ubuntu 24.04 template', time: '26 Sep 14:05' }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>
