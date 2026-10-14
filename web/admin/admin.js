@@ -2,6 +2,7 @@ import { icon } from '/shared/icons.js';
 import { renderSecurity } from '/shared/twofa.js';
 import { renderPasskeys } from '/shared/passkeys.js';
 import { renderIdentities } from '/shared/identities.js';
+import { renderTokens } from '/shared/tokens.js';
 import { renderAppearance } from '/shared/appearance.js';
 import { applyScheme } from '/shared/icons.js';
 import { createInfra } from '/infra.js';
@@ -302,11 +303,12 @@ export function createAdmin({ root, api, toast, fail, confirmAction, promptText,
     if (st.tab === 'activity') renderActivity();
     if (st.tab === 'account') {
       const body = root.querySelector('#admin-body');
-      body.innerHTML = '<div id="admin-2fa"></div><div id="admin-passkeys" class="account-section"></div><div id="admin-identities" class="account-section"></div><div id="admin-appearance" class="account-section"></div>';
+      body.innerHTML = '<div id="admin-2fa"></div><div id="admin-passkeys" class="account-section"></div><div id="admin-identities" class="account-section"></div><div id="admin-appearance" class="account-section"></div><div id="admin-tokens" class="account-section"></div>';
       renderSecurity(body.querySelector('#admin-2fa'), { email: getMe().email });
       renderPasskeys(body.querySelector('#admin-passkeys'));
       renderIdentities(body.querySelector('#admin-identities'));
       renderAppearance(body.querySelector('#admin-appearance'));
+      renderTokens(body.querySelector('#admin-tokens'), { portal: 'admin', owner: !st.perms || st.perms.has('rbac.write') });
     }
     if (st.tab === 'about') renderAbout();
     if (st.tab === 'settings') renderSettings();

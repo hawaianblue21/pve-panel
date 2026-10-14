@@ -625,6 +625,25 @@ db.exec(`
   );
 `);
 
+// ---- API tokens (tokens.js) -------------------------------------------------------
+db.exec(`
+  CREATE TABLE IF NOT EXISTS api_tokens (
+    id           INTEGER PRIMARY KEY,
+    user_id      INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    portal       TEXT NOT NULL CHECK (portal IN ('customer', 'admin')),
+    name         TEXT NOT NULL,
+    hash         TEXT NOT NULL,                -- SHA-256 of the secret (hex)
+    scopes       TEXT NOT NULL DEFAULT '[]',   -- customer: JSON list of permissions
+    read_only    INTEGER NOT NULL DEFAULT 0,   -- admin: GET only
+    expires_at   TEXT,
+    last_used_at TEXT,
+    last_used_ip TEXT,
+    revoked_at   TEXT,
+    created_at   TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE INDEX IF NOT EXISTS api_tokens_user ON api_tokens(user_id, portal);
+`);
+
 // Background jobs don't survive a restart; don't leave servers stuck forever.
 db.exec(`
   UPDATE vms SET state = 'failed', error = 'Setup was interrupted because the panel restarted'
@@ -642,11 +661,13 @@ const insertAudit = db.prepare(
 
 /** `req` may be a Fastify request or any { account: { id }, ip } object. */
 export function audit(req, vmid, action, detail = null) {
+  // done with an API token: say which one
+  const d = req.apiToken ? { ...(detail ?? {}), apiToken: req.apiToken.name } : detail;
   insertAudit.run(
     req.account?.id ?? null,
     vmid ?? null,
     action,
-    detail ? JSON.stringify(detail) : null,
+    d ? JSON.stringify(d) : null,
     req.ip
   );
 }

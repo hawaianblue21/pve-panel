@@ -168,6 +168,11 @@ const ROUTES = {
   'DELETE /api/admin/pools/:id/members/:userId': 'pools.write',
 
   'GET /api/admin/dashboard': null,
+  'GET /api/admin/tokens': null,
+  'POST /api/admin/tokens': null,
+  'DELETE /api/admin/tokens/:id': null,
+  'GET /api/admin/tokens/all': 'rbac.write',
+  'DELETE /api/admin/tokens/all/:id': 'rbac.write',
   'GET /api/admin/hosts': 'servers.read',
   'PUT /api/admin/hosts/:node/maintenance': 'hosts.write',
   'GET /api/admin/ipam': 'network.read',

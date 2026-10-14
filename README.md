@@ -120,6 +120,7 @@ PVE Panel was built with substantial help from an AI assistant (**Claude by Anth
 - Open **support tickets** (optionally about one of their servers), follow the conversation and get answers by email
 - Search the **help center** (knowledge base) and rate articles
 - **Public IPv4** for their servers, with reverse DNS
+- **API tokens** with chosen permissions for scripts and integrations
 - **Storage**: block volumes (create, attach, detach, move between servers, enlarge) and S3 object storage buckets with access keys
 - Ask the **AI assistant**: answers from the help center and their own servers and tickets, hands over to a ticket
 - **Plans**: create servers from plans (size and monthly price), pay the first period from the wallet, move up to a larger plan for the difference
@@ -767,6 +768,30 @@ The panel creates and maintains the necessary customer SDN objects when provisio
 > **Important**
 >
 > Customer isolation depends on the Proxmox datacenter firewall being enabled. Validate management access before enabling it remotely. Locked out? From the console: `pvesh set /cluster/firewall/options --enable 0`.
+
+---
+
+## 🔑 API tokens
+
+Scripts and integrations use the same API as the portals with `Authorization: Bearer <token>`. Tokens are created on
+the account page (customer portal) or under **Your account** (admin portal); the token is shown once, only its
+SHA-256 is stored, and each token shows when and from where it was last used.
+
+```bash
+curl -H "Authorization: Bearer pvc_12_…" https://portal.example.com/api/vms
+curl -X POST -H "Authorization: Bearer pvc_12_…" https://portal.example.com/api/vms/101/power/reboot
+```
+
+| | Customer token (`pvc_…`) | Admin token (`pva_…`) |
+|---|---|---|
+| Reads | servers, graphs, snapshots, storage, IPs, billing, tickets, help center | what the role allows |
+| Changes | only the chosen permissions: power, servers, storage, network, billing, support | what the role allows, unless read-only |
+| Never | sign-in, account security, console, S3 keys, AI assistant, tokens | tokens, administrators and roles, sign-in |
+| Valid | 7, 30, 90 or 365 days, or without end | same |
+
+Every request re-checks the account: deleting a user, or taking away admin rights, stops their tokens at once.
+Actions done with a token are marked with its name in the activity log. Owners see and revoke every administrator's
+tokens.
 
 ---
 
