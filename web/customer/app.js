@@ -12,6 +12,7 @@ import { renderAppearance, loadPersonalAppearance } from '/shared/appearance.js'
 import { createSupport } from '/support.js';
 import { createAssistant } from '/assistant.js';
 import { createBilling } from '/billing.js';
+import { planFieldset, updatePlanChoice, planBody, openUpgrade } from '/plans.js';
 
 const brandReady = applyBrand();
 document.querySelectorAll('[data-brand-mark]').forEach((el) => { el.innerHTML = brandMark(30); });
@@ -437,6 +438,9 @@ function renderOverview(body) {
       </div>` : ''}
     ${vm.resizable && state.account.canCreate ? `
       <div class="row size-row"><button class="btn" data-resize>${icon('server')}<span>Change size…</span></button></div>` : ''}
+    ${vm.plan ? `
+      <div class="row size-row"><span class="muted">Plan <strong>${esc(vm.plan.name)}</strong></span>
+        ${vm.upgradable && state.account.canCreate ? `<button class="btn" data-upgrade>${icon('server')}<span>Change plan…</span></button>` : ''}</div>` : ''}
 
     <div class="section-head">
       <h2>Usage</h2>
@@ -823,9 +827,10 @@ async function openCreate() {
   renderList();
   $('#detail').innerHTML = '<div class="detail-inner"><p class="muted">Loading…</p></div>';
   try {
-    const [account, templates] = await Promise.all([api('/api/account'), api('/api/templates')]);
+    const [account, templates, plans] = await Promise.all([api('/api/account'), api('/api/templates'), api('/api/plans').catch(() => null)]);
     state.account = account;
     state.templates = templates;
+    state.plans = plans?.plans?.length ? plans : null;
     if (state.view === 'create') renderCreate();
   } catch (err) { fail(err); }
 }
@@ -870,6 +875,22 @@ function renderCreate() {
   const memOptions = MEMORY_STEPS_MB.filter((m) => m <= left.memoryMb);
   const defaultMem = memOptions.includes(2048) ? 2048 : memOptions[memOptions.length - 1];
 
+  const sizeFields = `
+          <div class="grid-3">
+            <label>CPU cores
+              <input name="cores" type="number" min="1" max="${left.cores}" value="${Math.min(2, left.cores)}" required>
+            </label>
+            <label>Memory
+              <select name="memoryMb">
+                ${memOptions.map((m) => `<option value="${m}" ${m === defaultMem ? 'selected' : ''}>${gb(m)}</option>`).join('')}
+              </select>
+            </label>
+            <label>Disk (GB)
+              <input name="diskGb" type="number" min="${first.minDiskGb}" max="${left.diskGb}"
+                     value="${Math.min(Math.max(first.minDiskGb, 20), left.diskGb)}" required>
+            </label>
+          </div>`;
+
   $('#detail').innerHTML = `
     <div class="detail-inner">${head}
       <form id="create-form" class="create-form" novalidate>
@@ -886,23 +907,7 @@ function renderCreate() {
           </div>
         </fieldset>
 
-        <fieldset>
-          <legend>Size</legend>
-          <div class="grid-3">
-            <label>CPU cores
-              <input name="cores" type="number" min="1" max="${left.cores}" value="${Math.min(2, left.cores)}" required>
-            </label>
-            <label>Memory
-              <select name="memoryMb">
-                ${memOptions.map((m) => `<option value="${m}" ${m === defaultMem ? 'selected' : ''}>${gb(m)}</option>`).join('')}
-              </select>
-            </label>
-            <label>Disk (GB)
-              <input name="diskGb" type="number" min="${first.minDiskGb}" max="${left.diskGb}"
-                     value="${Math.min(Math.max(first.minDiskGb, 20), left.diskGb)}" required>
-            </label>
-          </div>
-        </fieldset>
+        ${state.plans ? planFieldset(state.plans, left, sizeFields) : `<fieldset><legend>Size</legend>${sizeFields}</fieldset>`}
 
         <fieldset>
           <legend>Name and sign-in</legend>
@@ -943,6 +948,7 @@ function renderCreate() {
       </form>
     </div>`;
   applyTemplateMode($('#create-form'), first);
+  if (state.plans) updatePlanChoice($('#create-form'), state.plans);
 }
 
 /** Shows the fields that apply to the chosen image (cloud-init vs Windows). */
@@ -970,8 +976,10 @@ function onTemplateChange(form) {
   const tpl = state.templates.find((t) => t.id === Number(form.templateId.value));
   if (!tpl) return;
   const disk = form.diskGb;
-  disk.min = tpl.minDiskGb;
-  if (Number(disk.value) < tpl.minDiskGb) disk.value = tpl.minDiskGb;
+  if (disk) {
+    disk.min = tpl.minDiskGb;
+    if (Number(disk.value) < tpl.minDiskGb) disk.value = tpl.minDiskGb;
+  }
   if (!form.username.dataset.edited && tpl.setup !== 'windows') form.username.value = tpl.defaultUser || 'admin';
   applyTemplateMode(form, tpl);
 }
@@ -1409,13 +1417,12 @@ async function submitCreate(form) {
       : 'Set a password or add an SSH key so you can sign in to the server.';
     return;
   }
+  const plan = state.plans ? planBody(form, state.plans) : {};
   const body = {
     templateId: Number(form.templateId.value),
     hostname: form.hostname.value.trim(),
     ...(windows ? {} : { username: form.username.value.trim() }),
-    cores: Number(form.cores.value),
-    memoryMb: Number(form.memoryMb.value),
-    diskGb: Number(form.diskGb.value),
+    ...(plan.planId ? plan : { cores: Number(form.cores.value), memoryMb: Number(form.memoryMb.value), diskGb: Number(form.diskGb.value) }),
     ...(password ? { password } : {}),
     ...(sshKeys ? { sshKeys } : {}),
   };
@@ -1656,6 +1663,16 @@ $('#detail').addEventListener('click', (e) => {
   if (t.hasAttribute('data-renew-server') && state.detail) { billing.open({ focus: state.detail.vmid }); return; }
   if (t.hasAttribute('data-reinstall')) openReinstall();
   if (t.hasAttribute('data-resize')) openResize();
+  if (t.hasAttribute('data-upgrade') && state.detail) {
+    const vmid = state.detail.vmid;
+    state.view = 'upgrade';
+    openUpgrade(state.detail, { back: async () => { await loadList(); select(vmid); } }).catch(fail);
+  }
+  if (t.dataset.planMonths) {
+    const form = t.closest('#create-form');
+    form.dataset.months = t.dataset.planMonths;
+    updatePlanChoice(form, state.plans);
+  }
   if (t.hasAttribute('data-back-to-server') && state.detail) select(state.detail.vmid);
   if (t.hasAttribute('data-delete-server')) {
     const vm = state.vms.find((v) => v.vmid === state.selected);
@@ -1674,6 +1691,7 @@ $('#detail').addEventListener('change', (e) => {
   const form = e.target.closest('#create-form');
   if (!form) return;
   if (e.target.name === 'templateId') onTemplateChange(form);
+  if (e.target.name === 'planId') updatePlanChoice(form, state.plans);
 });
 $('#detail').addEventListener('input', (e) => {
   if (e.target.name === 'username') e.target.dataset.edited = '1';

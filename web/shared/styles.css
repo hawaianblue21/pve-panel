@@ -1148,3 +1148,11 @@ a.btn { text-decoration: none; }
   .invoice-table th:nth-child(2), .invoice-table td:nth-child(2),
   .invoice-table th:nth-child(3), .invoice-table td:nth-child(3) { display: none; }
 }
+
+/* Plans (create form and upgrade) */
+.plan-choices { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); }
+.plan-choice > span { display: grid; gap: 3px; }
+.plan-price { font-weight: 700; margin-top: 4px; }
+.plan-total { margin: 10px 0 0; }
+.plan-period .segmented { flex-wrap: wrap; }
+.plan-price .small { font-weight: 400; }

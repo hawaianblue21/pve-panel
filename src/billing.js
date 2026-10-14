@@ -7,13 +7,19 @@
 // end date and reactivates a stopped server. Auto-renew pays from the wallet a
 // few days before the end date. Servers without an end date are not billed.
 //
+// Plans (plans.js): a server created from a priced plan is paid in advance from
+// the wallet for its first period ("order"); a move to a larger plan is charged for
+// the rest of the paid period ("upgrade"). If setting up the server fails, the
+// order is refunded to the wallet.
+//
 // Money is whole rupiah (integers). Tax is added on top of the prices.
 
 import { db, audit } from './db.js';
 import { config } from './config.js';
 import { seal, open } from './secrets.js';
 import { clusterGuests } from './pve.js';
-import { extendServer } from './expiry.js';
+import { extendServer, setServerExpiry } from './expiry.js';
+import { planRow } from './plans.js';
 import { emailConfigured, sendMail, paymentReceiptMessage, autoRenewFailedMessage } from './mail.js';
 import { xendit, midtrans, GatewayError } from './gateways.js';
 
@@ -132,15 +138,20 @@ const taxOf = (amount, rate) => Math.round((amount * rate) / 100);
 
 /** Monthly price of a server: its fixed price, or the rate card applied to its size. */
 export async function priceOf(vmid, s = stored()) {
-  const row = db.prepare('SELECT vmid, label, price_monthly FROM vms WHERE vmid = ?').get(vmid);
+  const row = db.prepare('SELECT vmid, label, price_monthly, plan_id FROM vms WHERE vmid = ?').get(vmid);
   if (!row) throw fail(404, 'Server not found');
+  const plan = row.plan_id ? planRow(row.plan_id) : null;
   let g = null;
   try { g = (await clusterGuests()).get(vmid); } catch { /* Proxmox unreachable */ }
   const cores = g?.maxcpu ?? 0;
   const memoryGb = g?.maxmem ? +(g.maxmem / 2 ** 30).toFixed(1) : 0;
   const diskGb = g?.maxdisk ? Math.round(g.maxdisk / 2 ** 30) : 0;
   const name = row.label || g?.name || `server ${vmid}`;
-  if (row.price_monthly != null) return { vmid, name, cores, memoryGb, diskGb, monthly: row.price_monthly, fixed: true };
+  if (row.price_monthly != null) return { vmid, name, cores, memoryGb, diskGb, monthly: row.price_monthly, fixed: true, plan: plan?.name ?? null };
+  if (plan?.price_monthly != null) {
+    return { vmid, name, cores: cores || plan.cores, memoryGb: memoryGb || +(plan.memory_mb / 1024).toFixed(1), diskGb: diskGb || plan.disk_gb,
+      monthly: plan.price_monthly, fixed: false, plan: plan.name };
+  }
   if (!g) throw fail(503, 'The server size is not known right now (Proxmox unreachable). Try again in a minute.');
   const r = s.rates;
   const monthly = Math.max(r.minimum, roundUp(cores * r.vcpu + memoryGb * r.ramGb + diskGb * r.diskGb));
@@ -151,13 +162,32 @@ export async function priceOf(vmid, s = stored()) {
 export async function renewalQuote(vmid, months, s = stored()) {
   if (!MONTH_OPTIONS.includes(months)) throw fail(400, `Months: ${MONTH_OPTIONS.join(', ')}`);
   const p = await priceOf(vmid, s);
-  const size = [p.cores && `${p.cores} vCPU`, p.memoryGb && `${p.memoryGb} GB RAM`, p.diskGb && `${p.diskGb} GB disk`].filter(Boolean).join(', ');
-  const lines = [{ description: `${p.name} (${vmid})${size ? ` · ${size}` : ''} · ${months} month${months > 1 ? 's' : ''}`, quantity: months, unitPrice: p.monthly, amount: p.monthly * months }];
+  const size = [p.plan && `plan ${p.plan}`, p.cores && `${p.cores} vCPU`, p.memoryGb && `${p.memoryGb} GB RAM`, p.diskGb && `${p.diskGb} GB disk`].filter(Boolean).join(', ');
+  return { price: p, ...periodLines(`${p.name} (${vmid})${size ? ` · ${size}` : ''}`, p.monthly, months, s) };
+}
+
+/** Lines, discount and tax for some months of a monthly price. */
+function periodLines(what, monthly, months, s) {
+  const lines = [{ description: `${what} · ${months} month${months > 1 ? 's' : ''}`, quantity: months, unitPrice: monthly, amount: monthly * months }];
   const pct = Number(s.discounts[months] ?? 0);
-  if (pct > 0) lines.push({ description: `Discount ${pct}% for ${months} months`, quantity: 1, unitPrice: -Math.round((p.monthly * months * pct) / 100), amount: -Math.round((p.monthly * months * pct) / 100) });
+  const off = Math.round((monthly * months * pct) / 100);
+  if (pct > 0 && off > 0) lines.push({ description: `Discount ${pct}% for ${months} months`, quantity: 1, unitPrice: -off, amount: -off });
   const subtotal = lines.reduce((a, l) => a + l.amount, 0);
   const tax = taxOf(subtotal, s.taxRate);
-  return { price: p, months, lines, subtotal, taxName: s.taxName, taxRate: s.taxRate, tax, total: subtotal + tax };
+  return { months, lines, subtotal, taxName: s.taxName, taxRate: s.taxRate, tax, total: subtotal + tax };
+}
+
+const planSize = (p) => `${p.cores} vCPU, ${+(p.memory_mb / 1024).toFixed(1)} GB RAM, ${p.disk_gb} GB disk${p.gpu_name ? `, ${p.gpu_name}` : ''}`;
+
+/** Is a new server on this plan paid in advance? (billing on and the plan has a price above 0) */
+export function planIsBilled(plan) {
+  return stored().enabled && Number(plan?.price_monthly) > 0;
+}
+
+/** What a new server on a plan costs for some months (before it exists). */
+export function orderQuote(plan, months, s = stored()) {
+  if (!MONTH_OPTIONS.includes(months)) throw fail(400, `Months: ${MONTH_OPTIONS.join(', ')}`);
+  return periodLines(`New server, plan ${plan.name} (${planSize(plan)})`, plan.price_monthly, months, s);
 }
 
 // ---- Invoices ----------------------------------------------------------------------------------
@@ -208,11 +238,13 @@ export async function createRenewal(req, vmid, months, { auto = false } = {}) {
   const vm = ownServer(userId, vmid);
   if (!vm) throw fail(404, 'Server not found');
   if (!vm.expires_at) throw fail(400, 'This server has no end date and is not billed');
+  if (vm.state === 'failed') throw fail(409, 'This server could not be set up. Delete it; a paid order was refunded to your wallet.');
   // one open renewal per server: return it instead of a second one
-  const open = db.prepare("SELECT * FROM invoices WHERE user_id = ? AND vmid = ? AND purpose = 'renewal' AND status = 'unpaid'").get(userId, vmid);
-  if (open && open.months === months) return pub(open);
-  if (open) db.prepare("UPDATE invoices SET status = 'void', note = 'Replaced by a renewal for another period' WHERE id = ?").run(open.id);
+  // (or replace it when the period or the price has changed since)
   const q = await renewalQuote(vmid, months, s);
+  const open = db.prepare("SELECT * FROM invoices WHERE user_id = ? AND vmid = ? AND purpose = 'renewal' AND status = 'unpaid'").get(userId, vmid);
+  if (open && open.months === months && open.subtotal === q.subtotal && open.tax_rate === q.taxRate) return pub(open);
+  if (open) db.prepare("UPDATE invoices SET status = 'void', note = ? WHERE id = ?").run(open.months === months ? 'Replaced: the price changed' : 'Replaced by a renewal for another period', open.id);
   const inv = insertInvoice({ userId, purpose: 'renewal', vmid, months, lines: q.lines, subtotal: q.subtotal, tax: q.tax, total: q.total, s, auto });
   audit(req, vmid, 'invoice_created', { number: inv.number, purpose: 'renewal', months, total: inv.total, auto });
   return pub(inv);
@@ -416,6 +448,89 @@ export async function webhook(gateway, req) {
     }
   }
   return { status: 200, body: { status: 'paid' } };
+}
+
+// ---- Orders (new servers on a plan) and upgrades ------------------------------------------------
+
+/** Pays an invoice from the wallet right away; the invoice and the debit in one transaction. */
+function chargeWallet(req, { purpose, vmid = null, months = null, quote, note }) {
+  const s = stored();
+  const userId = req.account.id;
+  if (balanceOf(userId) < quote.total) {
+    throw fail(402, `Your wallet has ${rp(balanceOf(userId))}; this costs ${rp(quote.total)}. Top up your wallet first (Billing).`);
+  }
+  db.exec('BEGIN IMMEDIATE');
+  let inv;
+  try {
+    inv = insertInvoice({ userId, purpose, vmid, months, lines: quote.lines, subtotal: quote.subtotal, tax: quote.tax, total: quote.total, s, note });
+    walletEntry(userId, -inv.total, `Paid ${inv.number}`, { invoiceId: inv.id });
+    db.exec('COMMIT');
+  } catch (err) { db.exec('ROLLBACK'); throw err; }
+  markPaid(inv.id, { via: 'wallet', amount: inv.total, actor: req });
+  audit(req, vmid, 'invoice_created', { number: inv.number, purpose, months, total: inv.total });
+  return db.prepare('SELECT * FROM invoices WHERE id = ?').get(inv.id);
+}
+const rp = (n) => `Rp ${Math.round(n).toLocaleString('id-ID')}`;
+
+/** Before cloning a new server on a priced plan: invoice and pay the first period from the wallet. */
+export function chargeOrder(req, plan, months) {
+  const quote = orderQuote(plan, months);
+  return chargeWallet(req, { purpose: 'order', months, quote, note: `plan ${plan.id}` });
+}
+
+/** The server exists: link the order to it and set its paid-until date. */
+export function completeOrder(invoiceId, vmid, months) {
+  db.prepare('UPDATE invoices SET vmid = ? WHERE id = ?').run(vmid, invoiceId);
+  const at = new Date(Date.now() + 30 * months * DAY).toISOString();
+  setServerExpiry(vmid, at);
+  return at;
+}
+
+/** Gives a paid invoice back to the wallet (setup failed or an upgrade could not be applied). */
+export function refundInvoice(invoiceId, reason, actor = null) {
+  db.exec('BEGIN IMMEDIATE');
+  let inv;
+  try {
+    inv = db.prepare('SELECT * FROM invoices WHERE id = ?').get(invoiceId);
+    if (!inv || inv.status !== 'paid') { db.exec('ROLLBACK'); return false; }
+    db.prepare("UPDATE invoices SET status = 'refunded', note = trim(coalesce(note, '') || ' · refunded: ' || ?) WHERE id = ?").run(String(reason).slice(0, 200), inv.id);
+    walletEntry(inv.user_id, inv.total, `Refund ${inv.number}: ${String(reason).slice(0, 120)}`, { invoiceId: inv.id });
+    db.exec('COMMIT');
+  } catch (err) { db.exec('ROLLBACK'); throw err; }
+  audit(actor ?? { account: { id: inv.user_id }, ip: 'billing' }, inv.vmid, 'invoice_refunded', { number: inv.number, total: inv.total, reason });
+  return true;
+}
+
+/** Called when setting up a new server failed: refund its order, if it had one. */
+export function refundFailedOrder(vmid) {
+  const inv = db.prepare("SELECT id FROM invoices WHERE vmid = ? AND purpose = 'order' AND status = 'paid'").get(vmid);
+  if (inv) refundInvoice(inv.id, 'the server could not be set up');
+}
+
+/**
+ * Moving a server to a larger plan: the difference in monthly price for the days
+ * left of the paid period (at least nothing), plus tax.
+ */
+export function upgradeQuote(vmid, from, to) {
+  const s = stored();
+  const row = db.prepare('SELECT expires_at FROM vms WHERE vmid = ?').get(vmid);
+  const days = row?.expires_at ? Math.max(0, Math.ceil((Date.parse(row.expires_at) - Date.now()) / DAY)) : 0;
+  const perMonth = Math.max(0, (to.price_monthly ?? 0) - (from.price_monthly ?? 0));
+  const amount = s.enabled ? roundUp((perMonth * days) / 30) : 0;
+  const lines = amount ? [{ description: `Upgrade server ${vmid}: plan ${from.name} → ${to.name} (${planSize(to)}), ${days} days left`, quantity: 1, unitPrice: amount, amount }] : [];
+  const tax = taxOf(amount, s.taxRate);
+  return { days, perMonth, lines, subtotal: amount, taxName: s.taxName, taxRate: s.taxRate, tax, total: amount + tax };
+}
+
+/** Unpaid renewals of a server at its old size: cancelled after a plan change (the next one has the new price). */
+export function voidOpenRenewals(vmid, reason) {
+  return db.prepare("UPDATE invoices SET status = 'void', note = ? WHERE vmid = ? AND purpose = 'renewal' AND status = 'unpaid'").run(reason, vmid).changes;
+}
+
+export function chargeUpgrade(req, vmid, from, to) {
+  const quote = upgradeQuote(vmid, from, to);
+  if (!quote.total) return null;
+  return chargeWallet(req, { purpose: 'upgrade', vmid, quote, note: `plan ${from.id} to ${to.id}` });
 }
 
 // ---- Auto-renew ----------------------------------------------------------------------------------

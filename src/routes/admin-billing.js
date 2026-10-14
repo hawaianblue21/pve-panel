@@ -6,7 +6,7 @@ const NUMBER = { type: 'object', required: ['number'], properties: { number: { t
 
 export default async function adminBillingRoutes(app) {
   app.get('/api/admin/billing', {
-    schema: { querystring: { type: 'object', additionalProperties: false, properties: { status: { type: 'string', enum: ['unpaid', 'paid', 'void', 'overdue', 'reported'] }, q: { type: 'string', maxLength: 100 } } } },
+    schema: { querystring: { type: 'object', additionalProperties: false, properties: { status: { type: 'string', enum: ['unpaid', 'paid', 'void', 'refunded', 'overdue', 'reported'] }, q: { type: 'string', maxLength: 100 } } } },
   }, async (req) => billing.adminOverview(req.query));
 
   app.get('/api/admin/billing/invoices/:number', { schema: { params: NUMBER } }, async (req) => billing.adminInvoice(req.params.number));

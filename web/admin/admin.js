@@ -7,6 +7,7 @@ import { applyScheme } from '/shared/icons.js';
 import { createInfra } from '/infra.js';
 import { createDesk } from '/desk.js';
 import { createBilling } from '/billing.js';
+import { createPlans } from '/plans.js';
 
 // Administration area: assign servers, manage customers, read the activity log.
 // Receives the shared helpers from app.js so it behaves like the rest of the panel.
@@ -135,6 +136,25 @@ const ACTION_LABELS = {
   admin_gpu_profile_delete: 'Deleted a GPU profile',
   admin_gpu_attach: 'Attached a GPU',
   admin_gpu_detach: 'Detached a GPU',
+  admin_plan_create: 'Added a plan',
+  admin_plan_update: 'Changed a plan',
+  admin_plan_delete: 'Deleted a plan',
+  admin_plan_settings: 'Changed plan settings',
+  server_plan_changed: 'Moved a server to a larger plan',
+  invoice_created: 'Invoice created',
+  invoice_paid: 'Invoice paid',
+  invoice_refunded: 'Invoice refunded to the wallet',
+  invoice_transfer_reported: 'Reported a bank transfer',
+  payment_checkout: 'Opened a payment page',
+  payment_checkout_failed: 'Payment page could not be opened',
+  payment_webhook_refused: 'Refused a payment notification',
+  payment_amount_mismatch: 'Payment amount too low',
+  payment_duplicate_to_wallet: 'Second payment kept as balance',
+  auto_renew_changed: 'Changed auto-renew',
+  admin_invoice_void: 'Cancelled an invoice',
+  admin_wallet_adjust: 'Adjusted a wallet',
+  admin_server_price: 'Set a server price',
+  admin_billing_settings: 'Changed billing settings',
 };
 
 export function generatePassword(length = 16) {
@@ -155,6 +175,8 @@ export function createAdmin({ root, api, toast, fail, confirmAction, promptText,
   const desk = createDesk({ root, api, toast, fail, confirmAction, esc, getMe });
   // Invoices, payments and wallets (own module)
   const billing = createBilling({ root, api, toast, fail, confirmAction, esc });
+  // Plans: sizes with a price (own module)
+  const plans = createPlans({ root, api, toast, fail, confirmAction, esc });
   // Which permission a tab needs (the server checks every request as well)
   const TAB_PERMISSION = {
     servers: 'servers.read', users: 'customers.read', templates: 'servers.read', vpn: 'network.read',
@@ -163,6 +185,7 @@ export function createAdmin({ root, api, toast, fail, confirmAction, promptText,
   const allowedTab = (id) => (infra.handles(id) ? infra.tabs().some(([t]) => t === id)
     : desk.handles(id) ? desk.tabs().some(([t]) => t === id)
     : billing.handles(id) ? billing.tabs().some(([t]) => t === id)
+    : plans.handles(id) ? plans.tabs().some(([t]) => t === id)
     : !TAB_PERMISSION[id] || !st.perms || st.perms.has(TAB_PERMISSION[id]));
   const gb = (mb) => `${+(mb / 1024).toFixed(1)} GB`;
 
@@ -179,6 +202,8 @@ export function createAdmin({ root, api, toast, fail, confirmAction, promptText,
         await desk.load(st.tab);
       } else if (billing.handles(st.tab)) {
         await billing.load(st.tab);
+      } else if (plans.handles(st.tab)) {
+        await plans.load(st.tab);
       } else if (st.tab === 'servers') {
         [st.vms, st.users] = await Promise.all([api('/api/admin/vms'), api('/api/admin/users')]);
       } else if (st.tab === 'users') {
@@ -213,7 +238,7 @@ export function createAdmin({ root, api, toast, fail, confirmAction, promptText,
 
   // ---- shell ------------------------------------------------------------
   function render() {
-    const tabs = [['servers', 'Servers'], ['users', 'Customers'], ...desk.tabs(), ...billing.tabs(), ['templates', 'Templates'], ['vpn', 'VPN'],
+    const tabs = [['servers', 'Servers'], ['users', 'Customers'], ...desk.tabs(), ...billing.tabs(), ...plans.tabs(), ['templates', 'Templates'], ['vpn', 'VPN'],
       ...infra.tabs(), ['activity', 'Activity'], ['account', 'Your account'], ['settings', 'Settings'], ['about', 'About']]
       .filter(([id]) => allowedTab(id));
     root.innerHTML = `
@@ -231,6 +256,7 @@ export function createAdmin({ root, api, toast, fail, confirmAction, promptText,
     if (infra.handles(st.tab)) infra.render(st.tab);
     if (desk.handles(st.tab)) desk.render(st.tab);
     if (billing.handles(st.tab)) billing.render(st.tab);
+    if (plans.handles(st.tab)) plans.render(st.tab);
     if (st.tab === 'servers') renderServers();
     if (st.tab === 'users') renderUsers();
     if (st.tab === 'templates') renderTemplates();
@@ -1559,6 +1585,7 @@ export function createAdmin({ root, api, toast, fail, confirmAction, promptText,
     if (infra.handles(st.tab) && !t.dataset.adminTab && await infra.onClick(e, st.tab)) return;
     if (desk.handles(st.tab) && !t.dataset.adminTab && await desk.onClick(e, st.tab)) return;
     if (billing.handles(st.tab) && !t.dataset.adminTab && await billing.onClick(e, st.tab)) return;
+    if (plans.handles(st.tab) && !t.dataset.adminTab && await plans.onClick(e, st.tab)) return;
 
     if (t.hasAttribute('data-ai-test')) {
       t.disabled = true;
@@ -1868,6 +1895,7 @@ export function createAdmin({ root, api, toast, fail, confirmAction, promptText,
   root.addEventListener('change', (e) => {
     if (infra.handles(st.tab)) infra.onChange(e, st.tab);
     if (desk.handles(st.tab)) desk.onChange(e, st.tab);
+    if (plans.handles(st.tab)) plans.onChange(e, st.tab);
   });
 
   root.addEventListener('submit', (e) => {
@@ -1886,6 +1914,11 @@ export function createAdmin({ root, api, toast, fail, confirmAction, promptText,
       billing.onSubmit(e, st.tab);
       return;
     }
+    if (plans.handles(st.tab)) {
+      e.preventDefault();
+      plans.onSubmit(e, st.tab);
+      return;
+    }
     if (e.target.id !== 'user-form') return;
     e.preventDefault();
     createUser(e.target);
@@ -1899,6 +1932,7 @@ export function createAdmin({ root, api, toast, fail, confirmAction, promptText,
       infra.setPermissions(me.permissions);
       desk.setPermissions(me.permissions);
       billing.setPermissions(me.permissions);
+      plans.setPermissions(me.permissions);
     } catch (err) {
       fail(err);
     }
