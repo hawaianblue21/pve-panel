@@ -10,7 +10,7 @@ import { agentExec } from './agent.js';
 import { expiryForNewServer } from './expiry.js';
 import { activeRun } from './winupdate.js';
 import { checkPoolCapacity, placement, datacenterById } from './pools.js';
-import { profilesForUser, profileCapacity, applyRecordedGpus } from './gpu.js';
+import { profilesForUser, claimGpu, applyRecordedGpus } from './gpu.js';
 
 const MB = 1024 ** 2;
 const GB = 1024 ** 3;
@@ -146,6 +146,7 @@ export async function createServer(req, spec) {
   creatingFor.add(account.id);
 
   let background = false;
+  let releaseGpu = null;
   try {
     const tplRow = db.prepare('SELECT * FROM templates WHERE vmid = ?').get(spec.templateId);
     if (!tplRow) throw new ProvisionError(400, 'That image is not available');
@@ -175,8 +176,8 @@ export async function createServer(req, spec) {
     if (spec.gpuProfileId) {
       gpu = profilesForUser(account.id).find((p) => p.id === spec.gpuProfileId);
       if (!gpu) throw new ProvisionError(403, 'That GPU is not available for your account');
-      const cap = await profileCapacity(gpu);
-      if (cap.free < 1) throw new ProvisionError(409, `No ${gpu.name} is free right now. Try again later or choose another GPU.`);
+      releaseGpu = await claimGpu(gpu);
+      if (!releaseGpu) throw new ProvisionError(409, `No ${gpu.name} is free right now. Try again later or choose another GPU.`);
     }
 
     // Resource pool (shared by several customers) and the datacenter it may use
@@ -236,6 +237,8 @@ export async function createServer(req, spec) {
 
     return vmid;
   } finally {
+    // From here the reservation row counts the GPU (or creation failed)
+    releaseGpu?.();
     if (!background) creatingFor.delete(account.id);
   }
 }

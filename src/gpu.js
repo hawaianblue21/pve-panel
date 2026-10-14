@@ -161,7 +161,36 @@ export async function profileCapacity(profile, mappings = null) {
       problem = `Could not read mediated devices on ${d.node}: ${err.message}`;
     }
   }
+  // Reserved at creation but not yet in a VM config: Proxmox still counts them as available
+  const reserved = db.prepare(`SELECT COUNT(*) AS n FROM gpu_assignments a JOIN gpu_profiles p ON p.id = a.profile_id
+    WHERE p.mapping = ? AND p.mode = 'mdev' AND p.mdev_type = ? AND a.slot = -1`).get(profile.mapping, profile.mdevType).n;
+  free = Math.max(0, free - reserved);
   return { total: used + free, used, free, problem };
+}
+
+// GPUs being handed out right now (checked, not yet recorded in gpu_assignments).
+// Check and claim happen in one synchronous step, so two requests can't both
+// take the last free GPU while the first one is still cloning its server.
+const claiming = new Map();
+const claimKey = (p) => `${p.mapping}|${p.mode}|${p.mdevType ?? ''}`;
+
+/**
+ * Claims one GPU of the profile. Returns a release function (call it once the
+ * assignment row exists, or on failure), or null when none is free.
+ */
+export async function claimGpu(profile) {
+  const cap = await profileCapacity(profile);
+  const key = claimKey(profile);
+  const busy = claiming.get(key) ?? 0;
+  if (cap.free - busy < 1) return null;
+  claiming.set(key, busy + 1);
+  let released = false;
+  return () => {
+    if (released) return;
+    released = true;
+    const n = (claiming.get(key) ?? 1) - 1;
+    if (n > 0) claiming.set(key, n); else claiming.delete(key);
+  };
 }
 
 /** Everything the GPU tab shows. */
@@ -232,10 +261,15 @@ export async function attachGpu(req, vmid, profileId) {
   const guest = await locateGuest(vmid);
   if (guest.type !== 'qemu') throw new GpuError(400, 'Containers (LXC) can\'t use PCI passthrough or vGPU');
   if (guest.status !== 'stopped') throw new GpuError(409, 'Shut the server down first; GPUs are attached to stopped servers');
-  const cap = await profileCapacity(profile);
-  if (cap.free < 1) throw new GpuError(409, `No ${profile.name} is free right now (${cap.used} of ${cap.total} in use)`);
-  await checkPoolCapacity(row.user_id, { gpus: 1 });
-  const slot = await attachToConfig(guestPath(guest), vmid, profile, row.user_id);
+  const release = await claimGpu(profile);
+  if (!release) throw new GpuError(409, `No ${profile.name} is free right now`);
+  let slot;
+  try {
+    await checkPoolCapacity(row.user_id, { gpus: 1 });
+    slot = await attachToConfig(guestPath(guest), vmid, profile, row.user_id);
+  } finally {
+    release();
+  }
   invalidateGuestCache();
   audit(req, vmid, 'admin_gpu_attach', { profile: profile.key, slot });
   return { vmid, slot, profile: profile.key };
