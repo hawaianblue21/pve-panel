@@ -70,6 +70,8 @@ export async function usageOf(userId) {
       usage.diskGb += Math.round((guest.maxdisk ?? 0) / GB);
     }
   }));
+  // detached block storage volumes (parked as unusedN, not in the active config) still count
+  usage.diskGb += db.prepare('SELECT COALESCE(SUM(size_gb), 0) AS gb FROM volumes WHERE user_id = ? AND slot IS NULL').get(userId).gb;
   return usage;
 }
 
@@ -353,6 +355,7 @@ export async function reinstallServer(req, row, input) {
   if (!['ready', 'failed'].includes(row.state)) {
     throw new ProvisionError(409, 'Wait until the current operation on this server has finished');
   }
+  assertNoVolumes(row.vmid);
   if (creatingFor.has(account.id)) {
     throw new ProvisionError(409, 'Another server is being set up. Wait until it has finished.');
   }
@@ -560,8 +563,18 @@ export async function resizeServer(req, row, { cores, memoryMb, diskGb, restart 
 
 // ---- Delete -----------------------------------------------------------------
 
+/** Proxmox destroys a VM's disks with it: refuse while the server holds block storage volumes. */
+function assertNoVolumes(vmid) {
+  const rows = db.prepare('SELECT label FROM volumes WHERE vmid = ?').all(vmid);
+  if (rows.length) {
+    throw new ProvisionError(409, `This server holds ${rows.length === 1 ? 'the volume' : 'the volumes'} ${rows.map((r) => r.label).join(', ')}. `
+      + 'Move them to another server or delete them first; they would be destroyed with it.');
+  }
+}
+
 /** Destroys a customer-created server (must be stopped) and removes its record. */
 export async function deleteServer(req, row) {
+  assertNoVolumes(row.vmid);
   const guests = await clusterGuests(true);
   const guest = guests.get(row.vmid);
 

@@ -19,8 +19,8 @@ export const PERMISSIONS = [
   { key: 'network.write', group: 'Network', label: 'Remove VPN devices, resync the gateway' },
   { key: 'pools.read', group: 'Resources', label: 'View resource pools and datacenters' },
   { key: 'pools.write', group: 'Resources', label: 'Change resource pools, datacenters and pool members' },
-  { key: 'storage.read', group: 'Resources', label: 'View object storage (SeaweedFS)' },
-  { key: 'storage.write', group: 'Resources', label: 'Configure object storage, buckets and access keys' },
+  { key: 'storage.read', group: 'Resources', label: 'View block storage volumes and object storage (SeaweedFS)' },
+  { key: 'storage.write', group: 'Resources', label: 'Configure block storage tiers, object storage, buckets and access keys' },
   { key: 'gpu.read', group: 'Resources', label: 'View GPU inventory and profiles' },
   { key: 'gpu.write', group: 'Resources', label: 'Manage GPU profiles, attach and detach GPUs' },
   { key: 'settings.read', group: 'Panel', label: 'View panel settings' },
@@ -53,7 +53,7 @@ export const BUILTIN_ROLES = [
     permissions: [...READS, 'support.write', 'kb.write'],
   },
   {
-    key: 'resources', name: 'Resource manager', description: 'Capacity: pools, datacenters, object storage and GPUs',
+    key: 'resources', name: 'Resource manager', description: 'Capacity: pools, datacenters, block and object storage, GPUs',
     permissions: [...READS, 'pools.write', 'storage.write', 'gpu.write'],
   },
   {
@@ -165,6 +165,9 @@ const ROUTES = {
   'PUT /api/admin/pools/:id/members/:userId': 'pools.write',
   'DELETE /api/admin/pools/:id/members/:userId': 'pools.write',
 
+  'GET /api/admin/volumes': 'storage.read',
+  'GET /api/admin/settings/volumes': 'storage.read',
+  'PUT /api/admin/settings/volumes': 'storage.write',
   'GET /api/admin/storage/s3': 'storage.read',
   'PUT /api/admin/storage/s3': 'storage.write',
   'POST /api/admin/storage/s3/test': 'storage.write',

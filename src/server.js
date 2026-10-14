@@ -23,6 +23,7 @@ import storageRoutes from './routes/storage.js';
 import supportRoutes from './routes/support.js';
 import assistantRoutes from './routes/assistant.js';
 import billingRoutes from './routes/billing.js';
+import volumeRoutes from './routes/volumes.js';
 import { startAutoRenew, refundFailedOrder } from './billing.js';
 import { onCreateFailed } from './provision.js';
 import { startZammadRetry } from './zammad.js';
@@ -148,6 +149,7 @@ const customer = await buildServer('customer', async (app) => {
   await app.register(supportRoutes);
   await app.register(assistantRoutes);
   await app.register(billingRoutes);
+  await app.register(volumeRoutes);
 
   await app.register(fastifyStatic, { root: web('customer') });
   await app.register(fastifyStatic, { root: web('shared'), prefix: '/shared/', decorateReply: false });

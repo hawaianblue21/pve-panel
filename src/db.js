@@ -546,6 +546,26 @@ db.exec(`
   );
 `);
 
+// ---- Block storage volumes (volumes.js) -------------------------------------------
+// An extra disk of a customer's VM. Attached: a scsiN key in the VM config (slot).
+// Detached: parked as unusedN on the same VM (slot NULL), still the customer's and
+// still counted. Proxmox destroys a VM's disks with it, so the row goes with the VM.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS volumes (
+    id         INTEGER PRIMARY KEY,
+    user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    vmid       INTEGER NOT NULL REFERENCES vms(vmid) ON DELETE CASCADE,
+    label      TEXT NOT NULL,
+    tier       TEXT NOT NULL,
+    size_gb    INTEGER NOT NULL,
+    volid      TEXT NOT NULL,                 -- Proxmox volume, e.g. ceph-nvme:vm-101-disk-3
+    slot       TEXT,                          -- scsiN while attached; NULL = detached
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE (user_id, label)
+  );
+  CREATE INDEX IF NOT EXISTS volumes_vm ON volumes(vmid);
+`);
+
 // Background jobs don't survive a restart; don't leave servers stuck forever.
 db.exec(`
   UPDATE vms SET state = 'failed', error = 'Setup was interrupted because the panel restarted'

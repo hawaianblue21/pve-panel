@@ -12,6 +12,7 @@ import { renderAppearance, loadPersonalAppearance } from '/shared/appearance.js'
 import { createSupport } from '/support.js';
 import { createAssistant } from '/assistant.js';
 import { createBilling } from '/billing.js';
+import { createStorage } from '/storage.js';
 import { planFieldset, updatePlanChoice, planBody, openUpgrade } from '/plans.js';
 
 const brandReady = applyBrand();
@@ -166,8 +167,19 @@ const billing = createBilling({
     renderList();
   },
 });
+// Block volumes and object storage (own module; shown when offered)
+const storage = createStorage({
+  state,
+  renderList: () => renderList(),
+  setView(view, hash) {
+    state.view = view;
+    state.selected = null;
+    history.replaceState(null, '', hash);
+    renderList();
+  },
+});
 window.addEventListener('hashchange', () => {
-  if (state.me && !assistant.route(location.hash) && !billing.route(location.hash)) support.route(location.hash);
+  if (state.me && !assistant.route(location.hash) && !billing.route(location.hash) && !storage.route(location.hash)) support.route(location.hash);
 });
 
 function renderList() {
@@ -180,6 +192,8 @@ function renderList() {
       ? `<button class="nav-item" id="vpn-access" aria-current="${state.view === 'vpn'}">${icon('shield')}<span>VPN access</span></button>` : '',
     state.assistantEnabled
       ? `<button class="nav-item" id="nav-assistant" aria-current="${state.view === 'assistant'}">${icon('spark')}<span>AI assistant</span></button>` : '',
+    state.storageEnabled
+      ? `<button class="nav-item" id="nav-storage" aria-current="${state.view === 'storage'}">${icon('disk')}<span>Storage</span></button>` : '',
     state.billingEnabled
       ? `<button class="nav-item" id="nav-billing" aria-current="${['billing', 'invoice'].includes(state.view)}">${icon('wallet')}<span>Billing</span></button>` : '',
     `<button class="nav-item" id="nav-support" aria-current="${supportViews.includes(state.view)}">${icon('chat')}<span>Support</span>${state.supportWaiting ? `<span class="nav-badge" title="Tickets waiting for your reply">${state.supportWaiting}</span>` : ''}</button>`,
@@ -1499,6 +1513,7 @@ $('#rack-actions').addEventListener('click', (e) => {
   if (e.target.closest('#nav-support')) support.openSupport();
   if (e.target.closest('#nav-assistant')) assistant.open();
   if (e.target.closest('#nav-billing')) billing.open();
+  if (e.target.closest('#nav-storage')) storage.open();
   if (e.target.closest('#nav-help')) support.openHelp();
 });
 
@@ -1766,7 +1781,7 @@ async function startApp(me) {
     openAccount();
   } else if (location.hash === '#vpn' && state.account.vpn?.enabled) {
     await openVpn();
-  } else if (assistant.route(location.hash) || billing.route(location.hash) || support.route(location.hash)) {
+  } else if (assistant.route(location.hash) || billing.route(location.hash) || storage.route(location.hash) || support.route(location.hash)) {
     // support ticket or help-center article (e.g. a link from an email)
   } else {
     const fromHash = Number(location.hash.slice(1));
@@ -1776,6 +1791,7 @@ async function startApp(me) {
   support.refreshBadge();
   assistant.loadStatus().then(() => renderList());
   billing.loadStatus().then(() => renderList());
+  storage.loadStatus().then(() => renderList());
 
   // Every 10 s normally, every 5 s while a server is being created or deleted.
   clearInterval(state.poll);

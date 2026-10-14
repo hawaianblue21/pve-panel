@@ -11,6 +11,7 @@
 //   /__recovery/<vmid>           a Recovery partition blocks extending C:
 //   /__lu/<vmid>/<scenario>      Linux updates: normal | uptodate | kernel | nopm | lowdisk | error | dnf
 //   /__failclone/<n>             the next n clones end with an error
+//   /__node/<vmid>/<node>        move a VM to another node (block storage tests)
 //   /__sdn, /__vms, /__gw        inspect state
 import http from 'node:http';
 import { WebSocketServer } from 'ws';
@@ -59,6 +60,34 @@ export async function startMockPve({ port = 0 } = {}) {
 
   const newMac = () => 'BC:24:11:' + Array.from({ length: 3 }, () => Math.floor(Math.random() * 256).toString(16).padStart(2, '0').toUpperCase()).join(':');
   const withMac = (net) => (!net || /^\w+=[0-9A-Fa-f:]{17}/.test(net) ? net : net.replace(/^(\w+)/, `$1=${newMac()}`));
+  // Extra disks (block storage volumes): allocate "STORAGE:SIZE", detach to unusedN,
+  // reattach an unused volume, destroy unusedN; sizes are remembered per volume.
+  const DISK = /^(scsi|virtio|sata|ide)\d+$/;
+  const volSizes = new Map();
+  const counters = new Map();
+  const diskSeq = { next: (id) => { const n = (counters.get(id) ?? 0) + 1; counters.set(id, n); return n; } };
+  const volidOf = (v) => String(v).split(',')[0];
+  const sizeOf = (v) => /size=([^,]+)/.exec(String(v))?.[1];
+  function diskDelete(vm, k) {
+    const v = vm.cfg[k];
+    if (v === undefined) return;
+    delete vm.cfg[k];
+    if (/^unused\d+$/.test(k)) { volSizes.delete(volidOf(v)); return; }       // destroyed
+    if (DISK.test(k) && !/media=cdrom|cloudinit/.test(v)) {
+      let i = 0; while (vm.cfg[`unused${i}`]) i += 1;
+      if (sizeOf(v)) volSizes.set(volidOf(v), sizeOf(v));
+      vm.cfg[`unused${i}`] = volidOf(v);
+    }
+  }
+  function diskAssign(vm, b) {
+    for (const [k, v] of Object.entries(b)) {
+      if (!DISK.test(k) || typeof v !== 'string') continue;
+      const alloc = /^([\w.-]+):(\d+)(,.*)?$/.exec(v);
+      if (alloc) { b[k] = `${alloc[1]}:vm-${vm.vmid}-disk-${diskSeq.next(vm.vmid) + 10},size=${alloc[2]}G${alloc[3] ?? ''}`; continue; }
+      const unused = Object.keys(vm.cfg).find((x) => /^unused\d+$/.test(x) && vm.cfg[x] === volidOf(v));
+      if (unused) { delete vm.cfg[unused]; b[k] = sizeOf(v) ? v : `${v},size=${volSizes.get(volidOf(v)) ?? '1G'}`; }
+    }
+  }
   const flaky = new Map();
   const lose = new Map(); const loseOnly = new Map();   // vmid -> number of finished results to 'lose' like a real agent
   function tailscaleExec(vm, vmid, script, stdin) {
@@ -173,6 +202,7 @@ export async function startMockPve({ port = 0 } = {}) {
     if (req.headers.authorization !== 'PVEAPIToken=panel@pve!panel=x') return send(res, null, 401);
     if (p === '/cluster/resources') return send(res, [...vms.values()].map(({cfg, ...v}) => ({...v, id:`qemu/${v.vmid}`, cpu:0.05, mem:v.maxmem/4, uptime: v.status==='running' ? uptimeOf(v.vmid) : 0})));
     if (p === '/__gw') return send(res, Object.fromEntries(gwFiles));
+    { const nm = p.match(/^\/__node\/(\d+)\/([\w-]+)$/); if (nm) { vms.get(Number(nm[1])).node = nm[2]; return send(res, null); } }
     if (p === '/__sdn') return send(res, { ...sdn, subnets: Object.fromEntries(sdn.subnets) });
     if (p.startsWith('/__tsowner/')) { vms.get(Number(p.split('/')[2])).tsForeign = true; return send(res, 'ok'); }
     if (p.startsWith('/__lose/')) { const [, , v, n, only] = p.split('/'); lose.set(Number(v), Number(n)); loseOnly.set(Number(v), only ? decodeURIComponent(only) : null); return send(res, 'ok'); }
@@ -230,7 +260,8 @@ export async function startMockPve({ port = 0 } = {}) {
       return send(res, task('qmclone', vmid, 2500, () => { delete vms.get(id).lock; })); }
     if (rest === '/config' && req.method === 'GET') return send(res, vm.cfg);
     if (rest === '/config' && req.method === 'PUT') { const b = await body(req); if (b.net0) b.net0 = withMac(b.net0); log('CONFIG', vmid, JSON.stringify(b));
-      if (b.delete) { for (const k of b.delete.split(',')) delete vm.cfg[k.trim()]; delete b.delete; }
+      if (b.delete) { for (const k of b.delete.split(',').map((x) => x.trim())) diskDelete(vm, k); delete b.delete; }
+      diskAssign(vm, b);
       const hot = vm.status === 'running';
       for (const k of ['cores', 'memory', 'sockets']) if (b[k] !== undefined && hot && String(vm.cfg[k] ?? '') !== String(b[k])) (vm.pending ??= {})[k] = b[k];
       Object.assign(vm.cfg, b);
@@ -239,8 +270,25 @@ export async function startMockPve({ port = 0 } = {}) {
     if (rest === '/pending' && req.method === 'GET') {
       return send(res, Object.keys(vm.cfg).map((k) => ({ key: k, value: vm.pending?.[k] !== undefined ? undefined : vm.cfg[k], ...(vm.pending?.[k] !== undefined ? { value: String(k === 'cores' ? vm.maxcpu : Math.round(vm.maxmem / 2**20)), pending: vm.pending[k] } : {}) })));
     }
+    if (rest === '/config' && req.method === 'POST') { const b = await body(req); log('CONFIG (async)', vmid, JSON.stringify(b));
+      if (b.delete) { for (const k of b.delete.split(',').map((x) => x.trim())) diskDelete(vm, k); delete b.delete; }
+      diskAssign(vm, b); Object.assign(vm.cfg, b); return send(res, task('qmconfig', vmid, 300)); }
+    if (rest === '/move_disk' && req.method === 'POST') { const b = await body(req); log('MOVE_DISK', vmid, JSON.stringify(b));
+      const target = vms.get(Number(b['target-vmid']));
+      if (!target) return send(res, null, 500, 'target VM does not exist');
+      if (target.node !== vm.node) return send(res, null, 500, 'reassigning disks is only possible on the same node');
+      const value = vm.cfg[b.disk]; if (!value) return send(res, null, 500, `disk '${b.disk}' does not exist`);
+      if (target.cfg[b['target-disk']]) return send(res, null, 500, `target disk '${b['target-disk']}' is in use`);
+      delete vm.cfg[b.disk];
+      const n = diskSeq.next(target.vmid);
+      const moved = volidOf(value).replace(/vm-\d+-disk-\d+/, `vm-${target.vmid}-disk-${n + 10}`);
+      const size = sizeOf(value) ?? volSizes.get(volidOf(value));
+      volSizes.delete(volidOf(value));
+      if (/^unused\d+$/.test(b['target-disk'])) { volSizes.set(moved, size); target.cfg[b['target-disk']] = moved; }
+      else target.cfg[b['target-disk']] = `${moved},size=${size}`;
+      return send(res, task('qmmove', vmid, 300)); }
     if (rest === '/resize' && req.method === 'PUT') { const b = await body(req); log('RESIZE', vmid, JSON.stringify(b));
-      vm.cfg[b.disk] = vm.cfg[b.disk].replace(/size=[^,]+/, `size=${b.size}`); vm.maxdisk = parseInt(b.size)*2**30; return send(res, task('resize', vmid, 500)); }
+      vm.cfg[b.disk] = vm.cfg[b.disk].replace(/size=[^,]+/, `size=${b.size}`); if (b.disk === 'scsi0') vm.maxdisk = parseInt(b.size)*2**30; /* maxdisk: the boot disk only, as in Proxmox */ return send(res, task('resize', vmid, 500)); }
     const pw = rest.match(/^\/status\/(start|stop|shutdown|reboot)$/);
     if (pw) { const a = pw[1]; log('POWER', vmid, a); return send(res, task(`qm${a}`, vmid, 800, () => {
       vm.status = (a==='start'||a==='reboot')?'running':'stopped'; if (a==='start'||a==='reboot') started.set(vmid, Date.now());

@@ -50,8 +50,8 @@ Status: ✅ implemented · 🟡 partly (what is missing is listed) · ⬜ design
 | Network & VPN | `Customer-Network.dc.html` | ✅ |
 | Security & 2FA | `Customer-Security.dc.html` | ✅ |
 | Billing & wallet, invoice & pay | `Customer-Billing.dc.html`, `Customer-Invoice.dc.html` | ✅ wallet, top-up, renewals, invoices (print/PDF), Xendit, Midtrans, bank transfer |
-| Block storage | `Customer-Block.dc.html` | ⬜ |
-| Object storage | `Customer-Object.dc.html` | 🟡 API (`/api/storage`); customer screen missing |
+| Block storage | `Customer-Block.dc.html` | ✅ tiers, create, attach/detach/move, enlarge, delete (volume snapshots and IOPS figures missing) |
+| Object storage | `Customer-Object.dc.html` | ✅ buckets, quota, usage, access key shown once, AWS CLI / rclone / restic snippets (read-only buckets missing) |
 | Support tickets | `Customer-Tickets.dc.html` | ✅ |
 | Knowledge base (help center) | `Customer-KB.dc.html` | ✅ |
 | AI assistant | `Customer-Assistant.dc.html` | ✅ answers with sources, ratings, handover to a ticket |

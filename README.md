@@ -119,6 +119,7 @@ PVE Panel was built with substantial help from an AI assistant (**Claude by Anth
 - Choose their own color scheme and light / dark mode (when the panel owner allows it)
 - Open **support tickets** (optionally about one of their servers), follow the conversation and get answers by email
 - Search the **help center** (knowledge base) and rate articles
+- **Storage**: block volumes (create, attach, detach, move between servers, enlarge) and S3 object storage buckets with access keys
 - Ask the **AI assistant**: answers from the help center and their own servers and tickets, hands over to a ticket
 - **Plans**: create servers from plans (size and monthly price), pay the first period from the wallet, move up to a larger plan for the difference
 - **Billing**: wallet with top-ups, renew servers for 1, 3, 6 or 12 months (with discounts), auto-renew from the wallet, printable invoices with PPN; pay by wallet, **Xendit**, **Midtrans** or bank transfer
@@ -261,8 +262,30 @@ run `s3.bucket.quota.enforce -apply` in `weed shell` on a schedule so buckets ov
 Deleting a customer removes their IAM user and key; their buckets stay (without owner) so no data is lost
 unless an administrator deletes them.
 
-Customer API: `GET /api/storage`, `POST /api/storage/buckets`, `DELETE /api/storage/buckets/:name`,
-`POST /api/storage/keys`.
+Customers manage buckets and their access key under **Storage → Object storage** (with ready-made AWS CLI,
+rclone and restic snippets). Customer API: `GET /api/storage`, `POST /api/storage/buckets`,
+`DELETE /api/storage/buckets/:name`, `POST /api/storage/keys`.
+
+### Block storage (volumes)
+
+Extra disks for customers' virtual machines, set up in **Block storage** (admin portal): tiers that map to Proxmox
+storages (for example NVMe on `ceph-nvme`, archive on an HDD pool), each with a price per GB per month, the largest
+volume and the number of volumes per server. Customers use them under **Storage → Block volumes**.
+
+```text
+Create ──► scsiN on the server (hot-added) ──► Detach (server shut down) ──► kept as unusedN on that server
+                                                    │
+                       Attach to the same or another server on the same host (move_disk) ◄──┘
+Enlarge (attached, grows only) · Delete (detached only: removing unusedN destroys the volume)
+```
+
+- Volumes count against the customer's disk limit and resource pool, detached ones too.
+- They are billed with the server that holds them: an extra line on its renewal invoice.
+- A server holding volumes can't be deleted or reinstalled (Proxmox would destroy them with it): the customer moves
+  or deletes them first.
+- Moving works between servers on the same Proxmox node (disk reassignment). Containers (LXC) are not offered.
+
+Customer API: `GET/POST /api/volumes`, `POST /api/volumes/:id/attach|detach|resize`, `PATCH/DELETE /api/volumes/:id`.
 
 ---
 
