@@ -20,6 +20,11 @@ import vmRoutes from './routes/vms.js';
 import consoleRoutes from './routes/console.js';
 import vpnRoutes from './routes/vpn.js';
 import storageRoutes from './routes/storage.js';
+import supportRoutes from './routes/support.js';
+import assistantRoutes from './routes/assistant.js';
+import billingRoutes from './routes/billing.js';
+import { startAutoRenew } from './billing.js';
+import { startZammadRetry } from './zammad.js';
 import { syncOnStartup } from './vpn.js';
 import { reapplyIsolation, syncVnetAliases } from './network.js';
 import adminRoutes from './routes/admin.js';
@@ -139,6 +144,9 @@ const customer = await buildServer('customer', async (app) => {
   await app.register(consoleRoutes);
   await app.register(vpnRoutes);
   await app.register(storageRoutes);
+  await app.register(supportRoutes);
+  await app.register(assistantRoutes);
+  await app.register(billingRoutes);
 
   await app.register(fastifyStatic, { root: web('customer') });
   await app.register(fastifyStatic, { root: web('shared'), prefix: '/shared/', decorateReply: false });
@@ -167,6 +175,8 @@ admin.log.info(`pve-panel ${versionInfo.version}${versionInfo.commit ? ` (${vers
 bootstrapAdmin(admin.log);
 startExpiryScheduler(admin.log);
 startUpdateTracker(admin.log);
+startZammadRetry(admin.log);
+startAutoRenew(admin.log);
 
 await customer.listen({ port: config.port, host: config.host });
 await admin.listen({ port: config.adminPort, host: config.adminHost });

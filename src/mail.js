@@ -267,3 +267,62 @@ export function expirySummaryMessage(summary) {
     }),
   };
 }
+
+// ---- Support tickets ----------------------------------------------------------------------
+
+/** A support agent answered a customer's ticket. */
+export function ticketReplyMessage(ticket, body) {
+  const panel = emailSettings().panelUrl;
+  const link = panel ? `${panel.replace(/\/+$/, '')}/#support/${ticket.number}` : '';
+  const title = `New reply to your ticket #${ticket.number}: ${ticket.subject}`;
+  const lines = [`Support answered your ticket “${ticket.subject}”:`, body.length > 4000 ? `${body.slice(0, 4000)}…` : body];
+  return {
+    subject: title,
+    text: [...lines, '', link ? `Reply in the panel: ${link}` : ''].join('\n'),
+    html: layout({
+      title,
+      paragraphs: lines.map((l, i) => (i === 1 ? `<span style="white-space:pre-wrap">${esc(l)}</span>` : esc(l))),
+      button: link ? { href: link, label: 'Open the ticket' } : null,
+      footer: 'Reply in the panel, so your answer reaches the right person.',
+    }),
+  };
+}
+
+// ---- Billing --------------------------------------------------------------------------------------
+
+const rupiah = (n) => `Rp ${Number(n).toLocaleString('id-ID')}`;
+
+/** Receipt after an invoice was paid. */
+export function paymentReceiptMessage(inv, expiresAt) {
+  const panel = emailSettings().panelUrl;
+  const link = panel ? `${panel.replace(/\/+$/, '')}/#billing/${inv.number}` : '';
+  const title = `Payment received: ${inv.number}`;
+  const lines = [
+    `Thank you. We received ${rupiah(inv.total)} for invoice ${inv.number}${inv.paidVia ? ` (${inv.paidVia})` : ''}.`,
+    ...inv.lines.map((l) => `${l.description}: ${rupiah(l.amount)}`),
+    inv.tax ? `${inv.taxName} ${inv.taxRate}%: ${rupiah(inv.tax)}` : null,
+    expiresAt ? `Your server now runs until ${fmtDate(expiresAt)}.` : null,
+    inv.purpose === 'topup' ? 'The amount was added to your wallet.' : null,
+  ].filter(Boolean);
+  return {
+    subject: title,
+    text: [...lines, '', link ? `Invoice: ${link}` : ''].join('\n'),
+    html: layout({ title, paragraphs: lines.map(esc), button: link ? { href: link, label: 'View the invoice' } : null }),
+  };
+}
+
+/** Auto-renew could not pay from the wallet. */
+export function autoRenewFailedMessage(inv, balance) {
+  const panel = emailSettings().panelUrl;
+  const link = panel ? `${panel.replace(/\/+$/, '')}/#billing/${inv.number}` : '';
+  const title = `Please renew: not enough balance for ${inv.number}`;
+  const lines = [
+    `Your server is set to renew automatically, but the wallet has ${rupiah(balance)} and the renewal costs ${rupiah(inv.total)}.`,
+    'Pay the invoice or top up the wallet before the end date, so the server keeps running.',
+  ];
+  return {
+    subject: title,
+    text: [...lines, '', link ? `Pay: ${link}` : ''].join('\n'),
+    html: layout({ title, paragraphs: lines.map(esc), button: link ? { href: link, label: 'Pay now' } : null }),
+  };
+}

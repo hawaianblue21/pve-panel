@@ -1,8 +1,10 @@
 // Starts the stack once and seeds what the browser tests need.
 import { startStack } from '../support/stack.mjs';
+import { startMockGateways } from '../support/mock-gateways.mjs';
 
 export default async function globalSetup() {
-  const stack = await startStack();
+  const gw = await startMockGateways();
+  const stack = await startStack({ env: { BILLING_TEST_ENDPOINTS: JSON.stringify(gw.endpoints) } });
   await stack.offerTemplates();
   const lena = await stack.customerWith('lena@example.com', { limits: {} });
   const admin = await stack.adminSession();
@@ -11,5 +13,6 @@ export default async function globalSetup() {
   process.env.E2E_CUSTOMER_URL = stack.customerUrl;
   process.env.E2E_ADMIN_URL = stack.adminUrl;
   process.env.E2E_MOCK_URL = stack.mock.url;
-  return async () => stack.stop();
+  process.env.E2E_XENDIT = JSON.stringify({ secretKey: gw.xenditKey, callbackToken: gw.xenditToken });
+  return async () => { await stack.stop(); await gw.close(); };
 }
