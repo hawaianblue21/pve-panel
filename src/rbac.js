@@ -34,6 +34,7 @@ export const PERMISSIONS = [
   { key: 'billing.read', group: 'Billing', label: 'View invoices, payments and wallets' },
   { key: 'billing.write', group: 'Billing', label: 'Confirm payments, cancel invoices, adjust wallets and prices' },
   { key: 'hosts.write', group: 'Servers', label: 'Put Proxmox nodes into maintenance (no new servers there)' },
+  { key: 'updates.write', group: 'Servers', label: 'Roll out OS updates to customer servers' },
   { key: 'audit.read', group: 'Panel', label: 'Read the activity log' },
   { key: 'rbac.write', group: 'Panel', label: 'Manage administrators and roles' },
 ];
@@ -48,7 +49,7 @@ export const BUILTIN_ROLES = [
   // only read them); give them to a custom role if someone else should change them.
   {
     key: 'operator', name: 'Operator', description: 'Day-to-day operations: customers, servers, network',
-    permissions: [...READS, 'customers.write', 'servers.manage', 'servers.delete', 'network.write', 'support.write', 'kb.write'],
+    permissions: [...READS, 'customers.write', 'servers.manage', 'servers.delete', 'network.write', 'support.write', 'kb.write', 'updates.write'],
   },
   {
     key: 'agent', name: 'Support agent', description: 'Tickets and the knowledge base; reads customers and servers',
@@ -168,6 +169,12 @@ const ROUTES = {
   'DELETE /api/admin/pools/:id/members/:userId': 'pools.write',
 
   'GET /api/admin/dashboard': null,
+  'GET /api/admin/jobs': 'servers.read',
+  'GET /api/admin/updates/fleet': 'servers.read',
+  'GET /api/admin/updates/rollouts': 'servers.read',
+  'GET /api/admin/updates/rollouts/:id': 'servers.read',
+  'POST /api/admin/updates/rollouts': 'updates.write',
+  'POST /api/admin/updates/rollouts/:id/:action': 'updates.write',
   'GET /api/admin/tokens': null,
   'POST /api/admin/tokens': null,
   'DELETE /api/admin/tokens/:id': null,

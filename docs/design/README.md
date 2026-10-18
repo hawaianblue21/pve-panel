@@ -22,7 +22,7 @@ Status: ✅ implemented · 🟡 partly (what is missing is listed) · ⬜ design
 | Billing overview, invoice detail | `Admin-Billing.dc.html`, `Admin-Invoice.dc.html` | ✅ KPIs, filters, confirm transfer, cancel, wallet adjustment, fixed price (refunds to card and dunning steps missing) |
 | Hosts & onboarding (owner only) | `Admin-Hosts.dc.html` | 🟡 Hosts tab: quorum, nodes, version, kernel, load, last snapshot, maintenance mode; connecting further clusters and guest import missing |
 | OS templates (owner only) | `Admin-Templates.dc.html` | 🟡 offering templates, owner-only changes; import wizard (qcow2, vmdk, ova, iso) and telemetry missing |
-| Provisioning jobs | `Admin-Jobs.dc.html` | 🟡 progress per server; job list missing |
+| Provisioning jobs | `Admin-Jobs.dc.html` | ✅ Jobs tab: servers being set up, reinstalled, deleted or failed, update runs, rollouts, finished work of 7 days (retry and step list missing) |
 | In-browser console | `Admin-Console.dc.html` | ✅ |
 | Access & roles (RBAC) | `Admin-Access.dc.html` | ✅ |
 | Resource allocation pools | `Admin-Pools.dc.html` | ✅ |
@@ -35,7 +35,7 @@ Status: ✅ implemented · 🟡 partly (what is missing is listed) · ⬜ design
 | AI assistant | `Admin-AI.dc.html` | ✅ provider settings, usage, conversations with tool calls (behaviour presets and knowledge-gap view missing) |
 | API tokens & integrations (owner only) | `Admin-Integrations.dc.html` | ✅ API tokens (customer and admin, scopes, read-only, expiry, last use; owners see all), Zammad, AI provider, Xendit and Midtrans in Settings (webhooks out missing) |
 | Settings & white label (owner only) | `Admin-Settings.dc.html` | 🟡 branding, single sign-on, appearance, updates, email, expiry; Proxmox clusters, Proxmox Backup Server missing |
-| Patch management | `Admin-Updates.dc.html` | 🟡 Windows/Linux switches, per-server runs and log; fleet view and rollout rings missing |
+| Patch management | `Admin-Updates.dc.html` | ✅ fleet view (last run, never, older than 30 days, failed), rollouts in rings with failure limit, pause/resume/cancel, customer emails (pending-update counts before a run and maintenance windows missing) |
 | Server lifecycle (expiry) | `Admin-Lifecycle.dc.html` | 🟡 rules, reminders, stop, grace, deletion, pause; queue view missing |
 
 ## Customer portal

@@ -326,3 +326,21 @@ export function autoRenewFailedMessage(inv, balance) {
     html: layout({ title, paragraphs: lines.map(esc), button: link ? { href: link, label: 'Pay now' } : null }),
   };
 }
+
+/** A provider rollout is installing updates on the customer's server. */
+export function rolloutNoticeMessage(server, { scope, snapshot, autoRestart }) {
+  const panel = emailSettings().panelUrl;
+  const link = panel ? `${panel.replace(/\/+$/, '')}/#${server.vmid}` : '';
+  const title = `Updates are being installed on ${server.name}`;
+  const lines = [
+    `Your provider is installing ${scope === 'all' ? 'all available' : 'security'} updates on ${server.name} (${server.vmid}).`,
+    snapshot ? 'A snapshot was taken first, so the server can be rolled back if something goes wrong.' : 'No snapshot was taken.',
+    autoRestart ? 'The server restarts by itself if an update needs it.' : 'If an update needs a restart, the server page will tell you.',
+    'You can follow the progress on the server page (Updates tab).',
+  ];
+  return {
+    subject: title,
+    text: [...lines, '', link ? `Server: ${link}` : ''].join('\n'),
+    html: layout({ title, paragraphs: lines.map(esc), button: link ? { href: link, label: 'Open the server' } : null }),
+  };
+}

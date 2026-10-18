@@ -1204,3 +1204,17 @@ a.btn { text-decoration: none; }
 .tag.bad { color: color-mix(in srgb, var(--danger) 60%, var(--ink)); border-color: color-mix(in srgb, var(--danger) 45%, var(--line));
   background: color-mix(in srgb, var(--danger) 9%, var(--surface)); }
 @media (max-width: 1100px) { .overview-grid { grid-template-columns: 1fr; } }
+
+/* Update rollouts */
+.rollout { border: 1px solid var(--line); border-radius: var(--r-md); background: var(--surface); padding: 14px 16px; margin-bottom: 10px; display: grid; gap: 10px; }
+.rollout-head { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; align-items: flex-start; }
+.rings { display: grid; gap: 6px; }
+.ring { display: grid; grid-template-columns: 150px minmax(120px, 1fr) auto; gap: 10px; align-items: center; }
+.ring-bar { display: flex; height: 8px; border-radius: 4px; overflow: hidden; background: color-mix(in srgb, var(--line) 80%, transparent); }
+.ring-bar i { display: block; height: 100%; }
+.seg-done { background: var(--run); }
+.seg-failed { background: var(--danger); }
+.seg-skipped { background: var(--warn); }
+.seg-running { background: var(--signal); }
+.seg-pending { background: transparent; }
+@media (max-width: 640px) { .ring { grid-template-columns: 1fr; } }

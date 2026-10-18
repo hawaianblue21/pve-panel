@@ -4,7 +4,7 @@ import { startMockGateways } from '../support/mock-gateways.mjs';
 
 export default async function globalSetup() {
   const gw = await startMockGateways();
-  const stack = await startStack({ env: { BILLING_TEST_ENDPOINTS: JSON.stringify(gw.endpoints) } });
+  const stack = await startStack({ env: { BILLING_TEST_ENDPOINTS: JSON.stringify(gw.endpoints), ROLLOUT_INTERVAL_SECONDS: '2' } });
   await stack.offerTemplates();
   const lena = await stack.customerWith('lena@example.com', { limits: {} });
   const admin = await stack.adminSession();

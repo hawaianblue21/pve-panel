@@ -1036,6 +1036,24 @@ off separately under **Settings → Operating system updates**.
 
 ---
 
+### Fleet view and rollouts (admin portal)
+
+**Updates** shows every customer server with its OS and last update run: up to date, never updated, older than 30 days,
+failed, running. Administrators with `updates.write` (Operator role) select servers and start a **rollout**:
+
+```text
+Ring 1 (10 %) ──► all finished, ≤ limit failed? ──► Ring 2 (30 %) ──► … ──► Done
+                         └── more failed ──► Paused: check the servers, then Resume (next ring) or Cancel
+```
+
+Each run is an ordinary update run (security or all updates, snapshot first, restart when needed) with the same
+checks as when a customer starts it; servers that can't run (stopped, no guest agent, updates switched off, expired)
+are skipped with the reason. Customers get an email when their server is updated. **Jobs** lists background work:
+servers being set up, reinstalled or deleted (and failed ones), update runs, rollouts, and finished work of the last
+7 days.
+
+---
+
 ## ⏳ Server expiry
 
 Opt-in end dates for **single customers or servers** — trials, test servers, courses:

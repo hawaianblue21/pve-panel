@@ -644,6 +644,33 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS api_tokens_user ON api_tokens(user_id, portal);
 `);
 
+// ---- Update rollouts (rollouts.js): updates on many servers, ring by ring --------
+db.exec(`
+  CREATE TABLE IF NOT EXISTS rollouts (
+    id           INTEGER PRIMARY KEY,
+    name         TEXT NOT NULL,
+    scope        TEXT NOT NULL,
+    snapshot     INTEGER NOT NULL DEFAULT 1,
+    auto_restart INTEGER NOT NULL DEFAULT 1,
+    max_fail_pct INTEGER NOT NULL DEFAULT 2,
+    state        TEXT NOT NULL,                 -- running | paused | done | cancelled
+    reason       TEXT,
+    allow_ring   INTEGER,                       -- resumed despite failures: this ring may start
+    created_by   INTEGER,
+    created_at   TEXT NOT NULL DEFAULT (datetime('now')),
+    finished_at  TEXT
+  );
+  CREATE TABLE IF NOT EXISTS rollout_items (
+    rollout_id INTEGER NOT NULL REFERENCES rollouts(id) ON DELETE CASCADE,
+    vmid       INTEGER NOT NULL,
+    ring       INTEGER NOT NULL,
+    state      TEXT NOT NULL,                   -- pending | started | done | failed | skipped
+    run_id     INTEGER,                         -- winupdates.id
+    note       TEXT,
+    PRIMARY KEY (rollout_id, vmid)
+  );
+`);
+
 // Background jobs don't survive a restart; don't leave servers stuck forever.
 db.exec(`
   UPDATE vms SET state = 'failed', error = 'Setup was interrupted because the panel restarted'
