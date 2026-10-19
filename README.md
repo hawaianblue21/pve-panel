@@ -6,6 +6,8 @@
 
 Give users a clean, secure interface to manage **only their own virtual machines and containers** — without exposing the Proxmox VE interface or API credentials.
 
+<sub>A fork of <a href="https://github.com/sebastianflint/pve-panel">sebastianflint/pve-panel</a> (1.11.0), extended towards a complete self-service cloud: billing, plans, public IPs, storage, support desk and fleet operations.</sub>
+
 [![Proxmox VE](https://img.shields.io/badge/Proxmox%20VE-8%20%7C%209-E57000?logo=proxmox&logoColor=white)](https://www.proxmox.com/)
 [![Node.js](https://img.shields.io/badge/Node.js-22.13%2B-339933?logo=nodedotjs&logoColor=white)](https://nodejs.org/)
 [![Docker](https://img.shields.io/badge/Docker-ready-2496ED?logo=docker&logoColor=white)](https://www.docker.com/)
@@ -17,6 +19,7 @@ Give users a clean, secure interface to manage **only their own virtual machines
 [![Docs](https://img.shields.io/badge/Docs-website-3558E6)](https://hawaianblue21.github.io/pve-panel/)
 [![AI-assisted](https://img.shields.io/badge/Built%20with-AI%20assistance-8A2BE2)](#-ai-assisted-development)
 
+[Fork](#-about-this-fork) ·
 [Features](#-features) ·
 [Screenshots](#️-screenshots) ·
 [Architecture](#️-architecture) ·
@@ -72,6 +75,44 @@ The customer and administration portals run as **separate web servers** in the s
 
 ---
 
+## 🔱 About this fork
+
+This repository (**[hawaianblue21/pve-panel](https://github.com/hawaianblue21/pve-panel)**) is a fork of
+**[sebastianflint/pve-panel](https://github.com/sebastianflint/pve-panel)**, taken at version **1.11.0**. The upstream
+project provides the core: customer and admin portals, VM and container control, console, provisioning (Linux
+cloud-init and Windows sysprep), snapshots, network isolation, WireGuard and Tailscale, OIDC, 2FA and passkeys, Windows
+updates, server expiry and the Docker setup. The fork adds:
+
+| Area | Added in this fork |
+|---|---|
+| Access & capacity | Roles for administrators (RBAC), datacenters, resource pools with shared caps, GPU passthrough and vGPU, **several Proxmox clusters** |
+| Network | Public IPv4 pools (IPAM) with anti-spoofing and reverse DNS, **optional IPv6 /64 per address** (global switch) |
+| Storage | Block volumes with tiers, SeaweedFS S3 object storage with per-customer IAM, **read-only buckets** |
+| Servers | **Automatic snapshots** (daily or weekly, including attached volumes), Linux package updates |
+| Commerce | Plans with monthly prices, wallet, renewals, invoices with PPN, Xendit, Midtrans and bank transfer |
+| Support | Ticket desk (L1 / L2 / L3), knowledge base / help center, optional Zammad sync, AI assistant |
+| Operations | Overview dashboard, Hosts with maintenance mode, Jobs with **retry**, update fleet and rollouts in rings with **maintenance windows** and **Check now** |
+| Integrations | API tokens for customers and administrators, Google / Microsoft / GitHub sign-in, white-label branding and appearance |
+
+What that means in practice:
+
+- **Container image**: `ghcr.io/hawaianblue21/pve-panel`. Pushes to `main` publish the tag `edge`; `latest` and version
+  tags appear only after a release tag (`git tag v1.12.0 && git push --tags`). Until then set
+  `PANEL_IMAGE=ghcr.io/hawaianblue21/pve-panel:edge`. A new GHCR package is private by default: make it public under
+  the repository's **Packages** settings, or `docker login ghcr.io` on the host.
+- **Documentation website**: `https://hawaianblue21.github.io/pve-panel/` is built from `website/` by the Documentation
+  workflow and is online once GitHub Pages is enabled (**Settings → Pages → Source: GitHub Actions**). Pages that
+  describe fork features are summarized in this README; `docs/design/README.md` tracks the UI status per screen.
+- **Update check**: the panel compares its version with the latest release of this repository (`package.json`
+  `repository`), not upstream's.
+- **Testing**: the fork's features are covered by the automated suite (API and browser tests) against simulated
+  Proxmox, payment gateways, SeaweedFS, PowerDNS, Zammad and LLM services. They have **not yet been validated against a
+  real Proxmox cluster**; do that before production use (see [Recommended validation](#-recommended-validation)).
+- **License**: neither upstream nor this fork contains a license file. Clarify the terms with the upstream author
+  before redistributing or offering the software commercially.
+
+---
+
 ## 🤖 AI-assisted development
 
 PVE Panel was built with substantial help from an AI assistant (**Claude by Anthropic**). To be transparent about what that means:
@@ -88,6 +129,7 @@ PVE Panel was built with substantial help from an AI assistant (**Claude by Anth
 
 - defining the requirements and deciding on features and design
 - running and testing the panel against a real Proxmox VE environment and reporting problems, which were then fixed
+  (upstream features; the fork's additions are so far tested against simulated environments, see [About this fork](#-about-this-fork))
 - publishing, versioning and operating the project
 
 **What this means for you**
@@ -108,7 +150,7 @@ PVE Panel was built with substantial help from an AI assistant (**Claude by Anth
 - Live **network map** of the customer's private network, servers and VPN
 - View live status and guest information, with Windows / Linux recognition
 - Display CPU, memory, disk and network usage graphs
-- Create, restore and delete snapshots (optionally including RAM), or switch on **automatic snapshots** (daily or weekly, keep the last N)
+- Create, restore and delete snapshots (optionally including RAM), and schedule **automatic snapshots** (daily or weekly, keeping the last N; attached volumes included)
 - Launch an integrated browser console
 - Create new servers from administrator-approved templates
 - Reinstall self-created servers from a template (same name, size and network address)
@@ -121,7 +163,7 @@ PVE Panel was built with substantial help from an AI assistant (**Claude by Anth
 - Search the **help center** (knowledge base) and rate articles
 - **Public IPv4** for their servers, optionally with an **IPv6 /64** each, with reverse DNS
 - **API tokens** with chosen permissions for scripts and integrations
-- **Storage**: block volumes (create, attach, detach, move between servers, enlarge) and S3 object storage buckets with access keys
+- **Storage**: block volumes (create, attach, detach, move between servers, enlarge) and S3 object storage buckets with access keys, optionally **read-only**
 - Ask the **AI assistant**: answers from the help center and their own servers and tickets, hands over to a ticket
 - **Plans**: create servers from plans (size and monthly price), pay the first period from the wallet, move up to a larger plan for the difference
 - **Billing**: wallet with top-ups, renew servers for 1, 3, 6 or 12 months (with discounts), auto-renew from the wallet, printable invoices with PPN; pay by wallet, **Xendit**, **Midtrans** or bank transfer
@@ -139,18 +181,16 @@ PVE Panel was built with substantial help from an AI assistant (**Claude by Anth
 - Configure provisioning quotas and limits
 - Publish selected templates
 - Start, stop, restart and delete customer-owned servers
-- Review provisioning jobs and failures
+- Review provisioning jobs and failures, and **retry** failed deletions, update runs and automatic snapshots
 - Reset passwords and 2FA, require 2FA per user, link/unlink single sign-on
 - Review the activity log: filter by who acted (customer, administrator, the panel itself, unknown sign-ins), by kind of action (created, changed, deleted, power, security) or by text; open any event for its full record
 - Monitor WireGuard and Tailscale usage
 - Delete customers together with their owned infrastructure
 - **Overview** dashboard (KPIs, nodes, alerts, latest activity) and **Hosts** with maintenance mode (no new servers on a node)
-- **Several Proxmox clusters** in one panel: connect, disable or remove clusters under **Hosts → Clusters**
-- **Jobs**: servers being set up, reinstalled or deleted, update runs and rollouts, with **retry** for failed work
-- **Fleet updates**: every server with its OS and last run, *Check now* for pending updates, **rollouts in rings** with a failure limit and an optional maintenance window
-- **Public IPs** (IPAM): pools, assignment, anti-spoofing, reverse DNS (PowerDNS) and optional **IPv6 /64**
-- **Block storage**: tiers with a price per GB; customers attach, detach, move and enlarge volumes
-- **API tokens** for administrators, with the role's permissions
+- Connect **several Proxmox clusters** (connection test, pinned TLS fingerprint, VMID and node conflicts reported)
+- **Updates**: fleet view, **Check now** (pending updates per server), rollouts in rings with a failure limit and an optional **maintenance window**
+- **Public IPs**: IPv4 pools with reservations, cool-down and PowerDNS reverse DNS, optional **IPv6** prefix per pool
+- **Block storage** tiers mapped to Proxmox storages, with a price per GB
 - See the running version and whether an update is available
 - Configure email (SMTP) in the admin portal and invite users by email
 - White-label: product name, logo, browser icon and support link; single sign-on with Google, Microsoft and GitHub
@@ -1840,6 +1880,16 @@ Confirm that:
 - Admin port `3001` is not publicly reachable
 - OIDC and 2FA behave as expected
 - Proxmox API permissions are limited to the intended resources
+
+For the fork's additions, also confirm on real infrastructure:
+
+- A public IPv4 address works after a restart and the IP filter drops spoofed source addresses; with IPv6 on, the
+  router delivers the /64 and the server reaches the internet over IPv6
+- A second Proxmox cluster: servers are created in the image's cluster, the console works there, and a cluster that
+  goes offline doesn't let anything be deleted by mistake
+- Payments: a Xendit or Midtrans sandbox payment marks the invoice paid (webhook reachable, signature accepted)
+- Object storage: a read-only bucket refuses uploads and deletions with the customer's key on your SeaweedFS version
+- Automatic snapshots and a rollback with an attached volume and a public address
 
 ---
 
