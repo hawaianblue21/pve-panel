@@ -4,12 +4,13 @@ import { s3Enabled } from '../seaweedfs.js';
 import { db, audit } from '../db.js';
 import { config } from '../config.js';
 import {
-  pve, clusterGuests, locateGuest, guestPath, invalidateGuestCache, bootDiskKey, diskSizeGb,
+  pve, clusterGuests, locateGuest, guestPath, invalidateGuestCache, bootDiskKey, diskSizeGb, waitTask,
 } from '../pve.js';
 import {
   limitsOf, usageOf, offeredTemplates, createServer, deleteServer, reinstallServer, resizeServer,
 } from '../provision.js';
 import { networkOf } from '../network.js';
+import { getSchedule, setSchedule, syncAfterRollback } from '../snapschedule.js';
 import { vpnInfoFor } from '../vpn.js';
 import { tailscaleStatus, connectTailscale, disconnectTailscale } from '../tailscale.js';
 import { versionInfo } from '../version.js';
@@ -536,6 +537,7 @@ export default async function vmRoutes(app) {
         description: s.description ?? '',
         time: s.snaptime ?? null,
         includesRam: !!s.vmstate,
+        auto: /^auto_\d{14}$/.test(s.name),
       }))
       .sort((a, b) => (b.time ?? 0) - (a.time ?? 0));
   });
@@ -587,7 +589,28 @@ export default async function vmRoutes(app) {
     const { guest, path } = await ownedGuest(req);
     if (!SNAPSHOT_NAME.test(req.params.name)) return reply.code(400).send({ error: 'Invalid snapshot name' });
     const upid = await pve.post(`${path}/snapshot/${req.params.name}/rollback`);
+    // the restored configuration may differ in volumes and network cards: bring the panel in line
+    waitTask(guest.node, upid).then(() => syncAfterRollback(guest.vmid))
+      .catch((err) => req.log.warn(`After rollback of ${guest.vmid}: ${err.message}`));
     return recordTask(req, guest, upid, 'snapshot_rollback');
+  });
+
+  // Automatic snapshots (daily / weekly, keep N)
+  app.get('/api/vms/:vmid/snapshot-schedule', async (req) => {
+    await ownedGuest(req);
+    return getSchedule(Number(req.params.vmid));
+  });
+  app.put('/api/vms/:vmid/snapshot-schedule', {
+    schema: {
+      body: {
+        type: 'object', required: ['frequency'], additionalProperties: false,
+        properties: { frequency: { type: 'string', enum: ['off', 'daily', 'weekly'] }, hour: { type: 'integer' }, weekday: { type: 'integer' }, keep: { type: 'integer' } },
+      },
+    },
+  }, async (req) => {
+    await ownedGuest(req);
+    const row = ownedByUser.get(Number(req.params.vmid), req.account.id);
+    return setSchedule(req, row, req.body);
   });
 
   app.delete('/api/vms/:vmid/snapshots/:name', async (req, reply) => {

@@ -108,6 +108,7 @@ sudo mkdir -p /data && sudo mount /dev/sdb /data
 echo "UUID=$(sudo blkid -s UUID -o value /dev/sdb) /data ext4 defaults,nofail 0 2" | sudo tee -a /etc/fstab</pre>
           <p class="small muted">Windows: <em>Disk Management</em> → initialize the new disk (GPT) → <em>New Simple Volume</em>.
             Before detaching, unmount it (Linux) or take it offline (Windows), then shut the server down.</p>
+          <p class="small muted">Backups: snapshots of a server (also automatic ones, on its Snapshots tab) include the volumes attached to it.</p>
         </details>` : '<p class="muted">No volumes yet.</p>'}
 
       <section class="security-card settings-card" style="margin-top:20px;max-width:900px" aria-labelledby="new-vol">

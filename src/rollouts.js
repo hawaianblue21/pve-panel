@@ -225,6 +225,7 @@ const FINISHED = {
   volume_created: ['Create volume', 'done'], volume_create_failed: ['Create volume', 'failed'],
   ip_assigned: ['Add public IP', 'done'], ip_assign_failed: ['Add public IP', 'failed'],
   admin_rollout_done: ['Update rollout', 'done'],
+  snapshot_auto: ['Automatic snapshot', 'done'], snapshot_auto_failed: ['Automatic snapshot', 'failed'],
 };
 
 /** Background work: running and failed first, then recent finished. filter: all | running | failed | done */

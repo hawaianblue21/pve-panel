@@ -28,6 +28,7 @@ import ipRoutes from './routes/ips.js';
 import { customerTokenRoutes } from './routes/tokens.js';
 import { startAutoRenew, refundFailedOrder } from './billing.js';
 import { startRolloutEngine } from './rollouts.js';
+import { startSnapshotSchedules } from './snapschedule.js';
 import { onCreateFailed } from './provision.js';
 import { startZammadRetry } from './zammad.js';
 import { syncOnStartup } from './vpn.js';
@@ -186,6 +187,7 @@ startUpdateTracker(admin.log);
 startZammadRetry(admin.log);
 startAutoRenew(admin.log);
 startRolloutEngine(admin.log);
+startSnapshotSchedules(admin.log);
 // a new server on a paid plan that could not be set up: money back to the wallet
 onCreateFailed(refundFailedOrder);
 

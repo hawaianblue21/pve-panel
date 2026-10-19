@@ -331,6 +331,26 @@ Enlarge (attached, grows only) · Delete (detached only: removing unusedN destro
 
 Customer API: `GET/POST /api/volumes`, `POST /api/volumes/:id/attach|detach|resize`, `PATCH/DELETE /api/volumes/:id`.
 
+### Snapshots and automatic snapshots
+
+Proxmox snapshots a whole server, so a snapshot covers the system disk **and the volumes attached to it** (detached
+volumes are not included). There is no separate per-volume snapshot. On the server page (Snapshots tab) customers take
+snapshots themselves and can switch on **automatic snapshots**:
+
+- daily, or weekly on a chosen day, at a chosen hour in the panel's time zone (`PANEL_TIMEZONE`, default UTC);
+- the last N automatic snapshots are kept (`auto_YYYYMMDDHHMMSS`, N up to the plan limit `MAX_SNAPSHOTS`); only
+  automatic snapshots are ever removed to make room, never the customer's own. When the customer's own snapshots use
+  every slot, the run fails and is shown on the card and in the activity log;
+- a run is skipped while the server is busy, expired or installing updates; the scheduler checks every
+  `SNAPSHOT_SCHEDULE_SECONDS` (default 300).
+
+A **rollback** restores the configuration of that moment, so the panel brings its records in line afterwards: volumes are
+attached or detached as in the restored configuration (a volume created later stays on the server as detached), network
+cards of public addresses released since then are removed, and assigned addresses missing from the snapshot are put back
+with the same MAC address.
+
+Customer API: `GET/PUT /api/vms/:vmid/snapshot-schedule` (`{ frequency: off|daily|weekly, hour, weekday, keep }`).
+
 ### Public IPv4 addresses (IPAM)
 
 Pools of public addresses in **Public IPs** (admin portal): a subnet routed to a Proxmox bridge (optionally a VLAN tag),
