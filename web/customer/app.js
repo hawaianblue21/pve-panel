@@ -543,7 +543,10 @@ async function renderSnapshots(body) {
   body.innerHTML = '<p class="muted">Loading snapshots…</p>';
   const vmid = state.selected;
   let snaps;
-  try { snaps = await api(`/api/vms/${vmid}/snapshots`); } catch (err) { return fail(err); }
+  let sched = null;
+  try {
+    [snaps, sched] = await Promise.all([api(`/api/vms/${vmid}/snapshots`), api(`/api/vms/${vmid}/snapshot-schedule`).catch(() => null)]);
+  } catch (err) { return fail(err); }
   if (vmid !== state.selected || state.tab !== 'snapshots') return;
 
   const busy = state.busy.has(vmid);
@@ -556,7 +559,7 @@ async function renderSnapshots(body) {
         ${snaps.map((s) => `
           <li>
             <div class="grow">
-              <div class="mono">${esc(s.name)}</div>
+              <div class="mono">${esc(s.name)}${s.auto ? ' <span class="tag">automatic</span>' : ''}</div>
               <div class="muted">${s.time ? new Date(s.time * 1000).toLocaleString() : ''}${s.includesRam ? ' – includes RAM' : ''}${s.description ? ` – ${esc(s.description)}` : ''}</div>
             </div>
             <button class="btn" data-rollback="${esc(s.name)}" ${busy ? 'disabled' : ''}>Roll back</button>
@@ -577,7 +580,35 @@ async function renderSnapshots(body) {
               : 'Only available while the server is running.'}</span>
           </span>
         </label>` : ''}
-    </form>`;
+    </form>
+    <p class="muted small" style="max-width:70ch">A snapshot covers the system disk and the volumes attached to this server (not detached ones).
+      Rolling back also restores which volumes and public addresses the server had; the panel follows.</p>
+    ${sched ? scheduleCard(sched) : ''}`;
+}
+
+const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+function scheduleCard({ schedule: s, maxSnapshots, timeZone }) {
+  const f = s?.frequency ?? 'off';
+  const hours = Array.from({ length: 24 }, (_, h) => `<option value="${h}" ${(s?.hour ?? 2) === h ? 'selected' : ''}>${String(h).padStart(2, '0')}:00</option>`).join('');
+  return `
+    <section class="security-card settings-card" style="margin-top:20px" aria-labelledby="auto-snap">
+      <h2 class="twofa-title" id="auto-snap">Automatic snapshots</h2>
+      <p class="muted">The panel takes a snapshot on schedule and keeps the newest ones; older automatic snapshots are removed,
+        your own are never touched. Your plan allows ${maxSnapshots} snapshots in total.</p>
+      ${s?.lastRunAt ? `<p class="small">${s.lastStatus === 'ok' ? 'Last run' : '<strong class="warn-text">Last run failed</strong>'} ${esc(new Date(s.lastRunAt).toLocaleString())}${s.lastError ? `: ${esc(s.lastError)}` : ''}</p>` : ''}
+      <form id="snap-schedule-form" class="email-form">
+        <div class="grid-3">
+          <label>Schedule <select name="frequency">
+            <option value="off" ${f === 'off' ? 'selected' : ''}>Off</option><option value="daily" ${f === 'daily' ? 'selected' : ''}>Every day</option>
+            <option value="weekly" ${f === 'weekly' ? 'selected' : ''}>Every week</option></select></label>
+          <label ${f === 'weekly' ? '' : 'hidden'} data-weekday>Day <select name="weekday">${WEEKDAYS.map((d, i) => `<option value="${i}" ${(s?.weekday ?? 0) === i ? 'selected' : ''}>${d}</option>`).join('')}</select></label>
+          <label>At <select name="hour">${hours}</select><span class="hint">${esc(timeZone)}</span></label>
+          <label>Keep <select name="keep">${Array.from({ length: maxSnapshots }, (_, i) => `<option value="${i + 1}" ${(s?.keep ?? Math.min(2, maxSnapshots)) === i + 1 ? 'selected' : ''}>${i + 1}</option>`).join('')}</select></label>
+        </div>
+        <div class="row"><button class="btn primary">Save</button>
+          ${s?.nextRunAt ? `<span class="small muted">Next: ${esc(new Date(s.nextRunAt).toLocaleString())}</span>` : ''}</div>
+      </form>
+    </section>`;
 }
 
 function renderConsole(body) {
@@ -819,6 +850,25 @@ $('#detail').addEventListener('click', async (e) => {
   if (t.id === 'open-console') {
     window.open(`/console.html?vmid=${vmid}`, `console-${vmid}`, 'width=1100,height=760');
   }
+});
+
+$('#detail').addEventListener('change', (e) => {
+  if (e.target.name === 'frequency' && e.target.closest('#snap-schedule-form')) {
+    e.target.form.querySelector('[data-weekday]').hidden = e.target.value !== 'weekly';
+  }
+});
+$('#detail').addEventListener('submit', async (e) => {
+  if (e.target.id !== 'snap-schedule-form') return;
+  e.preventDefault();
+  const el = e.target.elements;
+  try {
+    const r = await api(`/api/vms/${state.selected}/snapshot-schedule`, { method: 'PUT', body: {
+      frequency: el.frequency.value, hour: Number(el.hour.value), keep: Number(el.keep.value),
+      ...(el.frequency.value === 'weekly' ? { weekday: Number(el.weekday.value) } : {}),
+    } });
+    toast(r.schedule ? `Automatic snapshots on; next ${new Date(r.schedule.nextRunAt).toLocaleString()}` : 'Automatic snapshots off');
+    if (state.tab === 'snapshots') renderTab();
+  } catch (err) { fail(err); }
 });
 
 $('#detail').addEventListener('submit', (e) => {

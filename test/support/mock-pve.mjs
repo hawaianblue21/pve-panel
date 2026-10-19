@@ -95,7 +95,7 @@ export async function startMockPve({ port = 0, second = false } = {}) {
     const v = vm.cfg[k];
     if (v === undefined) return;
     delete vm.cfg[k];
-    if (/^unused\d+$/.test(k)) { volSizes.delete(volidOf(v)); return; }       // destroyed
+    if (/^unused\d+$/.test(k)) { volSizes.delete(volidOf(v)); vm.owned?.delete(volidOf(v)); return; }       // destroyed
     if (DISK.test(k) && !/media=cdrom|cloudinit/.test(v)) {
       let i = 0; while (vm.cfg[`unused${i}`]) i += 1;
       if (sizeOf(v)) volSizes.set(volidOf(v), sizeOf(v));
@@ -106,7 +106,7 @@ export async function startMockPve({ port = 0, second = false } = {}) {
     for (const [k, v] of Object.entries(b)) {
       if (!DISK.test(k) || typeof v !== 'string') continue;
       const alloc = /^([\w.-]+):(\d+)(,.*)?$/.exec(v);
-      if (alloc) { b[k] = `${alloc[1]}:vm-${vm.vmid}-disk-${diskSeq.next(vm.vmid) + 10},size=${alloc[2]}G${alloc[3] ?? ''}`; continue; }
+      if (alloc) { b[k] = `${alloc[1]}:vm-${vm.vmid}-disk-${diskSeq.next(vm.vmid) + 10},size=${alloc[2]}G${alloc[3] ?? ''}`; (vm.owned ??= new Map()).set(volidOf(b[k]), sizeOf(b[k])); continue; }
       const unused = Object.keys(vm.cfg).find((x) => /^unused\d+$/.test(x) && vm.cfg[x] === volidOf(v));
       if (unused) { delete vm.cfg[unused]; b[k] = sizeOf(v) ? v : `${v},size=${volSizes.get(volidOf(v)) ?? '1G'}`; }
     }
@@ -328,9 +328,19 @@ export async function startMockPve({ port = 0, second = false } = {}) {
       const moved = volidOf(value).replace(/vm-\d+-disk-\d+/, `vm-${target.vmid}-disk-${n + 10}`);
       const size = sizeOf(value) ?? volSizes.get(volidOf(value));
       volSizes.delete(volidOf(value));
+      vm.owned?.delete(volidOf(value)); (target.owned ??= new Map()).set(moved, size);
       if (/^unused\d+$/.test(b['target-disk'])) { volSizes.set(moved, size); target.cfg[b['target-disk']] = moved; }
       else target.cfg[b['target-disk']] = `${moved},size=${size}`;
       return send(res, task('qmmove', vmid, 300)); }
+    if (rest === '/rescan' && req.method === 'POST') {
+      // unreferenced disks of this VM become unusedN (as after a rollback)
+      const refd = new Set(Object.entries(vm.cfg).filter(([k]) => /^(scsi|virtio|sata|ide|unused)\d+$/.test(k)).map(([, x]) => volidOf(x)));
+      for (const [vol, size] of vm.owned ?? []) {
+        if (refd.has(vol)) continue;
+        let i = 0; while (vm.cfg[`unused${i}`]) i += 1;
+        vm.cfg[`unused${i}`] = vol; volSizes.set(vol, size);
+      }
+      return send(res, task('qmrescan', vmid, 200)); }
     if (rest === '/resize' && req.method === 'PUT') { const b = await body(req); log('RESIZE', vmid, JSON.stringify(b));
       vm.cfg[b.disk] = vm.cfg[b.disk].replace(/size=[^,]+/, `size=${b.size}`); if (b.disk === 'scsi0') vm.maxdisk = parseInt(b.size)*2**30; /* maxdisk: the boot disk only, as in Proxmox */ return send(res, task('resize', vmid, 500)); }
     const pw = rest.match(/^\/status\/(start|stop|shutdown|reboot)$/);
@@ -436,8 +446,16 @@ export async function startMockPve({ port = 0, second = false } = {}) {
     if (rest === '/agent/exec-status') { const e = execs.get(String(u.searchParams.get('pid'))); return send(res, Date.now()-e.at > 500 ? { exited: 1, exitcode: e.code, 'out-data': e.out, 'err-data': e.err } : { exited: 0 }); }
     if (rest === '/rrddata') return send(res, Array.from({length:5},(_,i)=>({time:i,cpu:0.1*i,mem:1e9,maxmem:4e9,netin:100,netout:50})));
     if (rest === '/snapshot' && req.method === 'POST') { const b = await body(req); const v = vms.get(vmid);
-      return send(res, task('qmsnapshot', vmid, 800, () => { (v.snaps ??= []).push({ name: b.snapname, description: b.description ?? '', snaptime: Math.floor(Date.now() / 1000), vmstate: b.vmstate ? 1 : 0 }); })); }
-    if (rest === '/snapshot') return send(res, [...(vms.get(vmid)?.snaps ?? []), { name: 'current' }]);
+      if ((v.snaps ?? []).some((x) => x.name === b.snapname)) return send(res, null, 500, `snapshot name '${b.snapname}' already used`);
+      const cfgAt = JSON.parse(JSON.stringify(v.cfg));     // the configuration of this moment
+      return send(res, task('qmsnapshot', vmid, 800, () => { (v.snaps ??= []).push({ name: b.snapname, description: b.description ?? '', snaptime: Math.floor(Date.now() / 1000), vmstate: b.vmstate ? 1 : 0, cfg: cfgAt }); })); }
+    { const sm = rest.match(/^\/snapshot\/([\w-]+)(\/rollback)?$/);
+      if (sm) { const v = vms.get(vmid); const snap = (v.snaps ?? []).find((x) => x.name === sm[1]);
+        if (!snap) return send(res, null, 500, `snapshot '${sm[1]}' does not exist`);
+        if (sm[2] && req.method === 'POST') { log('ROLLBACK', vmid, sm[1]); return send(res, task('qmrollback', vmid, 500, () => { v.cfg = JSON.parse(JSON.stringify(snap.cfg)); })); }
+        if (!sm[2] && req.method === 'DELETE') { log('DELSNAPSHOT', vmid, sm[1]); return send(res, task('qmdelsnapshot', vmid, 300, () => { v.snaps = v.snaps.filter((x) => x !== snap); })); }
+      } }
+    if (rest === '/snapshot') return send(res, [...(vms.get(vmid)?.snaps ?? []).map(({ cfg, ...x }) => x), { name: 'current' }]);
     if (rest === '/vncproxy') return send(res, {port:5900, ticket:'PVEVNC:abc'});
     send(res, null, 501);
   });

@@ -699,6 +699,21 @@ if (!db.prepare("SELECT 1 FROM settings WHERE key = 'network_clusters_migrated'"
     INSERT INTO settings (key, value, updated_at) VALUES ('network_clusters_migrated', '1', datetime('now'));`);
 }
 
+// ---- Automatic snapshots (snapschedule.js) ----------------------------------------
+db.exec(`
+  CREATE TABLE IF NOT EXISTS snapshot_schedules (
+    vmid        INTEGER PRIMARY KEY REFERENCES vms(vmid) ON DELETE CASCADE,
+    frequency   TEXT NOT NULL,              -- daily | weekly
+    hour        INTEGER NOT NULL,           -- 0-23, panel time zone
+    weekday     INTEGER,                    -- 0 (Sunday) - 6, weekly only
+    keep        INTEGER NOT NULL,
+    next_run_at TEXT,
+    last_run_at TEXT,
+    last_status TEXT,
+    last_error  TEXT
+  );
+`);
+
 // Background jobs don't survive a restart; don't leave servers stuck forever.
 db.exec(`
   UPDATE vms SET state = 'failed', error = 'Setup was interrupted because the panel restarted'

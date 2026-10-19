@@ -420,12 +420,13 @@ export async function setPtr(req, id, hostname) {
 // ---- Lifecycle hooks -------------------------------------------------------------------------------
 
 /** After a reinstall (the VM is recreated): put the server's public addresses back. */
-export async function applyRecordedIps(path, vmid) {
+export async function applyRecordedIps(path, vmid, { onlyMissing = false } = {}) {
   const rows = db.prepare("SELECT a.*, p.* , a.id AS aid FROM ip_addresses a JOIN ip_pools p ON p.id = a.pool_id WHERE a.vmid = ? AND a.state = 'assigned'").all(vmid);
   if (!rows.length) return;
   const type = /\/lxc\//.test(path) ? 'lxc' : 'qemu';
   for (const r of rows) {
     const cfg = await pve.get(`${path}/config`);
+    if (onlyMissing && cfg[r.nic] !== undefined) continue;     // after a rollback: only what the snapshot lacked
     const n = Number(r.nic.slice(3));
     const apply = await configureNic(path, type, cfg, n, r.address, { ...r, id: r.pool_id }, r.mac);
     db.prepare('UPDATE ip_addresses SET mac = ?, apply = ? WHERE id = ?').run(apply.mac, apply.how === 'restart' ? 'live' : apply.how, r.aid);
