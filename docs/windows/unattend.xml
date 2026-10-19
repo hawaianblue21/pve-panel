@@ -7,7 +7,7 @@
   computer name through the QEMU guest agent.
 
   Adjust before use (marked with CHANGE):
-    - ProductKey:  your key (see the documentation: https://sebastianflint.github.io/pve-panel). Remove the line if the image already
+    - ProductKey:  your key (see the documentation: https://hawaianblue21.github.io/pve-panel). Remove the line if the image already
                    contains a key; if the key screen still appears, it's needed.
     - Locale:      UILanguage must be a language installed in the image.
                    de-DE / keyboard 0407:00000407 for German, en-US / 0409:00000409.

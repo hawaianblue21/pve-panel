@@ -5,7 +5,7 @@
 FROM node:22-bookworm-slim
 
 # Links the image on ghcr.io to its repository (also set by the CI workflow)
-LABEL org.opencontainers.image.source="https://github.com/sebastianflint/pve-panel" \
+LABEL org.opencontainers.image.source="https://github.com/hawaianblue21/pve-panel" \
       org.opencontainers.image.description="Self-service control panel for Proxmox VE" \
       org.opencontainers.image.licenses="UNLICENSED"
 

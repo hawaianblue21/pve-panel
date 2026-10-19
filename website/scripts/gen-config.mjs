@@ -58,7 +58,7 @@ title: Configuration (.env)
 sidebar_position: 1
 ---
 
-All settings of the panel, generated from [\`example.env\`](https://github.com/sebastianflint/pve-panel/blob/main/example.env).
+All settings of the panel, generated from [\`example.env\`](https://github.com/hawaianblue21/pve-panel/blob/main/example.env).
 Copy that file to \`.env\` and adjust it. Email settings are made in the admin interface
 (**Settings**), not here.
 

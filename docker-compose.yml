@@ -1,7 +1,7 @@
 # Start:   docker compose up -d --build
 # With automatic HTTPS (Caddy + Let's Encrypt):
 #          docker compose --profile https up -d --build
-# See the documentation: https://sebastianflint.github.io/pve-panel/docs/installation/docker
+# See the documentation: https://hawaianblue21.github.io/pve-panel/docs/installation/docker
 
 services:
   panel:

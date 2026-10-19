@@ -127,7 +127,7 @@ export function nicModel(net0) {
 
 /**
  * Locks a server into its customer's network with the Proxmox VM firewall.
- * Requires the datacenter firewall to be enabled (see the documentation: https://sebastianflint.github.io/pve-panel).
+ * Requires the datacenter firewall to be enabled (see the documentation: https://hawaianblue21.github.io/pve-panel).
  */
 export async function isolateGuest(path, net) {
   await pve.put(`${path}/firewall/options`, {

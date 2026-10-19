@@ -39,6 +39,6 @@ instead the panel checks whether Tailscale is really connected or disconnected.
 
 ## Reporting a problem
 
-Open an issue at [github.com/sebastianflint/pve-panel/issues](https://github.com/sebastianflint/pve-panel/issues)
+Open an issue at [github.com/hawaianblue21/pve-panel/issues](https://github.com/hawaianblue21/pve-panel/issues)
 with the Proxmox VE version, deployment method, PVE Panel version (admin → **About**),
 relevant logs and the exact error. Never include tokens, passwords or secrets.

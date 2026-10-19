@@ -6,17 +6,20 @@
 
 Give users a clean, secure interface to manage **only their own virtual machines and containers** — without exposing the Proxmox VE interface or API credentials.
 
+<sub>A fork of <a href="https://github.com/sebastianflint/pve-panel">sebastianflint/pve-panel</a> (1.11.0), extended towards a complete self-service cloud: billing, plans, public IPs, storage, support desk and fleet operations.</sub>
+
 [![Proxmox VE](https://img.shields.io/badge/Proxmox%20VE-8%20%7C%209-E57000?logo=proxmox&logoColor=white)](https://www.proxmox.com/)
 [![Node.js](https://img.shields.io/badge/Node.js-22.13%2B-339933?logo=nodedotjs&logoColor=white)](https://nodejs.org/)
 [![Docker](https://img.shields.io/badge/Docker-ready-2496ED?logo=docker&logoColor=white)](https://www.docker.com/)
 [![OIDC](https://img.shields.io/badge/Auth-OIDC%20%2B%202FA-6C63FF)](#-authentication)
-[![GHCR](https://img.shields.io/badge/Image-ghcr.io-181717?logo=github)](https://github.com/sebastianflint/pve-panel/pkgs/container/pve-panel)
-[![Release](https://img.shields.io/github/v/release/sebastianflint/pve-panel?label=Release)](https://github.com/sebastianflint/pve-panel/releases)
-[![Build & tests](https://github.com/sebastianflint/pve-panel/actions/workflows/docker-publish.yml/badge.svg?branch=main)](https://github.com/sebastianflint/pve-panel/actions/workflows/docker-publish.yml)
-[![CodeQL](https://github.com/sebastianflint/pve-panel/actions/workflows/codeql.yml/badge.svg?branch=main)](https://github.com/sebastianflint/pve-panel/actions/workflows/codeql.yml)
-[![Docs](https://img.shields.io/badge/Docs-website-3558E6)](https://sebastianflint.github.io/pve-panel/)
+[![GHCR](https://img.shields.io/badge/Image-ghcr.io-181717?logo=github)](https://github.com/hawaianblue21/pve-panel/pkgs/container/pve-panel)
+[![Release](https://img.shields.io/github/v/release/hawaianblue21/pve-panel?label=Release)](https://github.com/hawaianblue21/pve-panel/releases)
+[![Build & tests](https://github.com/hawaianblue21/pve-panel/actions/workflows/docker-publish.yml/badge.svg?branch=main)](https://github.com/hawaianblue21/pve-panel/actions/workflows/docker-publish.yml)
+[![CodeQL](https://github.com/hawaianblue21/pve-panel/actions/workflows/codeql.yml/badge.svg?branch=main)](https://github.com/hawaianblue21/pve-panel/actions/workflows/codeql.yml)
+[![Docs](https://img.shields.io/badge/Docs-website-3558E6)](https://hawaianblue21.github.io/pve-panel/)
 [![AI-assisted](https://img.shields.io/badge/Built%20with-AI%20assistance-8A2BE2)](#-ai-assisted-development)
 
+[Fork](#-about-this-fork) ·
 [Features](#-features) ·
 [Screenshots](#️-screenshots) ·
 [Architecture](#️-architecture) ·
@@ -27,7 +30,7 @@ Give users a clean, secure interface to manage **only their own virtual machines
 [Versions](#-versions--updates) ·
 [Security](#️-security-model) ·
 [AI use](#-ai-assisted-development) ·
-[Documentation](https://sebastianflint.github.io/pve-panel/)
+[Documentation](https://hawaianblue21.github.io/pve-panel/)
 
 </div>
 
@@ -68,7 +71,45 @@ The browser **never communicates directly with Proxmox VE** and never receives t
 
 The customer and administration portals run as **separate web servers** in the same process. They use separate session cookies and signing keys, and the customer-facing server does not expose administrator routes.
 
-> 📘 This README is the overview. Every setup step, permission, firewall rule and troubleshooting tip is in the **[documentation](https://sebastianflint.github.io/pve-panel/)**.
+> 📘 This README is the overview. Every setup step, permission, firewall rule and troubleshooting tip is in the **[documentation](https://hawaianblue21.github.io/pve-panel/)**.
+
+---
+
+## 🔱 About this fork
+
+This repository (**[hawaianblue21/pve-panel](https://github.com/hawaianblue21/pve-panel)**) is a fork of
+**[sebastianflint/pve-panel](https://github.com/sebastianflint/pve-panel)**, taken at version **1.11.0**. The upstream
+project provides the core: customer and admin portals, VM and container control, console, provisioning (Linux
+cloud-init and Windows sysprep), snapshots, network isolation, WireGuard and Tailscale, OIDC, 2FA and passkeys, Windows
+updates, server expiry and the Docker setup. The fork adds:
+
+| Area | Added in this fork |
+|---|---|
+| Access & capacity | Roles for administrators (RBAC), datacenters, resource pools with shared caps, GPU passthrough and vGPU, **several Proxmox clusters** |
+| Network | Public IPv4 pools (IPAM) with anti-spoofing and reverse DNS, **optional IPv6 /64 per address** (global switch) |
+| Storage | Block volumes with tiers, SeaweedFS S3 object storage with per-customer IAM, **read-only buckets** |
+| Servers | **Automatic snapshots** (daily or weekly, including attached volumes), Linux package updates |
+| Commerce | Plans with monthly prices, wallet, renewals, invoices with PPN, Xendit, Midtrans and bank transfer |
+| Support | Ticket desk (L1 / L2 / L3), knowledge base / help center, optional Zammad sync, AI assistant |
+| Operations | Overview dashboard, Hosts with maintenance mode, Jobs with **retry**, update fleet and rollouts in rings with **maintenance windows** and **Check now** |
+| Integrations | API tokens for customers and administrators, Google / Microsoft / GitHub sign-in, white-label branding and appearance |
+
+What that means in practice:
+
+- **Container image**: `ghcr.io/hawaianblue21/pve-panel`. Pushes to `main` publish the tag `edge`; `latest` and version
+  tags appear only after a release tag (`git tag v1.12.0 && git push --tags`). Until then set
+  `PANEL_IMAGE=ghcr.io/hawaianblue21/pve-panel:edge`. A new GHCR package is private by default: make it public under
+  the repository's **Packages** settings, or `docker login ghcr.io` on the host.
+- **Documentation website**: `https://hawaianblue21.github.io/pve-panel/` is built from `website/` by the Documentation
+  workflow and is online once GitHub Pages is enabled (**Settings → Pages → Source: GitHub Actions**). Pages that
+  describe fork features are summarized in this README; `docs/design/README.md` tracks the UI status per screen.
+- **Update check**: the panel compares its version with the latest release of this repository (`package.json`
+  `repository`), not upstream's.
+- **Testing**: the fork's features are covered by the automated suite (API and browser tests) against simulated
+  Proxmox, payment gateways, SeaweedFS, PowerDNS, Zammad and LLM services. They have **not yet been validated against a
+  real Proxmox cluster**; do that before production use (see [Recommended validation](#-recommended-validation)).
+- **License**: neither upstream nor this fork contains a license file. Clarify the terms with the upstream author
+  before redistributing or offering the software commercially.
 
 ---
 
@@ -80,7 +121,7 @@ PVE Panel was built with substantial help from an AI assistant (**Claude by Anth
 
 - most of the source code (backend, customer and admin portals, scripts)
 - the Docker, Compose and GitHub Actions setup
-- the documentation, the README and the [documentation website](https://sebastianflint.github.io/pve-panel/)
+- the documentation, the README and the [documentation website](https://hawaianblue21.github.io/pve-panel/)
 - automated tests during development, largely against simulated Proxmox, guest-agent, SMTP and WireGuard environments and a certified test OpenID provider
 - the screenshots, taken from such a test environment with sample data
 
@@ -88,6 +129,7 @@ PVE Panel was built with substantial help from an AI assistant (**Claude by Anth
 
 - defining the requirements and deciding on features and design
 - running and testing the panel against a real Proxmox VE environment and reporting problems, which were then fixed
+  (upstream features; the fork's additions are so far tested against simulated environments, see [About this fork](#-about-this-fork))
 - publishing, versioning and operating the project
 
 **What this means for you**
@@ -108,7 +150,7 @@ PVE Panel was built with substantial help from an AI assistant (**Claude by Anth
 - Live **network map** of the customer's private network, servers and VPN
 - View live status and guest information, with Windows / Linux recognition
 - Display CPU, memory, disk and network usage graphs
-- Create, restore and delete snapshots (optionally including RAM)
+- Create, restore and delete snapshots (optionally including RAM), and schedule **automatic snapshots** (daily or weekly, keeping the last N; attached volumes included)
 - Launch an integrated browser console
 - Create new servers from administrator-approved templates
 - Reinstall self-created servers from a template (same name, size and network address)
@@ -121,7 +163,7 @@ PVE Panel was built with substantial help from an AI assistant (**Claude by Anth
 - Search the **help center** (knowledge base) and rate articles
 - **Public IPv4** for their servers, optionally with an **IPv6 /64** each, with reverse DNS
 - **API tokens** with chosen permissions for scripts and integrations
-- **Storage**: block volumes (create, attach, detach, move between servers, enlarge) and S3 object storage buckets with access keys
+- **Storage**: block volumes (create, attach, detach, move between servers, enlarge) and S3 object storage buckets with access keys, optionally **read-only**
 - Ask the **AI assistant**: answers from the help center and their own servers and tickets, hands over to a ticket
 - **Plans**: create servers from plans (size and monthly price), pay the first period from the wallet, move up to a larger plan for the difference
 - **Billing**: wallet with top-ups, renew servers for 1, 3, 6 or 12 months (with discounts), auto-renew from the wallet, printable invoices with PPN; pay by wallet, **Xendit**, **Midtrans** or bank transfer
@@ -139,12 +181,16 @@ PVE Panel was built with substantial help from an AI assistant (**Claude by Anth
 - Configure provisioning quotas and limits
 - Publish selected templates
 - Start, stop, restart and delete customer-owned servers
-- Review provisioning jobs and failures
+- Review provisioning jobs and failures, and **retry** failed deletions, update runs and automatic snapshots
 - Reset passwords and 2FA, require 2FA per user, link/unlink single sign-on
 - Review the activity log: filter by who acted (customer, administrator, the panel itself, unknown sign-ins), by kind of action (created, changed, deleted, power, security) or by text; open any event for its full record
 - Monitor WireGuard and Tailscale usage
 - Delete customers together with their owned infrastructure
 - **Overview** dashboard and **Hosts** with maintenance mode (no new servers on a node)
+- Connect **several Proxmox clusters** (connection test, pinned TLS fingerprint, VMID and node conflicts reported)
+- **Updates**: fleet view, **Check now** (pending updates per server), rollouts in rings with a failure limit and an optional **maintenance window**
+- **Public IPs**: IPv4 pools with reservations, cool-down and PowerDNS reverse DNS, optional **IPv6** prefix per pool
+- **Block storage** tiers mapped to Proxmox storages, with a price per GB
 - See the running version and whether an update is available
 - Configure email (SMTP) in the admin portal and invite users by email
 - White-label: product name, logo, browser icon and support link; single sign-on with Google, Microsoft and GitHub
@@ -528,7 +574,7 @@ Newly provisioned servers are automatically added to the pool defined by `PVE_PO
 ## 2. Configure PVE Panel
 
 ```bash
-git clone https://github.com/sebastianflint/pve-panel.git
+git clone https://github.com/hawaianblue21/pve-panel.git
 cd pve-panel
 
 npm install
@@ -609,7 +655,7 @@ Remove `INITIAL_ADMIN_PASSWORD` after the initial account has been created.
 Published container image:
 
 ```text
-ghcr.io/sebastianflint/pve-panel
+ghcr.io/hawaianblue21/pve-panel
 ```
 
 The GitHub workflow builds `amd64` and `arm64` images from `main` and release tags, with an SBOM and signed build provenance.
@@ -621,10 +667,10 @@ For a server or NAS deployment, use one of:
 | `deploy/docker-compose.yml` | Docker Compose, UGREEN Docker app (reads `.env`) |
 | `deploy/docker-compose.portainer.yml` | Portainer stacks (reads the stack's variables) |
 
-The image defaults to `ghcr.io/sebastianflint/pve-panel:latest`. To pin a release:
+The image defaults to `ghcr.io/hawaianblue21/pve-panel:latest`. To pin a release:
 
 ```env
-PANEL_IMAGE=ghcr.io/sebastianflint/pve-panel:1.1
+PANEL_IMAGE=ghcr.io/hawaianblue21/pve-panel:1.1
 ```
 
 Then deploy:
@@ -904,7 +950,7 @@ Sign in with **fingerprint, face, device PIN or a security key** — no email, p
 - needs a domain name over https (or `localhost`), not a bare IP address
 - administrators can remove a user's passkeys (lost device)
 
-Details: [Passkeys](https://sebastianflint.github.io/pve-panel/docs/security/passkeys).
+Details: [Passkeys](https://hawaianblue21.github.io/pve-panel/docs/security/passkeys).
 
 ### OpenID Connect / SSO
 
@@ -951,7 +997,7 @@ http://localhost:3001/api/auth/oidc/callback
 
 Only the panel needs to reach the provider (outbound HTTPS); the provider never connects to the panel.
 
-> **Microsoft Entra ID** doesn't send `email_verified`: set `OIDC_REQUIRE_VERIFIED_EMAIL=false` together with `OIDC_ALLOWED_DOMAINS`. Provider notes are in the [documentation](https://sebastianflint.github.io/pve-panel/docs/security/single-sign-on).
+> **Microsoft Entra ID** doesn't send `email_verified`: set `OIDC_REQUIRE_VERIFIED_EMAIL=false` together with `OIDC_ALLOWED_DOMAINS`. Provider notes are in the [documentation](https://hawaianblue21.github.io/pve-panel/docs/security/single-sign-on).
 
 Once SSO is validated, local password login can optionally be disabled independently for each portal.
 
@@ -1086,7 +1132,7 @@ Customers install the latest Windows updates from the server page — **Updates*
 
 Runs through the QEMU guest agent and Windows' own update API; respects WSUS/group policy. Switch it off under **Settings → Operating system updates**.
 
-Details: [Windows updates](https://sebastianflint.github.io/pve-panel/docs/features/windows-updates).
+Details: [Windows updates](https://hawaianblue21.github.io/pve-panel/docs/features/windows-updates).
 
 ### Linux (apt / dnf)
 
@@ -1154,7 +1200,7 @@ Reminders (7 / 1 days) ──► Expired: stopped ──► Grace period (14 day
 - nothing is deleted without an email warning; deletions can be paused globally
 - reminders, notices and a daily admin summary by email
 
-Details: [Server expiry](https://sebastianflint.github.io/pve-panel/docs/administration/expiry).
+Details: [Server expiry](https://hawaianblue21.github.io/pve-panel/docs/administration/expiry).
 
 ---
 
@@ -1328,7 +1374,7 @@ Customers can:
 
 Private keys are shown once and are not retained by the panel.
 
-The gateway is prepared once with `docs/vpn/setup-gateway.sh` — see the [documentation](https://sebastianflint.github.io/pve-panel/docs/networking/wireguard-vpn) for the routing and port-forward steps.
+The gateway is prepared once with `docs/vpn/setup-gateway.sh` — see the [documentation](https://hawaianblue21.github.io/pve-panel/docs/networking/wireguard-vpn) for the routing and port-forward steps.
 
 ### Tailscale
 
@@ -1761,6 +1807,16 @@ Confirm that:
 - OIDC and 2FA behave as expected
 - Proxmox API permissions are limited to the intended resources
 
+For the fork's additions, also confirm on real infrastructure:
+
+- A public IPv4 address works after a restart and the IP filter drops spoofed source addresses; with IPv6 on, the
+  router delivers the /64 and the server reaches the internet over IPv6
+- A second Proxmox cluster: servers are created in the image's cluster, the console works there, and a cluster that
+  goes offline doesn't let anything be deleted by mistake
+- Payments: a Xendit or Midtrans sandbox payment marks the invoice paid (webhook reachable, signature accepted)
+- Object storage: a read-only bucket refuses uploads and deletions with the customer's key on your SeaweedFS version
+- Automatic snapshots and a rollback with an attached volume and a public address
+
 ---
 
 ## 🧪 Automated tests
@@ -1788,7 +1844,7 @@ npm test            # unit + API tests
 npm run test:e2e    # browser tests (after: npx playwright install chromium)
 ```
 
-Details: [Tests and quality](https://sebastianflint.github.io/pve-panel/docs/reference/testing).
+Details: [Tests and quality](https://hawaianblue21.github.io/pve-panel/docs/reference/testing).
 
 ---
 
@@ -1814,7 +1870,7 @@ Contributions are welcome.
 A typical workflow:
 
 ```bash
-git clone https://github.com/sebastianflint/pve-panel.git
+git clone https://github.com/hawaianblue21/pve-panel.git
 cd pve-panel
 git checkout -b feature/my-feature
 ```
@@ -1839,7 +1895,7 @@ Found a bug or have an idea?
 
 Use the repository issue tracker:
 
-**https://github.com/sebastianflint/pve-panel/issues**
+**https://github.com/hawaianblue21/pve-panel/issues**
 
 When reporting a problem, useful information includes:
 
@@ -1881,9 +1937,9 @@ Before using it in a production or internet-facing environment:
 
 Give customers the controls they need — while keeping the hypervisor, credentials and other customers out of reach.
 
-[⭐ Star the project](https://github.com/sebastianflint/pve-panel) ·
-[🐛 Report an issue](https://github.com/sebastianflint/pve-panel/issues) ·
-[📦 Container image](https://github.com/sebastianflint/pve-panel/pkgs/container/pve-panel) ·
-[📘 Documentation](https://sebastianflint.github.io/pve-panel/)
+[⭐ Star the project](https://github.com/hawaianblue21/pve-panel) ·
+[🐛 Report an issue](https://github.com/hawaianblue21/pve-panel/issues) ·
+[📦 Container image](https://github.com/hawaianblue21/pve-panel/pkgs/container/pve-panel) ·
+[📘 Documentation](https://hawaianblue21.github.io/pve-panel/)
 
 </div>

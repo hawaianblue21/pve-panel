@@ -1,5 +1,5 @@
 # Builds the documentation website (website/, Docusaurus) and publishes it on
-# GitHub Pages: https://sebastianflint.github.io/pve-panel/
+# GitHub Pages: https://hawaianblue21.github.io/pve-panel/
 # One-time setup: repository Settings → Pages → Source: "GitHub Actions".
 
 name: Documentation
