@@ -1,8 +1,7 @@
 import crypto from 'node:crypto';
 import WebSocket from 'ws';
 import { db, audit } from '../db.js';
-import { config } from '../config.js';
-import { pve, locateGuest, guestPath, authHeader, tlsOptions } from '../pve.js';
+import { pve, locateGuest, guestPath, connectionOf } from '../pve.js';
 
 const ownedByUser = db.prepare('SELECT * FROM vms WHERE vmid = ? AND user_id = ?');
 
@@ -59,15 +58,24 @@ export default async function consoleRoutes(app) {
       return;
     }
 
-    const upstreamUrl = new URL(`${config.pve.url}${'/api2/json'}${guestPath(s.guest)}/vncwebsocket`);
+    // the guest's own cluster (address, token, TLS)
+    const conn = connectionOf(s.guest.cluster ?? 0);
+    const upstreamUrl = new URL(`${conn.url}${'/api2/json'}${guestPath(s.guest)}/vncwebsocket`);
     upstreamUrl.protocol = upstreamUrl.protocol === 'http:' ? 'ws:' : 'wss:';
     upstreamUrl.searchParams.set('port', String(s.port));
     upstreamUrl.searchParams.set('vncticket', s.ticket);
 
     const upstream = new WebSocket(upstreamUrl, ['binary'], {
-      headers: { Authorization: authHeader },
-      ...tlsOptions,
+      headers: { Authorization: conn.auth },
+      ...conn.tls,
     });
+    if (conn.pin) {
+      // self-signed cluster: the certificate must be the pinned one
+      upstream.on('upgrade', (res) => {
+        const got = res.socket.getPeerCertificate?.().fingerprint256?.replace(/:/g, '').toLowerCase();
+        if (got !== conn.pin) upstream.terminate();
+      });
+    }
 
     // Anything the browser sends before Proxmox is ready is queued.
     const queue = [];

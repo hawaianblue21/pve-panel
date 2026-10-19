@@ -14,6 +14,7 @@
 
 import { db } from './db.js';
 import { usageOf } from './provision.js';
+import { clusterOfNode } from './pve.js';
 
 export class PoolError extends Error {
   constructor(status, message) {
@@ -240,7 +241,7 @@ export function datacentersFor(userId) {
  * Where a new server goes: { datacenter, node, storage } or null (no
  * datacenters defined: the template's node, as before).
  */
-export function placement(userId, datacenterId, templateNode) {
+export function placement(userId, datacenterId, templateNode, { cluster = null, image = 'This image' } = {}) {
   const allowed = datacentersFor(userId);
   if (!listDatacenters().length) return null;
   let dc;
@@ -257,7 +258,10 @@ export function placement(userId, datacenterId, templateNode) {
   }
   // nodes in maintenance (Hosts tab) get no new servers
   const off = new Set(db.prepare('SELECT node FROM node_settings WHERE maintenance = 1').all().map((r) => r.node));
-  const nodes = dc.nodes.filter((n) => !off.has(n));
+  // several Proxmox clusters: only nodes of the image's cluster (a clone can't cross clusters)
+  const inCluster = cluster === null ? dc.nodes : dc.nodes.filter((n) => clusterOfNode(n) === cluster);
+  if (!inCluster.length) throw new PoolError(400, `${image} is not available in ${dc.name}. Choose an image offered there.`);
+  const nodes = inCluster.filter((n) => !off.has(n));
   if (!nodes.length) throw new PoolError(409, `No host in ${dc.name} takes new servers right now (maintenance). Please try again later or choose another datacenter.`);
   const node = nodes.includes(templateNode) ? templateNode : nodes[0];
   return { datacenter: dc, node, storage: dc.storage || null };

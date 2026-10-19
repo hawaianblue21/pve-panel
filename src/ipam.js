@@ -16,7 +16,7 @@
 // Reverse DNS: a PTR per address, pushed to PowerDNS when it is set up.
 
 import { db, audit } from './db.js';
-import { pve, clusterGuests, guestPath } from './pve.js';
+import { pve, clusterGuests, guestPath, guestMayBeHidden, HiddenGuestError } from './pve.js';
 import { seal, open } from './secrets.js';
 import { datacenterOfNode, datacenterById, checkPoolCapacity } from './pools.js';
 
@@ -364,6 +364,7 @@ export async function releaseIp(req, id) {
   busy.add(a.vmid);
   try {
     const guest = (await clusterGuests(true)).get(a.vmid);
+    if (!guest && guestMayBeHidden()) throw new HiddenGuestError();
     if (guest) {
       const path = guestPath(guest);
       const cfg = await pve.get(`${path}/config`);

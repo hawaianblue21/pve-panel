@@ -153,6 +153,9 @@ const ACTION_LABELS = {
   admin_node_maintenance_on: 'Put a node into maintenance',
   admin_node_maintenance_off: 'Ended maintenance on a node',
   admin_rollout_created: 'Started an update rollout',
+  admin_cluster_added: 'Connected a Proxmox cluster',
+  admin_cluster_updated: 'Changed a Proxmox cluster',
+  admin_cluster_removed: 'Removed a Proxmox cluster',
   admin_rollout_pause: 'Paused an update rollout',
   admin_rollout_resume: 'Resumed an update rollout',
   admin_rollout_cancel: 'Cancelled an update rollout',
@@ -1998,6 +2001,11 @@ export function createAdmin({ root, api, toast, fail, confirmAction, promptText,
     if (jobs.handles(st.tab)) {
       e.preventDefault();
       jobs.onSubmit(e, st.tab);
+      return;
+    }
+    if (hosts.handles(st.tab)) {
+      e.preventDefault();
+      hosts.onSubmit(e, st.tab);
       return;
     }
     if (plans.handles(st.tab)) {

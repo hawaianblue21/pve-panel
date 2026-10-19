@@ -169,6 +169,11 @@ const ROUTES = {
   'DELETE /api/admin/pools/:id/members/:userId': 'pools.write',
 
   'GET /api/admin/dashboard': null,
+  'GET /api/admin/clusters': 'servers.read',
+  'POST /api/admin/clusters/test': 'rbac.write',
+  'POST /api/admin/clusters': 'rbac.write',
+  'PUT /api/admin/clusters/:id': 'rbac.write',
+  'DELETE /api/admin/clusters/:id': 'rbac.write',
   'GET /api/admin/jobs': 'servers.read',
   'GET /api/admin/updates/fleet': 'servers.read',
   'GET /api/admin/updates/rollouts': 'servers.read',

@@ -2,7 +2,7 @@
 
 import { db, audit } from './db.js';
 import { config } from './config.js';
-import { pve, clusterGuests, guestPath, waitTask, invalidateGuestCache } from './pve.js';
+import { pve, clusterGuests, guestPath, waitTask, invalidateGuestCache, guestMayBeHidden, HiddenGuestError } from './pve.js';
 import { removeNetwork, guestsUsingVnet } from './network.js';
 import { syncGateway } from './vpn.js';
 import { removeCustomer as removeS3Customer } from './seaweedfs.js';
@@ -27,6 +27,7 @@ export function isProtected(vmid, guest) {
 export async function destroyServer(actor, vmid) {
   const guest = (await clusterGuests(true)).get(vmid);
   if (isProtected(vmid, guest)) throw new CleanupError(403, `Server ${vmid} is protected and can't be deleted here`);
+  if (!guest && guestMayBeHidden()) throw new HiddenGuestError();
 
   if (guest) {
     const path = guestPath(guest);
