@@ -10,11 +10,11 @@ Give users a clean, secure interface to manage **only their own virtual machines
 [![Node.js](https://img.shields.io/badge/Node.js-22.13%2B-339933?logo=nodedotjs&logoColor=white)](https://nodejs.org/)
 [![Docker](https://img.shields.io/badge/Docker-ready-2496ED?logo=docker&logoColor=white)](https://www.docker.com/)
 [![OIDC](https://img.shields.io/badge/Auth-OIDC%20%2B%202FA-6C63FF)](#-authentication)
-[![GHCR](https://img.shields.io/badge/Image-ghcr.io-181717?logo=github)](https://github.com/sebastianflint/pve-panel/pkgs/container/pve-panel)
-[![Release](https://img.shields.io/github/v/release/sebastianflint/pve-panel?label=Release)](https://github.com/sebastianflint/pve-panel/releases)
-[![Build & tests](https://github.com/sebastianflint/pve-panel/actions/workflows/docker-publish.yml/badge.svg?branch=main)](https://github.com/sebastianflint/pve-panel/actions/workflows/docker-publish.yml)
-[![CodeQL](https://github.com/sebastianflint/pve-panel/actions/workflows/codeql.yml/badge.svg?branch=main)](https://github.com/sebastianflint/pve-panel/actions/workflows/codeql.yml)
-[![Docs](https://img.shields.io/badge/Docs-website-3558E6)](https://sebastianflint.github.io/pve-panel/)
+[![GHCR](https://img.shields.io/badge/Image-ghcr.io-181717?logo=github)](https://github.com/hawaianblue21/pve-panel/pkgs/container/pve-panel)
+[![Release](https://img.shields.io/github/v/release/hawaianblue21/pve-panel?label=Release)](https://github.com/hawaianblue21/pve-panel/releases)
+[![Build & tests](https://github.com/hawaianblue21/pve-panel/actions/workflows/docker-publish.yml/badge.svg?branch=main)](https://github.com/hawaianblue21/pve-panel/actions/workflows/docker-publish.yml)
+[![CodeQL](https://github.com/hawaianblue21/pve-panel/actions/workflows/codeql.yml/badge.svg?branch=main)](https://github.com/hawaianblue21/pve-panel/actions/workflows/codeql.yml)
+[![Docs](https://img.shields.io/badge/Docs-website-3558E6)](https://hawaianblue21.github.io/pve-panel/)
 [![AI-assisted](https://img.shields.io/badge/Built%20with-AI%20assistance-8A2BE2)](#-ai-assisted-development)
 
 [Features](#-features) ·
@@ -27,7 +27,7 @@ Give users a clean, secure interface to manage **only their own virtual machines
 [Versions](#-versions--updates) ·
 [Security](#️-security-model) ·
 [AI use](#-ai-assisted-development) ·
-[Documentation](https://sebastianflint.github.io/pve-panel/)
+[Documentation](https://hawaianblue21.github.io/pve-panel/)
 
 </div>
 
@@ -68,7 +68,7 @@ The browser **never communicates directly with Proxmox VE** and never receives t
 
 The customer and administration portals run as **separate web servers** in the same process. They use separate session cookies and signing keys, and the customer-facing server does not expose administrator routes.
 
-> 📘 This README is the overview. Every setup step, permission, firewall rule and troubleshooting tip is in the **[documentation](https://sebastianflint.github.io/pve-panel/)**.
+> 📘 This README is the overview. Every setup step, permission, firewall rule and troubleshooting tip is in the **[documentation](https://hawaianblue21.github.io/pve-panel/)**.
 
 ---
 
@@ -80,7 +80,7 @@ PVE Panel was built with substantial help from an AI assistant (**Claude by Anth
 
 - most of the source code (backend, customer and admin portals, scripts)
 - the Docker, Compose and GitHub Actions setup
-- the documentation, the README and the [documentation website](https://sebastianflint.github.io/pve-panel/)
+- the documentation, the README and the [documentation website](https://hawaianblue21.github.io/pve-panel/)
 - automated tests during development, largely against simulated Proxmox, guest-agent, SMTP and WireGuard environments and a certified test OpenID provider
 - the screenshots, taken from such a test environment with sample data
 
@@ -556,7 +556,7 @@ Newly provisioned servers are automatically added to the pool defined by `PVE_PO
 ## 2. Configure PVE Panel
 
 ```bash
-git clone https://github.com/sebastianflint/pve-panel.git
+git clone https://github.com/hawaianblue21/pve-panel.git
 cd pve-panel
 
 npm install
@@ -637,7 +637,7 @@ Remove `INITIAL_ADMIN_PASSWORD` after the initial account has been created.
 Published container image:
 
 ```text
-ghcr.io/sebastianflint/pve-panel
+ghcr.io/hawaianblue21/pve-panel
 ```
 
 The GitHub workflow builds `amd64` and `arm64` images from `main` and release tags, with an SBOM and signed build provenance.
@@ -649,10 +649,10 @@ For a server or NAS deployment, use one of:
 | `deploy/docker-compose.yml` | Docker Compose, UGREEN Docker app (reads `.env`) |
 | `deploy/docker-compose.portainer.yml` | Portainer stacks (reads the stack's variables) |
 
-The image defaults to `ghcr.io/sebastianflint/pve-panel:latest`. To pin a release:
+The image defaults to `ghcr.io/hawaianblue21/pve-panel:latest`. To pin a release:
 
 ```env
-PANEL_IMAGE=ghcr.io/sebastianflint/pve-panel:1.1
+PANEL_IMAGE=ghcr.io/hawaianblue21/pve-panel:1.1
 ```
 
 Then deploy:
@@ -932,7 +932,7 @@ Sign in with **fingerprint, face, device PIN or a security key** — no email, p
 - needs a domain name over https (or `localhost`), not a bare IP address
 - administrators can remove a user's passkeys (lost device)
 
-Details: [Passkeys](https://sebastianflint.github.io/pve-panel/docs/security/passkeys).
+Details: [Passkeys](https://hawaianblue21.github.io/pve-panel/docs/security/passkeys).
 
 ### OpenID Connect / SSO
 
@@ -979,7 +979,7 @@ http://localhost:3001/api/auth/oidc/callback
 
 Only the panel needs to reach the provider (outbound HTTPS); the provider never connects to the panel.
 
-> **Microsoft Entra ID** doesn't send `email_verified`: set `OIDC_REQUIRE_VERIFIED_EMAIL=false` together with `OIDC_ALLOWED_DOMAINS`. Provider notes are in the [documentation](https://sebastianflint.github.io/pve-panel/docs/security/single-sign-on).
+> **Microsoft Entra ID** doesn't send `email_verified`: set `OIDC_REQUIRE_VERIFIED_EMAIL=false` together with `OIDC_ALLOWED_DOMAINS`. Provider notes are in the [documentation](https://hawaianblue21.github.io/pve-panel/docs/security/single-sign-on).
 
 Once SSO is validated, local password login can optionally be disabled independently for each portal.
 
@@ -1114,7 +1114,7 @@ Customers install the latest Windows updates from the server page — **Updates*
 
 Runs through the QEMU guest agent and Windows' own update API; respects WSUS/group policy. Switch it off under **Settings → Operating system updates**.
 
-Details: [Windows updates](https://sebastianflint.github.io/pve-panel/docs/features/windows-updates).
+Details: [Windows updates](https://hawaianblue21.github.io/pve-panel/docs/features/windows-updates).
 
 ### Linux (apt / dnf)
 
@@ -1182,7 +1182,7 @@ Reminders (7 / 1 days) ──► Expired: stopped ──► Grace period (14 day
 - nothing is deleted without an email warning; deletions can be paused globally
 - reminders, notices and a daily admin summary by email
 
-Details: [Server expiry](https://sebastianflint.github.io/pve-panel/docs/administration/expiry).
+Details: [Server expiry](https://hawaianblue21.github.io/pve-panel/docs/administration/expiry).
 
 ---
 
@@ -1356,7 +1356,7 @@ Customers can:
 
 Private keys are shown once and are not retained by the panel.
 
-The gateway is prepared once with `docs/vpn/setup-gateway.sh` — see the [documentation](https://sebastianflint.github.io/pve-panel/docs/networking/wireguard-vpn) for the routing and port-forward steps.
+The gateway is prepared once with `docs/vpn/setup-gateway.sh` — see the [documentation](https://hawaianblue21.github.io/pve-panel/docs/networking/wireguard-vpn) for the routing and port-forward steps.
 
 ### Tailscale
 
@@ -1868,7 +1868,7 @@ npm test            # unit + API tests
 npm run test:e2e    # browser tests (after: npx playwright install chromium)
 ```
 
-Details: [Tests and quality](https://sebastianflint.github.io/pve-panel/docs/reference/testing).
+Details: [Tests and quality](https://hawaianblue21.github.io/pve-panel/docs/reference/testing).
 
 ---
 
@@ -1894,7 +1894,7 @@ Contributions are welcome.
 A typical workflow:
 
 ```bash
-git clone https://github.com/sebastianflint/pve-panel.git
+git clone https://github.com/hawaianblue21/pve-panel.git
 cd pve-panel
 git checkout -b feature/my-feature
 ```
@@ -1919,7 +1919,7 @@ Found a bug or have an idea?
 
 Use the repository issue tracker:
 
-**https://github.com/sebastianflint/pve-panel/issues**
+**https://github.com/hawaianblue21/pve-panel/issues**
 
 When reporting a problem, useful information includes:
 
@@ -1961,9 +1961,9 @@ Before using it in a production or internet-facing environment:
 
 Give customers the controls they need — while keeping the hypervisor, credentials and other customers out of reach.
 
-[⭐ Star the project](https://github.com/sebastianflint/pve-panel) ·
-[🐛 Report an issue](https://github.com/sebastianflint/pve-panel/issues) ·
-[📦 Container image](https://github.com/sebastianflint/pve-panel/pkgs/container/pve-panel) ·
-[📘 Documentation](https://sebastianflint.github.io/pve-panel/)
+[⭐ Star the project](https://github.com/hawaianblue21/pve-panel) ·
+[🐛 Report an issue](https://github.com/hawaianblue21/pve-panel/issues) ·
+[📦 Container image](https://github.com/hawaianblue21/pve-panel/pkgs/container/pve-panel) ·
+[📘 Documentation](https://hawaianblue21.github.io/pve-panel/)
 
 </div>

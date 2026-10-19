@@ -7,11 +7,11 @@
   "main": "src/server.js",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/sebastianflint/pve-panel.git"
+    "url": "git+https://github.com/hawaianblue21/pve-panel.git"
   },
-  "homepage": "https://github.com/sebastianflint/pve-panel#readme",
+  "homepage": "https://github.com/hawaianblue21/pve-panel#readme",
   "bugs": {
-    "url": "https://github.com/sebastianflint/pve-panel/issues"
+    "url": "https://github.com/hawaianblue21/pve-panel/issues"
   },
   "scripts": {
     "start": "node --disable-warning=ExperimentalWarning src/server.js",

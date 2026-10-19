@@ -26,7 +26,7 @@ export default function Home() {
           <div className={styles.buttons}>
             <Link className="button button--primary button--lg" to="/docs/getting-started/quick-start">Quick start</Link>
             <Link className="button button--secondary button--lg" to="/docs/intro">Documentation</Link>
-            <Link className={`button button--outline button--lg ${styles.ghost}`} href="https://github.com/sebastianflint/pve-panel">GitHub</Link>
+            <Link className={`button button--outline button--lg ${styles.ghost}`} href="https://github.com/hawaianblue21/pve-panel">GitHub</Link>
           </div>
         </div>
       </header>

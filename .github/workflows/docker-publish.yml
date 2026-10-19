@@ -1,5 +1,5 @@
 # Builds the Docker image and publishes it to the GitHub Container Registry:
-#   ghcr.io/sebastianflint/pve-panel  (https://github.com/sebastianflint/pve-panel)
+#   ghcr.io/hawaianblue21/pve-panel  (https://github.com/hawaianblue21/pve-panel)
 # Tags:
 #   release tags (git tag v1.2.3): "1.2.3", "1.2", "1" and "latest"
 #   pushes to main:                "edge" (development builds, e.g. 1.2.4-dev.abc1234)
