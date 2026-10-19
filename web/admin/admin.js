@@ -11,6 +11,7 @@ import { createBilling } from '/billing.js';
 import { createVolumes } from '/volumes.js';
 import { createIpam } from '/ipam.js';
 import { createHosts } from '/hosts.js';
+import { createJobs } from '/jobs.js';
 import { createPlans } from '/plans.js';
 
 // Administration area: assign servers, manage customers, read the activity log.
@@ -151,6 +152,13 @@ const ACTION_LABELS = {
   admin_ip_pool_create: 'Added a public IP pool',
   admin_node_maintenance_on: 'Put a node into maintenance',
   admin_node_maintenance_off: 'Ended maintenance on a node',
+  admin_rollout_created: 'Started an update rollout',
+  admin_rollout_pause: 'Paused an update rollout',
+  admin_rollout_resume: 'Resumed an update rollout',
+  admin_rollout_cancel: 'Cancelled an update rollout',
+  admin_rollout_done: 'Update rollout finished',
+  api_token_created: 'Created an API token',
+  api_token_revoked: 'Revoked an API token',
   admin_plan_create: 'Added a plan',
   admin_plan_update: 'Changed a plan',
   admin_plan_delete: 'Deleted a plan',
@@ -194,6 +202,8 @@ export function createAdmin({ root, api, toast, fail, confirmAction, promptText,
   const volumes = createVolumes({ root, api, toast, fail, esc });
   // Public IPv4 pools and addresses (own module)
   const ipam = createIpam({ root, api, toast, fail, confirmAction, promptText, esc });
+  // Background jobs, update fleet and rollouts (own module)
+  const jobs = createJobs({ root, api, toast, fail, confirmAction, esc });
   // Overview dashboard and Proxmox nodes (own module)
   const hosts = createHosts({
     root, api, toast, fail, confirmAction, promptText, esc,
@@ -213,6 +223,7 @@ export function createAdmin({ root, api, toast, fail, confirmAction, promptText,
     : volumes.handles(id) ? volumes.tabs().some(([t]) => t === id)
     : ipam.handles(id) ? ipam.tabs().some(([t]) => t === id)
     : hosts.handles(id) ? hosts.tabs().some(([t]) => t === id)
+    : jobs.handles(id) ? jobs.tabs().some(([t]) => t === id)
     : plans.handles(id) ? plans.tabs().some(([t]) => t === id)
     : !TAB_PERMISSION[id] || !st.perms || st.perms.has(TAB_PERMISSION[id]));
   const gb = (mb) => `${+(mb / 1024).toFixed(1)} GB`;
@@ -236,6 +247,8 @@ export function createAdmin({ root, api, toast, fail, confirmAction, promptText,
         await ipam.load(st.tab);
       } else if (hosts.handles(st.tab)) {
         await hosts.load(st.tab);
+      } else if (jobs.handles(st.tab)) {
+        await jobs.load(st.tab);
       } else if (plans.handles(st.tab)) {
         await plans.load(st.tab);
       } else if (st.tab === 'servers') {
@@ -272,7 +285,7 @@ export function createAdmin({ root, api, toast, fail, confirmAction, promptText,
 
   // ---- shell ------------------------------------------------------------
   function render() {
-    const tabs = [...hosts.tabs().filter(([id]) => id === 'overview'), ['servers', 'Servers'], ['users', 'Customers'], ...desk.tabs(), ...billing.tabs(), ...plans.tabs(), ['templates', 'Templates'], ['vpn', 'VPN'],
+    const tabs = [...hosts.tabs().filter(([id]) => id === 'overview'), ['servers', 'Servers'], ['users', 'Customers'], ...desk.tabs(), ...billing.tabs(), ...plans.tabs(), ['templates', 'Templates'], ...jobs.tabs(), ['vpn', 'VPN'],
       ...infra.tabs(), ...hosts.tabs().filter(([id]) => id === 'hosts'), ...volumes.tabs(), ...ipam.tabs(), ['activity', 'Activity'], ['account', 'Your account'], ['settings', 'Settings'], ['about', 'About']]
       .filter(([id]) => allowedTab(id));
     root.innerHTML = `
@@ -295,6 +308,7 @@ export function createAdmin({ root, api, toast, fail, confirmAction, promptText,
     if (volumes.handles(st.tab)) volumes.render(st.tab);
     if (ipam.handles(st.tab)) ipam.render(st.tab);
     if (hosts.handles(st.tab)) hosts.render(st.tab);
+    if (jobs.handles(st.tab)) jobs.render(st.tab);
     if (plans.handles(st.tab)) plans.render(st.tab);
     if (st.tab === 'servers') renderServers();
     if (st.tab === 'users') renderUsers();
@@ -1330,6 +1344,11 @@ export function createAdmin({ root, api, toast, fail, confirmAction, promptText,
     warnPlain();
   });
 
+  // Updates: server checkboxes (the shared click handler only looks at buttons)
+  root.addEventListener('click', (e) => {
+    if (jobs.handles(st.tab) && e.target.matches?.('input[data-pick], input[data-pick-all]')) jobs.onClick(e, st.tab);
+  });
+
   // Public IPs: open a pool (click or Enter on its row)
   root.addEventListener('click', (e) => {
     if (ipam.handles(st.tab) && e.target.closest('tr[data-ipam-pool]') && !e.target.closest('a, button')) ipam.onClick(e, st.tab);
@@ -1636,6 +1655,7 @@ export function createAdmin({ root, api, toast, fail, confirmAction, promptText,
     if (volumes.handles(st.tab) && !t.dataset.adminTab && await volumes.onClick(e, st.tab)) return;
     if (ipam.handles(st.tab) && !t.dataset.adminTab && await ipam.onClick(e, st.tab)) return;
     if (hosts.handles(st.tab) && !t.dataset.adminTab && await hosts.onClick(e, st.tab)) return;
+    if (jobs.handles(st.tab) && !t.dataset.adminTab && await jobs.onClick(e, st.tab)) return;
     if (plans.handles(st.tab) && !t.dataset.adminTab && await plans.onClick(e, st.tab)) return;
 
     if (t.hasAttribute('data-ai-test')) {
@@ -1975,6 +1995,11 @@ export function createAdmin({ root, api, toast, fail, confirmAction, promptText,
       ipam.onSubmit(e, st.tab);
       return;
     }
+    if (jobs.handles(st.tab)) {
+      e.preventDefault();
+      jobs.onSubmit(e, st.tab);
+      return;
+    }
     if (plans.handles(st.tab)) {
       e.preventDefault();
       plans.onSubmit(e, st.tab);
@@ -1996,6 +2021,7 @@ export function createAdmin({ root, api, toast, fail, confirmAction, promptText,
       volumes.setPermissions(me.permissions);
       ipam.setPermissions(me.permissions);
       hosts.setPermissions(me.permissions);
+      jobs.setPermissions(me.permissions);
       plans.setPermissions(me.permissions);
     } catch (err) {
       fail(err);
