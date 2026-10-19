@@ -22,6 +22,7 @@ export const LINUX_SCRIPT = read('linux-update.sh');
 export const SETUP = read('linux-setup.sh');
 export const PRECHECK = read('linux-precheck.sh');
 export const STATUS = read('linux-status.sh');
+export const CHECK = read('linux-check.sh');
 
 export const MIN_FREE_MB = 1024;
 

@@ -17,19 +17,12 @@ import { config } from './config.js';
 import { pve, clusterGuests, guestPath, waitTask } from './pve.js';
 import { activeRun } from './winupdate.js';
 import { applyRecordedIps } from './ipam.js';
+import { TZ, partsIn } from './clock.js';
 
 const fail = (status, message) => Object.assign(new Error(message), { statusCode: status, expose: true });
-const TZ = process.env.PANEL_TIMEZONE || 'UTC';
 const AUTO = /^auto_\d{14}$/;
 
 // ---- Time ---------------------------------------------------------------------------------------
-
-/** Wall-clock parts of a moment in the panel's time zone. */
-function partsIn(date) {
-  const p = Object.fromEntries(new Intl.DateTimeFormat('en-US', { timeZone: TZ, hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', weekday: 'short' })
-    .formatToParts(date).map((x) => [x.type, x.value]));
-  return { y: +p.year, m: +p.month, d: +p.day, h: +p.hour, min: +p.minute, s: date.getUTCSeconds(), wd: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(p.weekday) };
-}
 
 /** The next run after `from`: the next full hour `hour` (on `weekday` for weekly). */
 export function nextRun({ frequency, hour, weekday }, from = new Date()) {

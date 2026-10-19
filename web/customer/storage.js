@@ -184,11 +184,14 @@ echo "UUID=$(sudo blkid -s UUID -o value /dev/sdb) /data ext4 defaults,nofail 0 
         <div class="table-wrap"><table class="table">
           <thead><tr><th>Bucket</th><th class="num">Objects</th><th class="num">Used</th><th class="num">Quota</th><th><span class="sr-only">Actions</span></th></tr></thead>
           <tbody>${o.buckets.map((b) => `
-            <tr data-bucket="${esc(b.name)}"><td class="mono">${esc(b.name)}</td>
+            <tr data-bucket="${esc(b.name)}"><td><span class="mono">${esc(b.name)}</span>${b.readOnly ? ' <span class="tag warn">read-only</span>' : ''}</td>
               <td class="num">${b.usage ? b.usage.objects.toLocaleString('id-ID') : '·'}</td><td class="num">${gb(b.usage?.bytes)}</td>
               <td class="num">${b.quotaGb ? `${b.quotaGb} GB` : 'none'}</td>
-              <td><div class="row end"><button class="btn danger" data-bucket-delete>Delete</button></div></td></tr>`).join('')}
-          </tbody></table></div>` : '<p class="muted">No buckets yet.</p>'}
+              <td><div class="row end"><button class="btn" data-bucket-ro="${b.readOnly ? 'off' : 'on'}">${b.readOnly ? 'Make writable' : 'Make read-only'}</button>
+                <button class="btn danger" data-bucket-delete>Delete</button></div></td></tr>`).join('')}
+          </tbody></table></div>
+          <p class="small muted">Read-only: your access key can read and list the bucket but not add, change or delete anything in it,
+            for example to protect a finished backup from a compromised script.</p>` : '<p class="muted">No buckets yet.</p>'}
 
       <div class="grid-2" style="margin-top:20px;max-width:1100px">
         <section class="security-card settings-card">
@@ -280,6 +283,15 @@ echo "UUID=$(sudo blkid -s UUID -o value /dev/sdb) /data ext4 defaults,nofail 0 
         await api(`/api/volumes/${v.id}`, { method: 'DELETE' });
         toast(`${v.label} deleted`);
         return reloadBlock();
+      }
+      if (t.hasAttribute('data-bucket-ro')) {
+        const name = t.closest('[data-bucket]').dataset.bucket;
+        const on = t.dataset.bucketRo === 'on';
+        if (!(await confirmAction(on ? `Make ${name} read-only? Your access key can then only read and list it; uploads and deletions are refused.`
+          : `Make ${name} writable again? Your access key can then change and delete its objects.`, on ? 'Make read-only' : 'Make writable'))) return;
+        await api(`/api/storage/buckets/${encodeURIComponent(name)}`, { method: 'PATCH', body: { readOnly: on } });
+        toast(on ? `${name} is read-only` : `${name} is writable`);
+        return reloadObject();
       }
       if (t.hasAttribute('data-bucket-delete')) {
         const name = t.closest('[data-bucket]').dataset.bucket;

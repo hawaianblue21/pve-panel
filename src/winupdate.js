@@ -152,6 +152,17 @@ $f = Join-Path $env:ProgramData 'PVEPanel\update-status.json'
 if (Test-Path $f) { Get-Content $f -Raw } else { '{}' }
 `;
 
+// Counts what Windows Update would offer (nothing is downloaded or installed).
+// 0FA1201D-…: the "Security Updates" classification.
+const CHECK = String.raw`# PVEPANEL-WU-CHECK
+$ErrorActionPreference = 'Stop'
+$r = (New-Object -ComObject Microsoft.Update.Session).CreateUpdateSearcher().Search("IsInstalled=0 and Type='Software' and IsHidden=0")
+$sec = 0
+foreach ($u in $r.Updates) { foreach ($c in $u.Categories) { if ($c.CategoryID -eq '0fa1201d-4330-4fa8-8ae9-b877473b6441') { $sec++; break } } }
+$reboot = (New-Object -ComObject Microsoft.Update.SystemInfo).RebootRequired
+@{ pending = $r.Updates.Count; security = $sec; rebootRequired = [bool]$reboot } | ConvertTo-Json -Compress
+`;
+
 const CLEANUP = String.raw`# PVEPANEL-WU-CLEANUP
 Unregister-ScheduledTask -TaskName '${TASK}' -Confirm:$false -ErrorAction SilentlyContinue
 'ok'
@@ -279,6 +290,28 @@ export async function startUpdates(req, row, { scope = 'security', snapshot = tr
     VALUES (?, ?, ?, ?, ?, ?, 'starting')`).run(row.vmid, row.user_id, runId, cfg.scope, cfg.autoRestart ? 1 : 0, snapName).lastInsertRowid;
   audit(req, row.vmid, 'winupdate_started', { scope: cfg.scope, snapshot: snapName, autoRestart: cfg.autoRestart });
   return publicRun(db.prepare('SELECT * FROM winupdates WHERE id = ?').get(id));
+}
+
+/**
+ * Pending updates of a running Windows or Linux server, counted inside it without
+ * installing anything: { os, pending, security, rebootRequired }. Windows' search can
+ * take minutes.
+ */
+export async function checkPending(row) {
+  if (row.state !== 'ready') throw new UpdateError(409, 'The server is busy');
+  if (activeRun(row.vmid)) throw new UpdateError(409, 'Updates are being installed right now');
+  const { guest, path } = await guestOf(row);
+  const os = await osOfGuest(path);
+  if (!os) throw new UpdateError(400, 'Only Windows and Linux servers can be checked');
+  if (guest.status !== 'running') throw new UpdateError(409, 'The server is not running');
+  try { await pve.post(`${path}/agent/ping`); } catch {
+    throw new UpdateError(409, 'The QEMU guest agent is not running in this server');
+  }
+  const r = os === 'linux' ? await agentExec(path, linux.sh(linux.CHECK), 300_000) : await agentExec(path, ps(CHECK), 900_000);
+  const j = parseJson(r.out);
+  if (j?.pm === 'none') throw new UpdateError(409, 'No supported package manager (apt or dnf) was found');
+  if (!j || typeof j.pending !== 'number') throw new UpdateError(502, `The check gave no answer${r.err ? `: ${friendlyError(r.err.trim().split('\n').pop())}` : ''}`);
+  return { os, pending: j.pending, security: Number(j.security) || 0, rebootRequired: j.rebootRequired === true };
 }
 
 /** Snapshot before updating (rollback if an update breaks something). */

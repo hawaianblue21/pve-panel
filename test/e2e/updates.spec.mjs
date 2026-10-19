@@ -1,5 +1,5 @@
-// Fleet updates and jobs in the admin portal: pick servers, start a rollout,
-// follow it ring by ring; the job list.
+// Fleet updates and jobs in the admin portal: pick servers, check pending updates,
+// start a rollout (maintenance window fields), follow it ring by ring; the job list.
 import { test, expect } from '@playwright/test';
 
 test('start an update rollout from the fleet and follow it', async ({ page }) => {
@@ -13,7 +13,17 @@ test('start an update rollout from the fleet and follow it', async ({ page }) =>
   await expect(row).toContainText('Linux');
   await page.locator('[data-fleet-filter=linux]').click();
   await row.locator('[data-pick]').check();
+  await expect(row).toContainText('not checked');
+  await page.locator('[data-check-picked]').click();
+  await expect(page.locator('.toast').last()).toContainText('Checking 1 server; nothing is installed');
+  await expect(page.locator('tr[data-fleet="101"]')).toContainText('The server is not running', { timeout: 20_000 });
   const form = page.locator('#rollout-form');
+  await expect(form.locator('[data-window]')).toBeHidden();
+  await form.locator('[name=useWindow]').check();
+  await expect(form.locator('[data-window]')).toBeVisible();
+  await expect(form.locator('[data-window]')).toContainText('UTC');
+  await form.locator('[name=useWindow]').uncheck();
+  await expect(form.locator('[data-window]')).toBeHidden();
   await expect(form.locator('button.primary')).toHaveText('Start rollout on 1 server');
   await form.locator('[name=name]').fill('Test rollout');
   await form.locator('[name=rings]').selectOption('100');

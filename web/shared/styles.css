@@ -679,6 +679,8 @@ dialog#twofa-admin { max-width: min(540px, calc(100vw - 32px)); }
 .email-form { display: grid; gap: 14px; }
 .inline-check { display: inline-flex; gap: 6px; align-items: center; font-weight: 400; }
 .inline-check input { width: auto; }
+.window-fields { border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px 14px; margin: 0; display: grid; gap: 10px; min-width: 0; }
+.window-fields legend { padding: 0 6px; }
 
 /* Windows updates */
 .updates { max-width: 760px; display: grid; gap: 14px; }

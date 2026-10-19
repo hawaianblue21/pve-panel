@@ -3,7 +3,7 @@
 
 import { poolOfUser } from '../pools.js';
 import {
-  s3Enabled, s3Settings, listBucketsWithUsage, createBucket, deleteBucket, issueAccessKey, accountOf,
+  s3Enabled, s3Settings, listBucketsWithUsage, createBucket, deleteBucket, issueAccessKey, accountOf, setBucketReadOnly,
 } from '../seaweedfs.js';
 
 function allowed(req) {
@@ -37,7 +37,7 @@ export default async function storageRoutes(app) {
       accessKeyId: account?.accessKeyId ?? null,
       limits: { buckets: pool.maxS3Buckets, gb: pool.maxS3Gb },
       buckets: (await listBucketsWithUsage({ userId: req.account.id }))
-        .map(({ name, quotaGb, createdAt, usage }) => ({ name, quotaGb, createdAt, usage })),
+        .map(({ name, quotaGb, readOnly, createdAt, usage }) => ({ name, quotaGb, readOnly, createdAt, usage })),
     };
   });
 
@@ -53,6 +53,14 @@ export default async function storageRoutes(app) {
     requireAllowed(req);
     const b = await createBucket(req, req.account.id, req.body.name, req.body.quotaGb ?? 0);
     return reply.code(201).send({ name: b.name, quotaGb: b.quotaGb });
+  });
+
+  app.patch('/api/storage/buckets/:name', {
+    config: { rateLimit: { max: 30, timeWindow: '10 minutes' } },
+    schema: { body: { type: 'object', required: ['readOnly'], additionalProperties: false, properties: { readOnly: { type: 'boolean' } } } },
+  }, async (req) => {
+    requireAllowed(req);
+    return setBucketReadOnly(req, req.params.name, req.body.readOnly, { userId: req.account.id });
   });
 
   app.delete('/api/storage/buckets/:name', async (req, reply) => {
