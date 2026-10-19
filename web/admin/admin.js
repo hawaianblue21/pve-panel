@@ -149,6 +149,8 @@ const ACTION_LABELS = {
   ip_assigned: 'Added a public IP address',
   ip_released: 'Released a public IP address',
   ip_ptr_set: 'Set reverse DNS',
+  ipv6_on: 'Switched IPv6 on',
+  ipv6_off: 'Switched IPv6 off',
   admin_ip_pool_create: 'Added a public IP pool',
   admin_node_maintenance_on: 'Put a node into maintenance',
   admin_node_maintenance_off: 'Ended maintenance on a node',

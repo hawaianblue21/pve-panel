@@ -17,7 +17,7 @@ export const PERMISSIONS = [
   { key: 'templates.write', group: 'Servers', label: 'Offer, set up and withdraw OS templates' },
   { key: 'network.read', group: 'Network', label: 'View networks, VPN and Tailscale' },
   { key: 'network.write', group: 'Network', label: 'Remove VPN devices, resync the gateway' },
-  { key: 'ipam.write', group: 'Network', label: 'Manage public IPv4 pools, reserve and free addresses, IPAM settings' },
+  { key: 'ipam.write', group: 'Network', label: 'Manage public IP pools (IPv4, optional IPv6), reserve and free addresses, IPAM settings' },
   { key: 'pools.read', group: 'Resources', label: 'View resource pools and datacenters' },
   { key: 'pools.write', group: 'Resources', label: 'Change resource pools, datacenters and pool members' },
   { key: 'storage.read', group: 'Resources', label: 'View block storage volumes and object storage (SeaweedFS)' },

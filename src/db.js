@@ -610,6 +610,15 @@ db.exec(`
   END;
 `);
 
+// IPv6 (optional): a pool may carry an IPv6 prefix; every IPv4 address of the pool
+// maps to its own /64 in it, switched on per address by the customer.
+addColumn('ip_pools', 'ipv6_cidr', 'TEXT');
+addColumn('ip_pools', 'ipv6_gateway', 'TEXT');
+addColumn('ip_pools', 'ipv6_reverse_zone', 'TEXT');
+addColumn('ip_pools', 'ipv6_price_monthly', 'INTEGER NOT NULL DEFAULT 0');
+addColumn('ip_addresses', 'ipv6_on', 'INTEGER NOT NULL DEFAULT 0');
+addColumn('ip_addresses', 'ipv6_ptr', 'TEXT');
+
 // ---- Proxmox nodes (hosts.js): maintenance flag and the last reported state -------
 db.exec(`
   CREATE TABLE IF NOT EXISTS node_settings (

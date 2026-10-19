@@ -1,4 +1,4 @@
-// Admin portal: public IPv4 pools and addresses (IPAM), and IPAM settings with
+// Admin portal: public IPv4 pools (optionally with an IPv6 prefix) and addresses (IPAM), and IPAM settings with
 // optional PowerDNS for reverse DNS. Same shape as desk.js, billing.js, volumes.js.
 
 const rp = (n) => `Rp ${Math.round(Number(n) || 0).toLocaleString('id-ID')}`;
@@ -39,6 +39,14 @@ export function createIpam({ root, api, toast, fail, confirmAction, promptText, 
           <label>Price per address / month (Rp) <input name="priceMonthly" type="number" min="0" step="1000" value="${v(p?.priceMonthly ?? 0)}"></label>
           <label>Reverse zone <span class="hint">for PowerDNS</span><input name="reverseZone" value="${v(p?.reverseZone)}" placeholder="113.0.203.in-addr.arpa" spellcheck="false"></label>
         </div>
+        <h3 class="h3">IPv6 <span class="hint">optional: each address of the subnet gets its own /64 of this prefix</span></h3>
+        ${p?.ipv6On ? `<p class="hint">${p.ipv6On} server${p.ipv6On === 1 ? ' uses' : 's use'} IPv6 from this pool: the prefix and gateway are locked.</p>` : ''}
+        <div class="grid-3">
+          <label>IPv6 prefix <input name="ipv6Cidr" value="${v(p?.ipv6?.cidr)}" placeholder="2001:db8:100::/56" spellcheck="false" ${p?.ipv6On ? 'disabled' : ''}></label>
+          <label>IPv6 gateway <input name="ipv6Gateway" value="${v(p?.ipv6?.gateway ?? (p?.ipv6 ? '' : 'fe80::1'))}" placeholder="fe80::1" spellcheck="false" ${p?.ipv6On ? 'disabled' : ''}></label>
+          <label>Price per /64 / month (Rp) <input name="ipv6PriceMonthly" type="number" min="0" step="1000" value="${v(p?.ipv6?.priceMonthly ?? 0)}"></label>
+          <label>IPv6 reverse zone <span class="hint">for PowerDNS</span><input name="ipv6ReverseZone" value="${v(p?.ipv6?.reverseZone)}" placeholder="0.0.1.0.8.b.d.0.1.0.0.2.ip6.arpa" spellcheck="false"></label>
+        </div>
         <div class="row"><button class="btn primary">${p ? 'Save pool' : 'Add pool'}</button>
           <button type="button" class="btn" data-ipam-cancel>Cancel</button></div>
       </form>`;
@@ -60,7 +68,7 @@ export function createIpam({ root, api, toast, fail, confirmAction, promptText, 
             <thead><tr><th>Pool</th><th>Subnet</th><th>Bridge</th><th>Datacenter</th><th class="num">Free</th><th class="num">Assigned</th><th class="num">Other</th><th class="num">Per address</th></tr></thead>
             <tbody>${d.pools.map((p) => `
               <tr data-ipam-pool="${p.id}" tabindex="0">
-                <td><strong>${esc(p.name)}</strong></td><td class="mono">${esc(p.cidr)} <span class="muted small">gw ${esc(p.gateway)}</span></td>
+                <td><strong>${esc(p.name)}</strong></td><td class="mono">${esc(p.cidr)} <span class="muted small">gw ${esc(p.gateway)}</span>${p.ipv6 ? `<br><span class="small">${esc(p.ipv6.cidr)}</span> <span class="muted small">${p.ipv6On} on</span>` : ''}</td>
                 <td class="mono">${esc(p.bridge)}${p.vlan ? ` · tag ${p.vlan}` : ''}</td><td>${esc(p.datacenter ?? 'Any')}</td>
                 <td class="num">${p.free}</td><td class="num">${p.assigned}</td>
                 <td class="num">${p.reserved + p.cooldown + p.held}${p.held ? ' <span class="tag warn">held</span>' : ''}</td><td class="num">${rp(p.priceMonthly)}</td></tr>`).join('')}
@@ -85,7 +93,12 @@ export function createIpam({ root, api, toast, fail, confirmAction, promptText, 
               <label>Server ID <input name="pdnsServer" value="${esc(s.powerdns.serverId)}" ${w ? '' : 'disabled'}></label>
             </div>
             <p class="hint">Without PowerDNS, customers' reverse DNS names are stored and shown here for you to publish.</p>
+            <h3 class="h3">IPv6 <span class="pill ${s.ipv6Enabled ? 'pill-running' : ''}">${s.ipv6Enabled ? 'On' : 'Off'}</span></h3>
+            <p class="hint">With IPv6 on, customers can switch on a /64 for each public address whose pool has an IPv6 prefix.
+              Switched off here, nobody can switch it on; servers that have it keep it until their owner switches it off.
+              Your router must deliver every /64 on the pool's bridge (the prefix on-link, or a route per /64).</p>
             ${w ? `<div class="row"><label class="inline-check"><input type="checkbox" name="enabled" ${s.enabled ? 'checked' : ''}> Customers can add public addresses</label>
+              <label class="inline-check"><input type="checkbox" name="ipv6Enabled" ${s.ipv6Enabled ? 'checked' : ''}> Customers can switch IPv6 on</label>
               <button class="btn primary">Save</button></div>` : ''}
           </form>
         </section>
@@ -116,9 +129,9 @@ export function createIpam({ root, api, toast, fail, confirmAction, promptText, 
           <thead><tr><th>Address</th><th>State</th><th>Customer</th><th>Server</th><th>Reverse DNS</th><th>Note</th><th><span class="sr-only">Actions</span></th></tr></thead>
           <tbody>${st.addresses.map((a) => `
             <tr data-ipam-address="${a.id}">
-              <td class="mono">${esc(a.address)}</td><td><span class="tag ${TAG[a.state]}">${esc(STATES.find(([v]) => v === a.state)?.[1] ?? a.state)}</span></td>
+              <td class="mono">${esc(a.address)}${a.ipv6 ? `<br><span class="small">${esc(a.ipv6.prefix)}</span>` : ''}</td><td><span class="tag ${TAG[a.state]}">${esc(STATES.find(([v]) => v === a.state)?.[1] ?? a.state)}</span></td>
               <td>${esc(a.email ?? '')}</td><td>${a.vmid ? `${esc(a.server ?? '')} <span class="mono muted small">${a.vmid}${a.nic ? ` · ${esc(a.nic)}` : ''}</span>` : ''}</td>
-              <td class="mono small">${esc(a.ptr ?? '')}</td><td class="small">${esc(a.note ?? '')}${a.state === 'cooldown' && a.releasedAt ? `released ${esc(new Date(a.releasedAt).toLocaleString())}` : ''}</td>
+              <td class="mono small">${esc(a.ptr ?? '')}${a.ipv6?.ptr ? `<br>${esc(a.ipv6.ptr)}` : ''}</td><td class="small">${esc(a.note ?? '')}${a.state === 'cooldown' && a.releasedAt ? `released ${esc(new Date(a.releasedAt).toLocaleString())}` : ''}</td>
               <td><div class="row end">${w && a.address !== p.gateway ? (a.state === 'free' || a.state === 'cooldown' ? '<button class="btn" data-ipam-reserve>Reserve</button>'
                 : ['reserved', 'cooldown', 'held'].includes(a.state) ? '<button class="btn" data-ipam-free>Make free</button>' : '') : ''}</div></td>
             </tr>`).join('') || '<tr><td colspan="7" class="muted">No addresses match.</td></tr>'}
@@ -174,8 +187,9 @@ export function createIpam({ root, api, toast, fail, confirmAction, promptText, 
         name: el.name.value.trim(), gateway: el.gateway.value.trim(), bridge: el.bridge.value.trim(),
         vlan: el.vlan.value ? Number(el.vlan.value) : null, dns: el.dns.value.split(/[\s,]+/).filter(Boolean),
         datacenterId: el.datacenterId.value ? Number(el.datacenterId.value) : null, priceMonthly: Number(el.priceMonthly.value) || 0,
-        reverseZone: el.reverseZone.value.trim(),
+        reverseZone: el.reverseZone.value.trim(), ipv6PriceMonthly: Number(el.ipv6PriceMonthly.value) || 0, ipv6ReverseZone: el.ipv6ReverseZone.value.trim(),
       };
+      if (!el.ipv6Cidr.disabled) { b.ipv6Cidr = el.ipv6Cidr.value.trim(); b.ipv6Gateway = el.ipv6Gateway.value.trim(); }
       if (!id) b.cidr = el.cidr.value.trim();
       await go(async () => {
         const p = await api(id ? `/api/admin/ipam/pools/${id}` : '/api/admin/ipam/pools', { method: id ? 'PUT' : 'POST', body: b });
@@ -185,7 +199,7 @@ export function createIpam({ root, api, toast, fail, confirmAction, promptText, 
       return;
     }
     if (f.getAttribute('id') === 'ipam-settings') {
-      const b = { enabled: el.enabled.checked, maxPerServer: Number(el.maxPerServer.value), cooldownHours: Number(el.cooldownHours.value),
+      const b = { enabled: el.enabled.checked, ipv6Enabled: el.ipv6Enabled.checked, maxPerServer: Number(el.maxPerServer.value), cooldownHours: Number(el.cooldownHours.value),
         powerdns: { url: el.pdnsUrl.value.trim(), serverId: el.pdnsServer.value.trim() || 'localhost' } };
       if (el.pdnsKey.value) b.powerdns.apiKey = el.pdnsKey.value;
       await go(() => api('/api/admin/settings/ipam', { method: 'PUT', body: b }), 'Public IP settings saved');
