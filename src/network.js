@@ -1,4 +1,4 @@
-// Private network per customer on a single Proxmox node.
+// Private network per customer (one VNet per customer, on every cluster where they have servers).
 //
 //   customer 1 ──▶ VNet cu0001  10.100.1.0/24  gw .1  DHCP .100-.250 ─┐
 //   customer 2 ──▶ VNet cu0002  10.100.2.0/24  gw .1  DHCP .100-.250 ─┼─ SNAT ─▶ internet
@@ -43,41 +43,52 @@ export function allNetworks() {
   `).all().map((row) => ({ ...describe(row), email: row.email ?? null, userId: row.user_id }));
 }
 
-async function ensureZone() {
-  const zones = await pve.get('/cluster/sdn/zones');
+async function ensureZone(api) {
+  const zones = await api.get('/cluster/sdn/zones');
   if (zones.some((z) => z.zone === zone)) return;
-  await pve.post('/cluster/sdn/zones', { zone, type: 'simple', ipam: 'pve', dhcp: 'dnsmasq' });
+  await api.post('/cluster/sdn/zones', { zone, type: 'simple', ipam: 'pve', dhcp: 'dnsmasq' });
 }
+
+// Several Proxmox clusters: a customer's VNet is created on each cluster where
+// they have servers (same name and subnet; each cluster is its own segment, and
+// the VPN gateway reaches the main cluster's).
+const onCluster = (vnet, clusterId) => !!db.prepare('SELECT 1 FROM network_clusters WHERE vnet = ? AND cluster_id = ?').get(vnet, clusterId);
+const clustersOf = (vnet) => db.prepare('SELECT cluster_id AS id FROM network_clusters WHERE vnet = ? ORDER BY cluster_id').all(vnet).map((r) => r.id);
 
 /**
  * Returns the customer's network, creating the VNet + subnet and applying the
  * SDN configuration the first time. Safe to retry after a partial failure.
  */
-export async function ensureNetwork(userId) {
+export async function ensureNetwork(userId, clusterId = 0) {
   const existing = byUser.get(userId);
-  if (existing) return describe(existing);
+  if (existing && onCluster(existing.vnet, clusterId)) return describe(existing);
 
   // SDN changes are applied cluster-wide in one go; never run two at once.
   return serial(async () => {
     const again = byUser.get(userId);
-    if (again) return describe(again);
+    if (again && onCluster(again.vnet, clusterId)) return describe(again);
+    const api = pve.on(clusterId);
 
-    await ensureZone();
+    await ensureZone(api);
 
-    const used = new Set(db.prepare('SELECT idx FROM networks').all().map((r) => r.idx));
-    let idx = 1;
-    while (used.has(idx)) idx += 1;
-    if (idx > 254) throw new Error('All customer networks are in use. Ask your provider to free one up.');
-
-    const net = describe({ vnet: `cu${String(idx).padStart(4, '0')}`, idx });
-
-    const vnets = await pve.get('/cluster/sdn/vnets');
-    if (!vnets.some((v) => v.vnet === net.vnet)) {
-      await pve.post('/cluster/sdn/vnets', { vnet: net.vnet, zone, alias: vnetAlias(userId) });
+    let net;
+    if (again) {
+      net = describe(again);
+    } else {
+      const used = new Set(db.prepare('SELECT idx FROM networks').all().map((r) => r.idx));
+      let idx = 1;
+      while (used.has(idx)) idx += 1;
+      if (idx > 254) throw new Error('All customer networks are in use. Ask your provider to free one up.');
+      net = describe({ vnet: `cu${String(idx).padStart(4, '0')}`, idx });
     }
-    const subnets = await pve.get(`/cluster/sdn/vnets/${net.vnet}/subnets`);
+
+    const vnets = await api.get('/cluster/sdn/vnets');
+    if (!vnets.some((v) => v.vnet === net.vnet)) {
+      await api.post('/cluster/sdn/vnets', { vnet: net.vnet, zone, alias: vnetAlias(userId) });
+    }
+    const subnets = await api.get(`/cluster/sdn/vnets/${net.vnet}/subnets`);
     if (!subnets.some((sn) => sn.cidr === net.subnet || String(sn.subnet ?? '').endsWith(net.subnet.replace('/', '-')))) {
-      await pve.post(`/cluster/sdn/vnets/${net.vnet}/subnets`, {
+      await api.post(`/cluster/sdn/vnets/${net.vnet}/subnets`, {
         subnet: net.subnet,
         type: 'subnet',
         gateway: net.gateway,
@@ -88,9 +99,10 @@ export async function ensureNetwork(userId) {
     }
 
     // Apply pending SDN changes (creates the bridge, gateway, NAT and DHCP).
-    await waitTask(null, await pve.put('/cluster/sdn'));
+    await waitTask(null, await api.put('/cluster/sdn'));
 
-    db.prepare('INSERT INTO networks (vnet, user_id, idx) VALUES (?, ?, ?)').run(net.vnet, userId, idx);
+    if (!again) db.prepare('INSERT INTO networks (vnet, user_id, idx) VALUES (?, ?, ?)').run(net.vnet, userId, net.idx);
+    db.prepare('INSERT OR IGNORE INTO network_clusters (vnet, cluster_id) VALUES (?, ?)').run(net.vnet, clusterId);
     return net;
   });
 }
@@ -260,33 +272,39 @@ export async function removeNetwork(userId) {
   const row = byUser.get(userId);
   if (!row) return false;
   return serial(async () => {
-    const vnets = await pve.get('/cluster/sdn/vnets');
-    if (vnets.some((v) => v.vnet === row.vnet)) {
-      // Check first, so nothing is half-removed when a VM still uses the network.
-      const using = await guestsUsingVnet(row.vnet);
-      if (using.length) {
-        const list = using.map((g) => `${g.vmid}${g.name ? ` (${g.name})` : ''}`).join(', ');
-        const e = new Error(`The private network ${row.vnet} is still used by ${list}. Move ${using.length > 1 ? 'these servers' : 'this server'} `
-          + 'to another network or delete it, or delete the customer with "Keep the private network".');
-        e.statusCode = 409;
-        throw e;
-      }
-      const subnets = await pve.get(`/cluster/sdn/vnets/${row.vnet}/subnets`);
-      for (const sn of subnets) {
-        // Subnet ids look like "<zone>-10.100.1.0-24"
-        const id = sn.subnet ?? sn.id ?? `${sn.zone ?? zone}-${String(sn.cidr).replace('/', '-')}`;
-        await pve.del(`/cluster/sdn/vnets/${row.vnet}/subnets/${encodeURIComponent(id)}`);
-      }
-      try {
-        await pve.del(`/cluster/sdn/vnets/${row.vnet}`);
-      } catch (err) {
-        const e = new Error(`The private network ${row.vnet} could not be removed: ${err.message}. `
-          + 'Its subnet is already removed (not yet applied). Fix the cause in Proxmox, then retry to finish.');
-        e.statusCode = err.statusCode;
-        throw e;
-      }
-      await waitTask(null, await pve.put('/cluster/sdn'));
+    // Check first, so nothing is half-removed when a VM still uses the network.
+    const using = await guestsUsingVnet(row.vnet);
+    if (using.length) {
+      const list = using.map((g) => `${g.vmid}${g.name ? ` (${g.name})` : ''}`).join(', ');
+      const e = new Error(`The private network ${row.vnet} is still used by ${list}. Move ${using.length > 1 ? 'these servers' : 'this server'} `
+        + 'to another network or delete it, or delete the customer with "Keep the private network".');
+      e.statusCode = 409;
+      throw e;
     }
+    const where = clustersOf(row.vnet);
+    for (const clusterId of where.length ? where : [0]) {
+      const api = pve.on(clusterId);
+      const vnets = await api.get('/cluster/sdn/vnets');
+      if (vnets.some((v) => v.vnet === row.vnet)) {
+        const subnets = await api.get(`/cluster/sdn/vnets/${row.vnet}/subnets`);
+        for (const sn of subnets) {
+          // Subnet ids look like "<zone>-10.100.1.0-24"
+          const id = sn.subnet ?? sn.id ?? `${sn.zone ?? zone}-${String(sn.cidr).replace('/', '-')}`;
+          await api.del(`/cluster/sdn/vnets/${row.vnet}/subnets/${encodeURIComponent(id)}`);
+        }
+        try {
+          await api.del(`/cluster/sdn/vnets/${row.vnet}`);
+        } catch (err) {
+          const e = new Error(`The private network ${row.vnet} could not be removed: ${err.message}. `
+            + 'Its subnet is already removed (not yet applied). Fix the cause in Proxmox, then retry to finish.');
+          e.statusCode = err.statusCode;
+          throw e;
+        }
+        await waitTask(null, await api.put('/cluster/sdn'));
+      }
+      db.prepare('DELETE FROM network_clusters WHERE vnet = ? AND cluster_id = ?').run(row.vnet, clusterId);
+    }
+    db.prepare('DELETE FROM network_clusters WHERE vnet = ?').run(row.vnet);
     db.prepare('DELETE FROM networks WHERE vnet = ?').run(row.vnet);
     return true;
   });
@@ -300,17 +318,23 @@ export async function syncVnetAliases(log) {
   if (!config.network.enabled) return;
   const rows = db.prepare('SELECT * FROM networks WHERE user_id IS NOT NULL').all();
   if (!rows.length) return;
-  const vnets = new Map((await pve.get('/cluster/sdn/vnets')).map((v) => [v.vnet, v]));
   let changed = 0;
-  await serial(async () => {
-    for (const row of rows) {
-      const current = vnets.get(row.vnet);
-      const alias = vnetAlias(row.user_id);
-      if (!current || current.alias === alias) continue;
-      await pve.put(`/cluster/sdn/vnets/${row.vnet}`, { alias });
-      changed += 1;
-    }
-    if (changed) await waitTask(null, await pve.put('/cluster/sdn'));
-  });
+  const clusterIds = [...new Set(db.prepare('SELECT DISTINCT cluster_id AS id FROM network_clusters').all().map((r) => r.id))];
+  for (const clusterId of clusterIds.length ? clusterIds : [0]) {
+    const api = pve.on(clusterId);
+    const vnets = new Map((await api.get('/cluster/sdn/vnets')).map((v) => [v.vnet, v]));
+    let here = 0;
+    await serial(async () => {
+      for (const row of rows) {
+        const current = vnets.get(row.vnet);
+        const alias = vnetAlias(row.user_id);
+        if (!current || current.alias === alias) continue;
+        await api.put(`/cluster/sdn/vnets/${row.vnet}`, { alias });
+        here += 1;
+      }
+      if (here) await waitTask(null, await api.put('/cluster/sdn'));
+    });
+    changed += here;
+  }
   if (changed) log.info(`VNet aliases updated for ${changed} customer network(s)`);
 }

@@ -12,14 +12,14 @@ const ago = (iso) => {
 const utc = (d) => new Date(/Z|[+-]\d\d:?\d\d$/.test(d) ? d : `${String(d).replace(' ', 'T')}Z`);
 
 export function createHosts({ root, api, toast, fail, confirmAction, promptText, esc, labels, openTab }) {
-  const st = { perms: new Set(), dash: null, hosts: null };
+  const st = { perms: new Set(), dash: null, hosts: null, clusters: null, adding: false, test: null, editing: null };
   const can = (p) => !p || st.perms.has(p);
   const body = () => root.querySelector('#admin-body');
   const TABS = [['overview', 'Overview', null], ['hosts', 'Hosts', 'servers.read']];
 
   async function load(tab) {
     if (tab === 'overview') st.dash = await api('/api/admin/dashboard');
-    if (tab === 'hosts') st.hosts = await api('/api/admin/hosts');
+    if (tab === 'hosts') [st.hosts, st.clusters] = await Promise.all([api('/api/admin/hosts'), api('/api/admin/clusters').catch(() => null)]);
   }
   function render(tab) {
     if (tab === 'overview') renderOverview();
@@ -35,7 +35,7 @@ export function createHosts({ root, api, toast, fail, confirmAction, promptText,
   function nodeRows(nodes, { actions = false } = {}) {
     return nodes.map((n) => `
       <tr data-node="${esc(n.node)}" class="${!n.online ? 'row-attention' : ''}">
-        <td><strong>${esc(n.node)}</strong>${n.datacenter ? `<br><span class="small muted">${esc(n.datacenter)}</span>` : ''}</td>
+        <td><strong>${esc(n.node)}</strong>${n.datacenter ? `<br><span class="small muted">${esc(n.datacenter)}</span>` : ''}${multi() && n.clusterName ? `<br><span class="small muted">cluster ${esc(n.clusterName)}</span>` : ''}</td>
         <td>${statusTag(n)}${n.stale && n.lastSeen ? `<br><span class="small muted">last data ${esc(ago(n.lastSeen))}</span>` : ''}${n.note ? `<br><span class="small muted">${esc(n.note)}</span>` : ''}</td>
         <td class="num">${n.cores != null ? `${Math.round((n.cpu ?? 0) * 100)}%<br><span class="small muted">${n.cores} cores</span>` : '·'}</td>
         <td>${n.memTotal ? `${meter(n.memUsed, n.memTotal)}<span class="small">${gib(n.memUsed)} / ${gib(n.memTotal)}</span>` : '·'}</td>
@@ -95,11 +95,75 @@ export function createHosts({ root, api, toast, fail, confirmAction, promptText,
   }
 
   // ---- Hosts ------------------------------------------------------------------------------
+  const multi = () => (st.hosts?.clusters?.length ?? st.dash?.clusters?.length ?? 1) > 1;
+
+  function clustersHtml() {
+    const c = st.clusters;
+    if (!c) return '';
+    const owner = can('rbac.write');
+    return `
+      <section class="clusters" aria-labelledby="cl-title">
+        <div class="section-head" style="margin-top:0"><h2 id="cl-title">Clusters</h2>
+          ${owner && !st.adding ? '<button class="btn" data-cluster-add>Connect a cluster</button>' : ''}</div>
+        <div class="table-wrap"><table class="table">
+          <thead><tr><th>Cluster</th><th>Address</th><th>Status</th><th>Nodes</th><th class="num">Panel servers</th><th class="num">Guests</th><th><span class="sr-only">Actions</span></th></tr></thead>
+          <tbody>${c.clusters.map((x) => `
+            <tr data-cluster="${x.id}">
+              <td><strong>${esc(x.name)}</strong>${x.main ? ' <span class="tag">main</span>' : ` <span class="mono muted small">${esc(x.key)}</span>`}</td>
+              <td class="mono small">${esc(x.url)}${!x.main && x.fingerprint ? '<br><span class="muted">pinned certificate</span>' : ''}</td>
+              <td>${!x.enabled ? '<span class="tag">Disabled</span>' : !x.reachable ? '<span class="tag bad">Unreachable</span>' : x.quorate === false ? '<span class="tag bad">No quorum</span>' : '<span class="tag ok">Online</span>'}</td>
+              <td class="small">${esc(x.nodes.join(', '))}</td><td class="num">${x.servers}</td><td class="num">${x.guests}</td>
+              <td>${owner && !x.main ? `<div class="row end"><button class="btn" data-cluster-toggle>${x.enabled ? 'Disable' : 'Enable'}</button><button class="btn danger" data-cluster-remove>Remove</button></div>` : ''}</td>
+            </tr>`).join('')}</tbody></table></div>
+        ${c.collisions.length ? `<div class="notice warn"><p><strong>${c.collisions.length} guest${c.collisions.length === 1 ? '' : 's'} left out:</strong> the VMID is used in another cluster too
+          (${c.collisions.slice(0, 8).map((x) => `${x.vmid} ${esc(x.name)} in ${esc(x.clusterName)}`).join(', ')}). Give ${c.collisions.length === 1 ? 'it' : 'them'} a free ID in Proxmox to manage ${c.collisions.length === 1 ? 'it' : 'them'} here.</p></div>` : ''}
+        ${st.adding ? addForm() : ''}
+      </section>`;
+  }
+
+  function addForm() {
+    const t = st.test;
+    const f = st.form ?? {};
+    return `
+      <form id="cluster-form" class="security-card settings-card" style="max-width:1100px;display:grid;margin-top:14px" novalidate>
+        <h3 class="h3">Connect a Proxmox cluster</h3>
+        <p class="muted small">Create an API token on that cluster (Datacenter → Permissions → API Tokens) with the same rights as the main
+          cluster's token (the PanelCustomer role on the customers pool). Node names and VMIDs must not repeat the other clusters'.</p>
+        <div class="grid-3">
+          <label>Key <input name="key" maxlength="31" placeholder="jkt-dc3" value="${esc(f.key ?? '')}" required></label>
+          <label>Name <input name="name" maxlength="60" placeholder="Jakarta DC3" value="${esc(f.name ?? '')}" required></label>
+          <label>Address <input name="url" placeholder="https://pve-dc3.example.com:8006" value="${esc(f.url ?? '')}" spellcheck="false" required></label>
+          <label>API token ID <input name="tokenId" placeholder="panel@pve!panel" value="${esc(f.tokenId ?? '')}" spellcheck="false" required></label>
+          <label>Token secret <input name="tokenSecret" type="password" autocomplete="new-password" value="${esc(f.tokenSecret ?? '')}" required></label>
+          <label class="check" style="align-self:end"><input type="checkbox" name="verifyTls" ${f.verifyTls === false ? '' : 'checked'}><span>Certificate signed by a known CA</span></label>
+        </div>
+        ${t?.fingerprint && f.verifyTls === false ? `
+          <label class="check"><input type="checkbox" name="pin" ${f.fingerprint ? 'checked' : ''}><span>Trust this certificate: <span class="mono small">${esc(t.fingerprint)}</span>
+            <span class="hint">Compare with <span class="mono">pvenode cert info</span> on the host.</span></span></label>` : ''}
+        ${t ? `<div class="notice ${t.ok ? '' : 'warn'}"><p>${t.ok ? `<strong>Connected</strong>: Proxmox ${esc(t.version ?? '')}, nodes ${esc(t.nodes.map((n) => n.node).join(', '))},
+          ${t.guests} guest${t.guests === 1 ? '' : 's'}, ${t.templates} template${t.templates === 1 ? '' : 's'}.` : `<strong>Not connected:</strong> ${esc(t.error ?? '')}`}
+          ${t.vmidConflicts?.length ? `<br>${t.vmidConflicts.length} guest${t.vmidConflicts.length === 1 ? '' : 's'} with a VMID used elsewhere (${t.vmidConflicts.slice(0, 6).map((x) => x.vmid).join(', ')}) will stay out of the panel until renumbered.` : ''}</p></div>` : ''}
+        <div class="row"><button type="button" class="btn" data-cluster-test>Test connection</button>
+          <button class="btn primary" ${t?.ok ? '' : 'disabled'}>Connect cluster</button>
+          <button type="button" class="btn" data-cluster-cancel>Cancel</button></div>
+      </form>`;
+  }
+
+  function readForm() {
+    const el = root.querySelector('#cluster-form').elements;
+    const verifyTls = el.verifyTls.checked;
+    return {
+      key: el.key.value.trim(), name: el.name.value.trim(), url: el.url.value.trim(), tokenId: el.tokenId.value.trim(), tokenSecret: el.tokenSecret.value,
+      verifyTls, fingerprint: !verifyTls && el.pin?.checked ? st.test?.fingerprint ?? null : null,
+    };
+  }
+
   function renderHosts() {
     const h = st.hosts;
     body().innerHTML = `
       <div class="hosts">
-        ${h.cluster ? `<p>${h.cluster.quorate ? '<span class="tag ok">Quorum</span>' : '<span class="tag bad">No quorum</span>'}
+        ${clustersHtml()}
+        ${h.cluster && !multi() ? `<p>${h.cluster.quorate ? '<span class="tag ok">Quorum</span>' : '<span class="tag bad">No quorum</span>'}
           Cluster <strong>${esc(h.cluster.name)}</strong> · ${h.cluster.nodes} node${h.cluster.nodes === 1 ? '' : 's'}</p>` : ''}
         <p class="muted small">Maintenance mode keeps new servers off a node (they go to another node of its datacenter); servers
           already on it keep running. Datacenters and their nodes are set under <button class="link-btn" data-open-tab="resources">Resources</button>.</p>
@@ -114,6 +178,7 @@ export function createHosts({ root, api, toast, fail, confirmAction, promptText,
     if (!t) return false;
     if (t.dataset.openTab) { openTab(t.dataset.openTab); return true; }
     if (t.hasAttribute('data-overview-refresh')) { try { await load('overview'); renderOverview(); } catch (err) { fail(err); } return true; }
+    if (tab === 'hosts' && await clusterClick(t)) return true;
     const node = t.closest('[data-node]')?.dataset.node;
     if (tab === 'hosts' && node && (t.hasAttribute('data-maint-on') || t.hasAttribute('data-maint-off'))) {
       const on = t.hasAttribute('data-maint-on');
@@ -134,10 +199,49 @@ export function createHosts({ root, api, toast, fail, confirmAction, promptText,
     return false;
   }
 
+  async function clusterClick(t) {
+    try {
+      if (t.hasAttribute('data-cluster-add')) { st.adding = true; st.test = null; st.form = null; renderHosts(); return true; }
+      if (t.hasAttribute('data-cluster-cancel')) { st.adding = false; renderHosts(); return true; }
+      if (t.hasAttribute('data-cluster-test')) {
+        st.form = readForm();
+        t.disabled = true;
+        st.test = await api('/api/admin/clusters/test', { method: 'POST', body: { url: st.form.url, tokenId: st.form.tokenId, tokenSecret: st.form.tokenSecret, verifyTls: st.form.verifyTls, fingerprint: st.form.fingerprint } });
+        renderHosts(); return true;
+      }
+      const row = t.closest('[data-cluster]');
+      const c = row && st.clusters.clusters.find((x) => x.id === Number(row.dataset.cluster));
+      if (c && t.hasAttribute('data-cluster-toggle')) {
+        if (c.enabled && !(await confirmAction(`Disable ${c.name}? Its servers stay in Proxmox but can't be managed here until it is enabled again.`, 'Disable'))) return true;
+        await api(`/api/admin/clusters/${c.id}`, { method: 'PUT', body: { enabled: !c.enabled } });
+        toast(c.enabled ? `${c.name} disabled` : `${c.name} enabled`);
+        await load('hosts'); renderHosts(); return true;
+      }
+      if (c && t.hasAttribute('data-cluster-remove')) {
+        if (!(await confirmAction(`Remove ${c.name} from the panel? Nothing changes in Proxmox.`, 'Remove'))) return true;
+        await api(`/api/admin/clusters/${c.id}`, { method: 'DELETE' });
+        toast(`${c.name} removed`);
+        await load('hosts'); renderHosts(); return true;
+      }
+    } catch (err) { fail(err); t.disabled = false; return true; }
+    return false;
+  }
+
+  async function onSubmit(e) {
+    if (e.target.getAttribute('id') !== 'cluster-form') return;
+    st.form = readForm();
+    try {
+      const r = await api('/api/admin/clusters', { method: 'POST', body: st.form });
+      toast(`${st.form.name} connected: ${r.test.nodes.length} node${r.test.nodes.length === 1 ? '' : 's'}`);
+      st.adding = false; st.test = null; st.form = null;
+      await load('hosts'); renderHosts();
+    } catch (err) { fail(err); }
+  }
+
   return {
     setPermissions(list) { st.perms = new Set(list); },
     tabs: () => TABS.filter(([, , perm]) => can(perm)).map(([id, label]) => [id, label]),
     handles: (tab) => TABS.some(([id]) => id === tab),
-    load, render, onClick, onChange() {}, onSubmit() {},
+    load, render, onClick, onChange() {}, onSubmit,
   };
 }

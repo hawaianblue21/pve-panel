@@ -109,7 +109,8 @@ async function authPlugin(app, { scope }) {
   const expired = (reply) => reply.code(401).send({ error: 'The sign-in took too long. Please start again.', restart: true });
 
   app.post('/api/auth/login', {
-    config: { rateLimit: { max: 10, timeWindow: '1 minute' } },
+    // per IP; LOGIN_RATE_LIMIT raises it (e.g. many staff behind one NAT address, or tests)
+    config: { rateLimit: { max: Math.max(1, Number(process.env.LOGIN_RATE_LIMIT) || 10), timeWindow: '1 minute' } },
     schema: {
       body: {
         type: 'object',

@@ -2,7 +2,7 @@ import { db, audit } from './db.js';
 import { config } from './config.js';
 import {
   pve, clusterGuests, locateTemplate, waitTask, bootDiskKey, diskSizeGb, serial,
-  invalidateGuestCache, guestPath,
+  invalidateGuestCache, guestPath, refreshNodeMap, guestMayBeHidden, HiddenGuestError,
 } from './pve.js';
 import { ensureNetwork, isolateGuest, nicModel } from './network.js';
 import { setupWindows, windowsPasswordProblem } from './windows.js';
@@ -96,6 +96,7 @@ export async function offeredTemplates() {
         minDiskGb: Math.ceil(diskSizeGb(cfg[disk])) || 1,
         defaultUser: windows ? (t.ci_user || 'Administrator') : (t.ci_user || cfg.ciuser || ''),
         os: cfg.ostype ?? null,
+        cluster: guest.cluster ?? 0,     // servers from it can only be placed in this cluster
       };
     } catch {
       return null;
@@ -196,10 +197,13 @@ export async function createServer(req, spec, { charge = null } = {}) {
     await checkPoolCapacity(account.id, {
       cores: spec.cores, memoryMb: spec.memoryMb, diskGb: spec.diskGb, gpus: gpu ? 1 : 0,
     });
-    const place = placement(account.id, spec.datacenterId ?? null, tpl.node);
+    // Several clusters: a clone stays in the image's cluster
+    await refreshNodeMap();
+    const tplCluster = tpl.cluster ?? 0;
+    const place = placement(account.id, spec.datacenterId ?? null, tpl.node, { cluster: tplCluster, image: offered.name });
 
-    // The customer's private network (created with their first server)
-    const net = config.network.enabled ? await ensureNetwork(account.id) : null;
+    // The customer's private network (created with their first server, on each cluster used)
+    const net = config.network.enabled ? await ensureNetwork(account.id, tplCluster) : null;
 
     // Pay for it (plans with a price), last thing before anything is created
     const order = charge ? await charge() : null;
@@ -390,7 +394,11 @@ export async function reinstallServer(req, row, input) {
     }
     applySetupRules(spec, offered);
     const tpl = await locateTemplate(spec.templateId);
-    const net = config.network.enabled ? await ensureNetwork(account.id) : null;
+    const cluster = guest?.cluster ?? tpl.cluster ?? 0;
+    if (guest && (tpl.cluster ?? 0) !== cluster) {
+      throw new ProvisionError(400, `The image ${offered.name} is not available where this server runs. Choose another image.`);
+    }
+    const net = config.network.enabled ? await ensureNetwork(account.id, cluster) : null;
 
     // The row keeps the ID reserved: new creations skip IDs the panel knows.
     db.prepare(`
@@ -582,7 +590,9 @@ export async function deleteServer(req, row) {
   const guest = guests.get(row.vmid);
 
   if (!guest) {
-    // Clone never happened or VM already gone: just drop the record.
+    // Clone never happened or VM already gone: just drop the record
+    // (unless a cluster is out of sight: then the VM may still be there)
+    if (guestMayBeHidden()) throw new HiddenGuestError();
     releaseIpsOfDeletedServer(row.vmid);
     db.prepare('DELETE FROM vms WHERE vmid = ?').run(row.vmid);
     audit(req, row.vmid, 'server_deleted');

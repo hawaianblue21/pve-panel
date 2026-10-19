@@ -1,13 +1,70 @@
 import fs from 'node:fs';
-import { Agent, fetch } from 'undici';
+import { Agent, buildConnector, fetch } from 'undici';
 import { config } from './config.js';
+import { db } from './db.js';
+import { open } from './secrets.js';
+
+// ---- Clusters ---------------------------------------------------------------------------------
+// The main cluster comes from PVE_URL / PVE_TOKEN_*; further clusters are added
+// by an owner in the Hosts tab (table `clusters`). Requests are routed:
+//   /nodes/<node>/…        to the cluster that has that node
+//   GET /cluster/resources merged from all clusters (each item gets `cluster`)
+//   /cluster/nextid        an ID free in every cluster (VMIDs stay unique)
+//   other /cluster/…       the main cluster, or the one chosen with pve.on(id)
+// Node names and VMIDs must be unique across clusters: the panel keys servers by
+// VMID. A guest whose VMID exists in an earlier cluster is left out (and listed
+// in vmidCollisions()).
 
 const ca = config.pve.caFile ? fs.readFileSync(config.pve.caFile) : undefined;
 
 export const tlsOptions = { rejectUnauthorized: config.pve.verifyTls, ca };
 export const authHeader = `PVEAPIToken=${config.pve.tokenId}=${config.pve.tokenSecret}`;
+export const CLUSTER_PURPOSE = 'pve-cluster-token';
 
-const dispatcher = new Agent({ connect: tlsOptions });
+const MAIN = { id: 0, key: 'main', name: process.env.PVE_CLUSTER_NAME || 'Main', url: config.pve.url, auth: authHeader, dispatcher: new Agent({ connect: tlsOptions }), main: true };
+
+/** TLS: system CA (verify), or a pinned SHA-256 certificate fingerprint (self-signed Proxmox). */
+export function dispatcherFor({ url, verifyTls, fingerprint }) {
+  if (!url.startsWith('https:') || verifyTls || !fingerprint) return new Agent({ connect: { rejectUnauthorized: verifyTls !== false } });
+  const pin = fingerprint.replace(/:/g, '').toLowerCase();
+  const base = buildConnector({ rejectUnauthorized: false });
+  return new Agent({
+    connect: (opts, cb) => base(opts, (err, socket) => {
+      if (err) return cb(err);
+      const got = socket.getPeerCertificate?.().fingerprint256?.replace(/:/g, '').toLowerCase();
+      if (got !== pin) { socket.destroy(); return cb(new Error('TLS certificate fingerprint does not match the pinned one')); }
+      return cb(null, socket);
+    }),
+  });
+}
+
+let extra = null;          // cached added clusters
+export function invalidateClusters() { extra = null; nodeMap = { at: 0, map: new Map() }; cache.at = 0; }
+function extraClusters() {
+  if (extra) return extra;
+  let rows = [];
+  try { rows = db.prepare('SELECT * FROM clusters WHERE enabled = 1 ORDER BY id').all(); } catch { rows = []; }
+  extra = rows.map((r) => {
+    let secret = '';
+    try { secret = open(CLUSTER_PURPOSE, r.token_secret); } catch { /* re-enter the secret */ }
+    return {
+      id: r.id, key: r.key, name: r.name, url: r.url.replace(/\/+$/, ''), auth: `PVEAPIToken=${r.token_id}=${secret}`,
+      dispatcher: dispatcherFor({ url: r.url, verifyTls: !!r.verify_tls, fingerprint: r.fingerprint }), main: false,
+      verifyTls: !!r.verify_tls, fingerprint: r.fingerprint ? r.fingerprint.replace(/:/g, '').toLowerCase() : null,
+    };
+  });
+  return extra;
+}
+export const allClusters = () => [MAIN, ...extraClusters()];
+
+/** For a direct WebSocket (console): address, auth header, TLS options and a fingerprint to check. */
+export function connectionOf(clusterId) {
+  const c = clusterById(clusterId ?? 0) ?? MAIN;
+  if (c.main) return { url: c.url, auth: c.auth, tls: tlsOptions, pin: null };
+  const pinned = c.url.startsWith('https:') && !c.verifyTls && c.fingerprint;
+  return { url: c.url, auth: c.auth, tls: { rejectUnauthorized: !pinned && c.verifyTls !== false }, pin: pinned ? c.fingerprint : null };
+}
+export const clusterById = (id) => allClusters().find((c) => c.id === Number(id)) ?? null;
 
 export class PveError extends Error {
   constructor(status, message, errors) {
@@ -18,9 +75,10 @@ export class PveError extends Error {
   }
 }
 
-async function request(method, path, params) {
-  const url = new URL(`${config.pve.url}/api2/json${path}`);
-  const init = { method, headers: { Authorization: authHeader }, dispatcher };
+/** One request to one cluster. */
+export async function rawRequest(cluster, method, path, params) {
+  const url = new URL(`${cluster.url}/api2/json${path}`);
+  const init = { method, headers: { Authorization: cluster.auth }, dispatcher: cluster.dispatcher };
 
   if (params) {
     const body = new URLSearchParams();
@@ -43,7 +101,7 @@ async function request(method, path, params) {
     res = await fetch(url, init);
   } catch (err) {
     // Network/TLS failure: log the cause server-side, keep details out of the response.
-    console.error('Proxmox unreachable:', err.cause?.code || err.cause?.message || err.message);
+    console.error(`Proxmox ${cluster.main ? '' : `(${cluster.name}) `}unreachable:`, err.cause?.code || err.cause?.message || err.message);
     throw new PveError(503, 'The server platform is unreachable right now. Try again in a minute.');
   }
   const text = await res.text();
@@ -59,27 +117,117 @@ async function request(method, path, params) {
   return json?.data;
 }
 
+// ---- Node → cluster ------------------------------------------------------------------------------
+
+let nodeMap = { at: 0, map: new Map() };
+let clustersDown = new Set();
+
+/**
+ * A guest that isn't listed is really gone only if every cluster answered and
+ * none is disabled; otherwise it may just be out of sight. Code that would drop
+ * a server's record (and free its addresses) for a missing guest asks first.
+ */
+export function guestMayBeHidden() {
+  if (clustersDown.size) return true;
+  try { return !!db.prepare('SELECT 1 FROM clusters WHERE enabled = 0').get(); } catch { return false; }
+}
+export class HiddenGuestError extends Error {
+  constructor() {
+    super('This server can\'t be reached right now (one of the Proxmox clusters is unreachable or disabled). Try again later.');
+    this.statusCode = 409; this.expose = true;
+  }
+}
+export async function refreshNodeMap(force = false) {
+  if (!extraClusters().length) return nodeMap.map;
+  if (!force && Date.now() - nodeMap.at < 30_000) return nodeMap.map;
+  const map = new Map();
+  await Promise.all(allClusters().map(async (c) => {
+    try {
+      for (const n of await rawRequest(c, 'GET', '/nodes')) if (!map.has(n.node)) map.set(n.node, c.id);
+    } catch { /* unreachable: keep what we knew */
+      for (const [n, id] of nodeMap.map) if (id === c.id) map.set(n, id);
+    }
+  }));
+  nodeMap = { at: Date.now(), map };
+  return map;
+}
+/** The cluster id of a node as last seen (0 when unknown or only one cluster). */
+export const clusterOfNode = (node) => nodeMap.map.get(node) ?? 0;
+
+async function clusterFor(path) {
+  if (!extraClusters().length) return MAIN;
+  const m = /^\/nodes\/([^/]+)/.exec(path);
+  if (!m) return MAIN;
+  const node = decodeURIComponent(m[1]);
+  if (!nodeMap.map.has(node)) await refreshNodeMap(true);
+  return clusterById(nodeMap.map.get(node) ?? 0) ?? MAIN;
+}
+
+async function routed(method, path, params) {
+  if (!extraClusters().length) {
+    const data = await rawRequest(MAIN, method, path, params);
+    return path === '/cluster/resources' && Array.isArray(data) ? data.map((r) => ({ ...r, cluster: 0 })) : data;
+  }
+  if (method === 'GET' && path === '/cluster/resources') {
+    const results = await Promise.allSettled(allClusters().map((c) => rawRequest(c, 'GET', path, params).then((list) => list.map((r) => ({ ...r, cluster: c.id })))));
+    clustersDown = new Set(allClusters().filter((c, i) => results[i].status === 'rejected').map((c) => c.id));
+    if (results.every((r) => r.status === 'rejected')) throw results[0].reason;
+    return results.flatMap((r) => (r.status === 'fulfilled' ? r.value : []));
+  }
+  if (method === 'GET' && path === '/cluster/nextid') {
+    if (params?.vmid) {
+      // free in every cluster, or the error of the first one where it is taken
+      await Promise.all(allClusters().map((c) => rawRequest(c, 'GET', path, params)));
+      return String(params.vmid);
+    }
+    const ids = await Promise.allSettled(allClusters().map((c) => rawRequest(c, 'GET', path)));
+    const ok = ids.filter((r) => r.status === 'fulfilled').map((r) => Number(r.value));
+    if (!ok.length) throw ids[0].reason;
+    return String(Math.max(...ok));
+  }
+  return rawRequest(await clusterFor(path), method, path, params);
+}
+
 export const pve = {
-  get: (path, params) => request('GET', path, params),
-  post: (path, params) => request('POST', path, params),
-  put: (path, params) => request('PUT', path, params),
-  del: (path, params) => request('DELETE', path, params),
+  get: (path, params) => routed('GET', path, params),
+  post: (path, params) => routed('POST', path, params),
+  put: (path, params) => routed('PUT', path, params),
+  del: (path, params) => routed('DELETE', path, params),
+  /** Requests to one cluster (cluster-wide settings such as SDN, status). */
+  on(clusterId) {
+    const c = clusterById(clusterId) ?? MAIN;
+    return {
+      cluster: c,
+      get: (path, params) => rawRequest(c, 'GET', path, params),
+      post: (path, params) => rawRequest(c, 'POST', path, params),
+      put: (path, params) => rawRequest(c, 'PUT', path, params),
+      del: (path, params) => rawRequest(c, 'DELETE', path, params),
+    };
+  },
 };
 
 // ---- Guest lookup -------------------------------------------------------
 // Guests can migrate between nodes, so the node is resolved on demand
 // from /cluster/resources instead of being stored in our database.
 
-let cache = { at: 0, byId: new Map() };
+let cache = { at: 0, byId: new Map(), collisions: [] };
 
 export async function clusterGuests(force = false) {
   if (!force && Date.now() - cache.at < 5000) return cache.byId;
   const list = await pve.get('/cluster/resources', { type: 'vm' });
   const byId = new Map();
-  for (const r of list) byId.set(Number(r.vmid), r);
-  cache = { at: Date.now(), byId };
+  const collisions = [];
+  for (const r of list) {
+    const id = Number(r.vmid);
+    if (byId.has(id)) { collisions.push({ vmid: id, cluster: r.cluster, node: r.node, name: r.name ?? '', keptCluster: byId.get(id).cluster }); continue; }
+    byId.set(id, r);
+    if (r.node && r.cluster !== undefined && !nodeMap.map.has(r.node)) nodeMap.map.set(r.node, r.cluster);
+  }
+  cache = { at: Date.now(), byId, collisions };
   return byId;
 }
+/** Guests left out because their VMID is used in another cluster too. */
+export const vmidCollisions = () => cache.collisions;
 
 export async function locateGuest(vmid) {
   let guest = (await clusterGuests()).get(vmid);
@@ -89,7 +237,7 @@ export async function locateGuest(vmid) {
     err.statusCode = 404;
     throw err;
   }
-  return guest; // { vmid, node, type: 'qemu' | 'lxc', name, status, ... }
+  return guest; // { vmid, node, type: 'qemu' | 'lxc', name, status, cluster, ... }
 }
 
 export function guestPath(guest) {

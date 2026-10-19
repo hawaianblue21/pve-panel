@@ -26,7 +26,11 @@ const oneLine = (v) => {
 };
 const log = (...a) => { if (debug) console.log('[mock-pve]', ...a.map(oneLine)); };
 
-export async function startMockPve({ port = 0 } = {}) {
+/**
+ * second: a second, separate cluster for multi-cluster tests (node pve3, VM 201,
+ * template 9200, and VM 102 again so the panel sees a VMID collision).
+ */
+export async function startMockPve({ port = 0, second = false } = {}) {
   const vms = new Map([
     [101, { vmid:101, node:'pve1', type:'qemu', name:'web01', status:'stopped', maxcpu:2, maxmem:4*2**30, maxdisk:20*2**30, cfg:{cores:2,memory:4096,ostype:'l26',scsi0:'VMStorage:vm-101-disk-0,size=20G'} }],
     [102, { vmid:102, node:'pve1', type:'qemu', name:'other-customer', status:'running', maxcpu:2, maxmem:2*2**30, maxdisk:10*2**30, cfg:{cores:2,memory:2048} }],
@@ -37,8 +41,18 @@ export async function startMockPve({ port = 0 } = {}) {
     [150, { vmid:150, node:'pve1', type:'qemu', name:'vpn-gw', status:'running', maxcpu:1, maxmem:2**29, maxdisk:8*2**30, cfg:{cores:1,memory:512,agent:'1'} }],
     [9001,{ vmid:9001,node:'pve1', type:'qemu', name:'ubuntu2404-cloud', status:'stopped', template:1, maxcpu:1, maxmem:2**30, maxdisk:4*2**30, cfg:{cores:1,memory:1024,ostype:'l26',scsi0:'VMStorage:base-9001-disk-0,size=3584M'} }],
   ]);
+  if (second) {
+    vms.clear();
+    vms.set(201, { vmid:201, node:'pve3', type:'qemu', name:'remote-web', status:'stopped', maxcpu:2, maxmem:2*2**30, maxdisk:10*2**30, cfg:{cores:2,memory:2048,ostype:'l26',scsi0:'Ceph:vm-201-disk-0,size=10G'} });
+    vms.set(102, { vmid:102, node:'pve3', type:'qemu', name:'clash', status:'stopped', maxcpu:1, maxmem:2**30, maxdisk:5*2**30, cfg:{cores:1,memory:1024} });
+    vms.set(9200, { vmid:9200, node:'pve3', type:'qemu', name:'debian12-remote', status:'stopped', template:1, maxcpu:1, maxmem:2**30, maxdisk:3*2**30,
+      cfg:{cores:1,memory:1024,ostype:'l26',agent:'1',boot:'order=scsi0',scsi0:'Ceph:base-9200-disk-0,size=3G',ide2:'Ceph:vm-9200-cloudinit,media=cdrom',ciuser:'debian'} });
+  }
   // Proxmox nodes of the simulated cluster (pve2 has no guests unless a test moves one there)
-  const hosts = new Map([
+  const hosts = second ? new Map([
+    ['pve3', { node: 'pve3', status: 'online', cpu: 0.12, maxcpu: 48, mem: 40 * 2 ** 30, maxmem: 192 * 2 ** 30, uptime: 86_400,
+      storages: [{ storage: 'Ceph', disk: 1 * 2 ** 40, maxdisk: 10 * 2 ** 40, shared: 1 }] }],
+  ]) : new Map([
     ['pve1', { node: 'pve1', status: 'online', cpu: 0.18, maxcpu: 64, mem: 96 * 2 ** 30, maxmem: 256 * 2 ** 30, uptime: 3_542_400,
       storages: [{ storage: 'VMStorage', disk: 2.1 * 2 ** 40, maxdisk: 7.6 * 2 ** 40 }, { storage: 'local-lvm', disk: 40 * 2 ** 30, maxdisk: 400 * 2 ** 30 }] }],
     ['pve2', { node: 'pve2', status: 'online', cpu: 0.71, maxcpu: 32, mem: 230 * 2 ** 30, maxmem: 256 * 2 ** 30, uptime: 1_036_800,
@@ -48,7 +62,7 @@ export async function startMockPve({ port = 0 } = {}) {
   const sdn = { zones: [], vnets: [], subnets: new Map(), pending: 0 };
   const started = new Map([[150, 0]]); const gwFiles = new Map(); const GW_PUB = 'Qm9ndXNHYXRld2F5UHVibGljS2V5MTIzNDU2Nzg5MDA='; const execs = new Map(); let pidSeq = 100;
   let failClones = 0;
-  const task = (kind, vmid, ms=1500, then=()=>{}, exit=undefined) => { const upid=`UPID:pve1:${(++seq).toString(16)}:0:${Date.now()}:${kind}:${vmid}:panel@pve!panel:`; tasks.set(upid, {done:Date.now()+ms, then, fired:true, exit}); setTimeout(then, ms); return upid; };
+  const task = (kind, vmid, ms=1500, then=()=>{}, exit=undefined) => { const upid=`UPID:${[...hosts.keys()][0]}:${(++seq).toString(16)}:0:${Date.now()}:${kind}:${vmid}:panel@pve!panel:`; tasks.set(upid, {done:Date.now()+ms, then, fired:true, exit}); setTimeout(then, ms); return upid; };
   const send = (res, data, code=200, msg) => { res.writeHead(code, msg || '', {'content-type':'application/json'}); res.end(JSON.stringify({data, message: msg})); };
   const body = (req) => new Promise(r => { let b=''; req.on('data',c=>b+=c); req.on('end',()=>r(Object.fromEntries(new URLSearchParams(b)))); });
   const destroyed = []; // DELETE calls, for assertions
@@ -242,6 +256,8 @@ export async function startMockPve({ port = 0 } = {}) {
     if (p.startsWith('/__failclone/')) { failClones = Number(p.split('/')[2]); return send(res, 'ok'); }
     if (p === '/__vms') return send(res, [...vms.keys()]);
     if (p.startsWith('/__clearfw/')) { const v = vms.get(Number(p.split('/')[2])); v.fwRules = (v.fwRules ?? []).filter(r => r.type !== 'out'); return send(res, 'cleared'); }
+    if (p === '/nodes') return send(res, [...hosts.values()].map((h) => ({ node: h.node, status: h.status })));
+    if (p === '/version') return send(res, { version: '9.0.10', release: '9.0', repoid: 'abcdef01' });
     if (p === '/cluster/nextid') { const want = u.searchParams.get('vmid'); if (want) return vms.has(Number(want)) ? send(res,null,400,`VM ${want} already exists`) : send(res, want); let id=100; while (vms.has(id)) id++; return send(res, String(id)); }
     if (/^\/nodes\/[^/]+\/storage$/.test(p)) return send(res, [{storage:'VMStorage'},{storage:'local-lvm'}]);
     if (p === '/cluster/sdn/zones' && req.method==='GET') return send(res, sdn.zones);
@@ -282,7 +298,7 @@ export async function startMockPve({ port = 0 } = {}) {
     if (rest === '/clone' && req.method === 'POST') { const b = await body(req); log('CLONE', vmid, JSON.stringify(b));
       const id = Number(b.newid); if (vms.has(id)) return send(res,null,500,`VM ${id} already exists`);
       clones.push({ from: vmid, ...b });
-      vms.set(id, { origin: vmid, vmid:id, node:b.target || 'pve1', type:'qemu', name:b.name, status:'stopped', lock:'clone', maxcpu:vm.maxcpu, maxmem:vm.maxmem, maxdisk:vm.maxdisk, cfg:{...vm.cfg, scsi0: vm.cfg.scsi0.replace(`base-${vmid}`, `vm-${id}`), net0: vm.cfg.net0 ? vm.cfg.net0.replace(/=[0-9A-Fa-f:]{17}/, '').replace(/^(\w+)/, `$1=${newMac()}`) : `virtio=${newMac()},bridge=vmbr0`} });
+      vms.set(id, { origin: vmid, vmid:id, node:b.target || vm.node, type:'qemu', name:b.name, status:'stopped', lock:'clone', maxcpu:vm.maxcpu, maxmem:vm.maxmem, maxdisk:vm.maxdisk, cfg:{...vm.cfg, scsi0: vm.cfg.scsi0.replace(`base-${vmid}`, `vm-${id}`), net0: vm.cfg.net0 ? vm.cfg.net0.replace(/=[0-9A-Fa-f:]{17}/, '').replace(/^(\w+)/, `$1=${newMac()}`) : `virtio=${newMac()},bridge=vmbr0`} });
       if (vms.get(id).cfg.net0 && !/=/.test(vms.get(id).cfg.net0.split(',')[0])) vms.get(id).cfg.net0 = withMac(vms.get(id).cfg.net0);
       if (failClones > 0) { failClones -= 1; return send(res, task('qmclone', vmid, 800, () => { vms.delete(id); }, 'clone failed: storage full')); }
       return send(res, task('qmclone', vmid, 2500, () => { delete vms.get(id).lock; })); }

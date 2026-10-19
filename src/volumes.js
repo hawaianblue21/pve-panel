@@ -15,7 +15,7 @@
 // each with a price per GB per month; the volumes of a server are billed with it.
 
 import { db, audit } from './db.js';
-import { pve, clusterGuests, guestPath, waitTask, invalidateGuestCache } from './pve.js';
+import { pve, clusterGuests, guestPath, waitTask, invalidateGuestCache, guestMayBeHidden, HiddenGuestError } from './pve.js';
 import { limitsOf, usageOf } from './provision.js';
 import { checkPoolCapacity } from './pools.js';
 
@@ -289,6 +289,7 @@ export async function deleteVolume(req, id) {
   if (v.slot) throw fail(409, 'Detach the volume before deleting it');
   return exclusive([v.vmid], async () => {
     const holder = (await clusterGuests(true)).get(v.vmid);
+    if (!holder && guestMayBeHidden()) throw new HiddenGuestError();
     if (holder) {
       const path = guestPath(holder);
       const unused = unusedKeyOf(await pve.get(`${path}/config`), v.volid);

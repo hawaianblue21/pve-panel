@@ -671,6 +671,34 @@ db.exec(`
   );
 `);
 
+// ---- Proxmox clusters besides the main one (pve.js routes requests to them) -------
+// network_clusters: the clusters a customer's private network (VNet) exists on;
+// the main cluster (0) is implied for every network row.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS clusters (
+    id           INTEGER PRIMARY KEY,
+    key          TEXT UNIQUE NOT NULL,
+    name         TEXT NOT NULL,
+    url          TEXT NOT NULL,
+    token_id     TEXT NOT NULL,
+    token_secret TEXT NOT NULL,                -- sealed
+    verify_tls   INTEGER NOT NULL DEFAULT 1,
+    fingerprint  TEXT,                         -- SHA-256 of a self-signed certificate
+    enabled      INTEGER NOT NULL DEFAULT 1,
+    created_at   TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE TABLE IF NOT EXISTS network_clusters (
+    vnet       TEXT NOT NULL,
+    cluster_id INTEGER NOT NULL,
+    PRIMARY KEY (vnet, cluster_id)
+  );
+`);
+// networks created before several clusters existed are on the main cluster (once)
+if (!db.prepare("SELECT 1 FROM settings WHERE key = 'network_clusters_migrated'").get()) {
+  db.exec(`INSERT OR IGNORE INTO network_clusters (vnet, cluster_id) SELECT vnet, 0 FROM networks;
+    INSERT INTO settings (key, value, updated_at) VALUES ('network_clusters_migrated', '1', datetime('now'));`);
+}
+
 // Background jobs don't survive a restart; don't leave servers stuck forever.
 db.exec(`
   UPDATE vms SET state = 'failed', error = 'Setup was interrupted because the panel restarted'

@@ -8,7 +8,7 @@
 // node (pools.js placement); running servers are not touched.
 
 import { db, audit } from './db.js';
-import { pve, clusterGuests } from './pve.js';
+import { pve, clusterGuests, allClusters, clusterById } from './pve.js';
 import { datacenterOfNode } from './pools.js';
 
 const fail = (status, message) => Object.assign(new Error(message), { statusCode: status, expose: true });
@@ -39,6 +39,15 @@ export async function hostsOverview() {
   } catch (err) {
     throw fail(502, `Proxmox can't be reached: ${err.message}`);
   }
+  // further clusters: their status, and the last known nodes of one that can't be reached
+  const extra = allClusters().filter((c) => !c.main);
+  const extraStatus = await Promise.all(extra.map((c) => pve.on(c.id).get('/cluster/status').catch(() => null)));
+  extra.forEach((c, i) => {
+    if (extraStatus[i]) return;
+    for (const r of db.prepare('SELECT node, data FROM node_snapshots').all()) {
+      if (JSON.parse(r.data).cluster === c.id && !nodes.some((n) => n.node === r.node)) nodes.push({ node: r.node, status: 'unknown', cluster: c.id });
+    }
+  });
   let guests = new Map();
   try { guests = await clusterGuests(); } catch { /* counts stay 0 */ }
   const settings = new Map(db.prepare('SELECT * FROM node_settings').all().map((r) => [r.node, r]));
@@ -56,6 +65,7 @@ export async function hostsOverview() {
       kernel: v?.kversion ? (/Linux (\S+)/.exec(v.kversion)?.[1] ?? null) : null,
       cpuModel: v?.cpuinfo?.model ?? null,
       storage: own.map((s) => ({ storage: s.storage, used: Number(s.disk ?? 0), total: Number(s.maxdisk ?? 0), shared: !!Number(s.shared ?? 0) })),
+      cluster: n.cluster ?? 0,
     } : null;
     if (live) snapshot(n.node, live);
     const last = live ?? lastSnapshot(n.node);
@@ -63,6 +73,7 @@ export async function hostsOverview() {
     const set = settings.get(n.node);
     return {
       node: n.node, online, stale: !online, lastSeen: online ? new Date().toISOString() : last?.seenAt ?? null,
+      clusterId: n.cluster ?? 0, clusterName: clusterById(n.cluster ?? 0)?.name ?? null,
       datacenter: datacenterOfNode(n.node)?.name ?? null,
       maintenance: !!set?.maintenance, note: set?.note ?? null,
       guests: vms.length, running: vms.filter((g) => g.status === 'running').length,
@@ -70,8 +81,16 @@ export async function hostsOverview() {
     };
   });
   const cluster = status.find((s) => s.type === 'cluster');
+  const clusters = [
+    { id: 0, name: clusterById(0).name, reachable: true, quorate: cluster ? !!cluster.quorate : true },
+    ...extra.map((c, i) => {
+      const q = extraStatus[i]?.find((x) => x.type === 'cluster');
+      return { id: c.id, name: c.name, reachable: !!extraStatus[i], quorate: extraStatus[i] ? (q ? !!q.quorate : true) : null };
+    }),
+  ];
   return {
     cluster: cluster ? { name: cluster.name, quorate: !!cluster.quorate, nodes: cluster.nodes } : null,
+    clusters,
     nodes: out.sort((a, b) => a.node.localeCompare(b.node)),
   };
 }
@@ -103,10 +122,12 @@ export async function dashboard(perms) {
     try {
       const h = await hostsOverview();
       out.nodes = h.nodes;
+      out.clusters = h.clusters;
       out.cluster = h.cluster;
       const guests = [...(await clusterGuests()).values()].filter((g) => !g.template);
       out.kpis.guests = { total: guests.length, running: guests.filter((g) => g.status === 'running').length };
       out.kpis.nodes = { total: h.nodes.length, online: h.nodes.filter((n) => n.online).length, maintenance: h.nodes.filter((n) => n.maintenance).length };
+      for (const c of h.clusters.filter((x) => !x.reachable)) out.alerts.push({ level: 'bad', title: `Cluster ${c.name} unreachable`, sub: 'Its servers show their last known state; actions on them fail until it is back', tab: 'hosts' });
       if (h.cluster && !h.cluster.quorate) out.alerts.push({ level: 'bad', title: 'The cluster has no quorum', sub: 'Proxmox blocks most changes until enough nodes are back' });
       for (const n of h.nodes) {
         if (!n.online) out.alerts.push({ level: 'bad', title: `${n.node} unreachable`, sub: n.lastSeen ? `Last seen ${n.lastSeen}; ${n.guests} guest(s) on it` : `${n.guests} guest(s) on it` });
