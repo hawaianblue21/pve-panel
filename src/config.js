@@ -10,7 +10,7 @@ export const config = {
   // Product name shown in both interfaces (sign-in, sidebar, page titles)
   brand: {
     name: (process.env.PANEL_NAME || 'PVE Panel').trim().slice(0, 40),
-    // Optional own icon files (os-windows.svg, os-linux.png, …); see the documentation: https://sebastianflint.github.io/pve-panel
+    // Optional own icon files (os-windows.svg, os-linux.png, …); see the documentation: https://hawaianblue21.github.io/pve-panel
     dir: process.env.BRANDING_DIR || null,
   },
   // Customer panel

@@ -14,8 +14,8 @@ Create the service account, role, pool and API token as described in
 
 ```bash
 mkdir pve-panel && cd pve-panel
-curl -LO https://raw.githubusercontent.com/sebastianflint/pve-panel/main/deploy/docker-compose.yml
-curl -L -o .env https://raw.githubusercontent.com/sebastianflint/pve-panel/main/example.env
+curl -LO https://raw.githubusercontent.com/hawaianblue21/pve-panel/main/deploy/docker-compose.yml
+curl -L -o .env https://raw.githubusercontent.com/hawaianblue21/pve-panel/main/example.env
 ```
 
 Edit `.env` and set at least:

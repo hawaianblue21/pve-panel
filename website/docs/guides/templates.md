@@ -12,7 +12,7 @@ set the template's setup to "Cloud-init (Linux)".
 
 The template must boot straight to the login screen after cloning, without any
 setup questions. That's what the sysprep answer file does; the project ships one
-in [`docs/windows/unattend.xml`](https://github.com/sebastianflint/pve-panel/blob/main/docs/windows/unattend.xml) that answers every
+in [`docs/windows/unattend.xml`](https://github.com/hawaianblue21/pve-panel/blob/main/docs/windows/unattend.xml) that answers every
 welcome (OOBE) screen: license terms, product key, region and keyboard, and the
 Administrator password.
 

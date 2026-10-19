@@ -5,13 +5,13 @@
 # passes them into the container. Without it the container gets none of them.
 #
 # Settings:
-#   (optional) PANEL_IMAGE=ghcr.io/sebastianflint/pve-panel:1.2.0   to pin a release;
-#              the default is ghcr.io/sebastianflint/pve-panel:latest
+#   (optional) PANEL_IMAGE=ghcr.io/hawaianblue21/pve-panel:1.2.0   to pin a release;
+#              the default is ghcr.io/hawaianblue21/pve-panel:latest
 # plus the usual panel settings (see example.env).
 
 services:
   panel:
-    image: ${PANEL_IMAGE:-ghcr.io/sebastianflint/pve-panel:latest}
+    image: ${PANEL_IMAGE:-ghcr.io/hawaianblue21/pve-panel:latest}
     pull_policy: always              # get the newest image of that tag on (re)deploy
     init: true
     restart: unless-stopped

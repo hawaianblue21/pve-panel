@@ -1,8 +1,8 @@
 // Documentation website for PVE Panel, published on GitHub Pages:
-// https://sebastianflint.github.io/pve-panel/
+// https://hawaianblue21.github.io/pve-panel/
 import { themes as prismThemes } from 'prism-react-renderer';
 
-const repo = 'https://github.com/sebastianflint/pve-panel';
+const repo = 'https://github.com/hawaianblue21/pve-panel';
 
 /** @type {import('@docusaurus/types').Config} */
 export default {
@@ -10,9 +10,9 @@ export default {
   tagline: 'A modern self-service portal for Proxmox VE',
   favicon: 'img/favicon.svg',
 
-  url: 'https://sebastianflint.github.io',
+  url: 'https://hawaianblue21.github.io',
   baseUrl: '/pve-panel/',
-  organizationName: 'sebastianflint',
+  organizationName: 'hawaianblue21',
   projectName: 'pve-panel',
   trailingSlash: false,
 
