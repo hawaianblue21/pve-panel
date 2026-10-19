@@ -1,5 +1,5 @@
-// Customer public IPv4 addresses: per server, with reverse DNS.
-import { serverIps, assignIp, releaseIp, setPtr } from '../ipam.js';
+// Customer public addresses: IPv4 per server, its optional IPv6 /64, reverse DNS for both.
+import { serverIps, assignIp, releaseIp, setPtr, setIpv6 } from '../ipam.js';
 
 const vm = { type: 'object', required: ['vmid'], properties: { vmid: { type: 'integer', minimum: 1 } } };
 const id = { type: 'object', required: ['id'], properties: { id: { type: 'integer', minimum: 1 } } };
@@ -17,6 +17,11 @@ export default async function ipRoutes(app) {
 
   app.put('/api/ips/:id/ptr', {
     config: { rateLimit: { max: 20, timeWindow: '10 minutes' } },
-    schema: { params: id, body: { type: 'object', required: ['hostname'], additionalProperties: false, properties: { hostname: { type: 'string', maxLength: 253 } } } },
-  }, async (req) => setPtr(req, req.params.id, req.body.hostname));
+    schema: { params: id, body: { type: 'object', required: ['hostname'], additionalProperties: false, properties: { hostname: { type: 'string', maxLength: 253 }, family: { type: 'integer', enum: [4, 6] } } } },
+  }, async (req) => setPtr(req, req.params.id, req.body.hostname, req.body.family ?? 4));
+
+  app.put('/api/ips/:id/ipv6', {
+    config: { rateLimit: { max: 10, timeWindow: '10 minutes' } },
+    schema: { params: id, body: { type: 'object', required: ['enabled'], additionalProperties: false, properties: { enabled: { type: 'boolean' } } } },
+  }, async (req) => setIpv6(req, req.params.id, req.body.enabled));
 }

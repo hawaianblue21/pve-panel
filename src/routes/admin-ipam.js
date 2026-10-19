@@ -1,4 +1,4 @@
-// Admin: public IPv4 pools, their addresses, and IPAM settings (incl. PowerDNS).
+// Admin: public IPv4 pools (optionally with an IPv6 prefix), their addresses, and IPAM settings (incl. PowerDNS).
 import { audit } from '../db.js';
 import {
   listIpPools, createIpPool, updateIpPool, deleteIpPool, poolAddresses, setAddressState, ipamSettings, saveIpamSettings,
@@ -11,6 +11,8 @@ const poolBody = {
     name: { type: 'string', maxLength: 60 }, cidr: { type: 'string', maxLength: 20 }, gateway: { type: 'string', maxLength: 15 },
     bridge: { type: 'string', maxLength: 16 }, vlan: { type: ['integer', 'null'] }, dns: { type: 'array', maxItems: 3, items: { type: 'string', maxLength: 15 } },
     datacenterId: { type: ['integer', 'null'] }, priceMonthly: { type: 'integer' }, reverseZone: { type: 'string', maxLength: 80 },
+    ipv6Cidr: { type: 'string', maxLength: 50 }, ipv6Gateway: { type: 'string', maxLength: 45 }, ipv6ReverseZone: { type: 'string', maxLength: 80 },
+    ipv6PriceMonthly: { type: 'integer' },
   },
 };
 
@@ -33,7 +35,7 @@ export default async function adminIpamRoutes(app) {
       body: {
         type: 'object', additionalProperties: false,
         properties: {
-          enabled: { type: 'boolean' }, maxPerServer: { type: 'integer' }, cooldownHours: { type: 'integer' },
+          enabled: { type: 'boolean' }, ipv6Enabled: { type: 'boolean' }, maxPerServer: { type: 'integer' }, cooldownHours: { type: 'integer' },
           powerdns: { type: 'object', additionalProperties: false, properties: { url: { type: 'string', maxLength: 300 }, apiKey: { type: 'string', maxLength: 300 }, serverId: { type: 'string', maxLength: 64 } } },
         },
       },

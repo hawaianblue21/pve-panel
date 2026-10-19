@@ -18,7 +18,7 @@ Status: ✅ implemented · 🟡 partly (what is missing is listed) · ⬜ design
 | Multi-host dashboard | `Main.dc.html` | ✅ Overview tab: KPIs per permission, nodes with load, alerts, latest activity (all clusters; trends and plan suspensions missing) |
 | Guests (all hosts) | `Admin-Guests.dc.html` | 🟡 Servers tab; host grouping and bulk actions missing |
 | Plans | `Admin-Plans.dc.html` | ✅ sizes with prices, GPU plans, retire, plans-only mode (plan bundles for object storage and IPs missing) |
-| Networking & IPAM | `Admin-IPAM.dc.html` | ✅ customer networks (SDN), public IPv4 pools, addresses, reservations, cool-down, reverse DNS (IPv6 and floating IPs missing) |
+| Networking & IPAM | `Admin-IPAM.dc.html` | ✅ customer networks (SDN), public IPv4 pools, addresses, reservations, cool-down, reverse DNS, optional IPv6 (/64 per address, global switch) (floating IPs missing) |
 | Billing overview, invoice detail | `Admin-Billing.dc.html`, `Admin-Invoice.dc.html` | ✅ KPIs, filters, confirm transfer, cancel, wallet adjustment, fixed price (refunds to card and dunning steps missing) |
 | Hosts & onboarding (owner only) | `Admin-Hosts.dc.html` | ✅ clusters (connect with test, TLS pin, conflicts, disable, remove), nodes, version, load, maintenance; existing guests are adopted by assigning them in Servers (bulk import wizard missing) |
 | OS templates (owner only) | `Admin-Templates.dc.html` | 🟡 offering templates, owner-only changes; import wizard (qcow2, vmdk, ova, iso) and telemetry missing |

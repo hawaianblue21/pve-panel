@@ -1,4 +1,5 @@
-// Customer portal: public IPv4 addresses of a server (Overview tab), with reverse DNS.
+// Customer portal: public IPv4 addresses of a server (Overview tab), the optional IPv6 /64
+// of each, and reverse DNS for both.
 import { api, esc, toast, fail, confirmAction, promptText } from '/shared/ui.js';
 import { icon } from '/shared/icons.js';
 
@@ -25,18 +26,36 @@ export function createPublicIps(ctx) {
       <details class="ip-manual"><summary>Set it up inside the server</summary>
         <p class="small muted">This server has no cloud-init, so configure the new network card yourself
           (MAC <span class="mono">${esc(a.mac ?? '')}</span>): address <span class="mono">${esc(a.address)}</span>,
-          netmask <span class="mono">${esc(a.netmask)}</span>, gateway <span class="mono">${esc(a.gateway)}</span>${a.dns.length ? `, DNS <span class="mono">${esc(a.dns.join(', '))}</span>` : ''}.</p>
+          netmask <span class="mono">${esc(a.netmask)}</span>, gateway <span class="mono">${esc(a.gateway)}</span>${a.dns.length ? `, DNS <span class="mono">${esc(a.dns.join(', '))}</span>` : ''}${a.ipv6?.on ? `;
+          IPv6 <span class="mono">${esc(a.ipv6.address)}/64</span>, gateway <span class="mono">${esc(a.ipv6.gateway)}</span>` : ''}.</p>
         <p class="small muted">Linux with netplan (check the card name with <span class="mono">ip -br link</span>):</p>
         <pre class="snippet">network:
   version: 2
   ethernets:
     ${iface}:
       match: { macaddress: "${esc((a.mac ?? '').toLowerCase())}" }
-      addresses: [${esc(a.address)}/${a.prefix}]
-      routes: [{ to: default, via: ${esc(a.gateway)} }]
+      addresses: [${esc(a.address)}/${a.prefix}${a.ipv6?.on ? `, "${esc(a.ipv6.address)}/64"` : ''}]
+      routes:
+        - { to: default, via: ${esc(a.gateway)} }${a.ipv6?.on ? `
+        - { to: "::/0", via: "${esc(a.ipv6.gateway)}", on-link: true }` : ''}
 # save as /etc/netplan/60-public.yaml, then: sudo netplan apply</pre>
-        <p class="small muted">Windows: <em>Network Connections</em> → the new adapter → IPv4 → the values above.</p>
+        <p class="small muted">Windows: <em>Network Connections</em> → the new adapter → IPv4${a.ipv6?.on ? ' and IPv6' : ''} → the values above.</p>
       </details>`;
+  }
+
+  /** The IPv6 line under an address: its /64 when on, or the switch to turn it on. */
+  function v6Row(a, r) {
+    const v = a.ipv6;
+    if (!v?.available || (!v.on && !r.ipv6Enabled)) return '';
+    return `
+      <tr class="ip-v6-row" data-ip="${a.id}">
+        <td>${v.on ? `<span class="tag">IPv6</span> <span class="mono">${esc(v.address)}/64</span>
+          <br><span class="small muted">Your /64: <span class="mono">${esc(v.prefix)}</span></span>`
+          : `<span class="tag">IPv6</span> <span class="muted small">Off. A /64 for this address${v.monthly ? `, ${rp(v.monthly)} / month` : ', no extra charge'}.</span>`}</td>
+        <td class="mono">${v.on ? esc(v.gateway) : ''}</td>
+        <td>${v.on ? `${v.ptr ? `<span class="mono">${esc(v.ptr)}</span> · ` : '<span class="muted">Not set</span> · '}<button class="link-btn" data-ip-ptr6>${v.ptr ? 'Change' : 'Set reverse DNS'}</button>` : ''}</td>
+        <td><div class="row end">${v.on ? '<button class="btn" data-ip-v6-off>Switch IPv6 off</button>' : '<button class="btn" data-ip-v6-on>Switch IPv6 on</button>'}</div></td>
+      </tr>`;
   }
 
   function draw(el, vm, r) {
@@ -45,7 +64,7 @@ export function createPublicIps(ctx) {
     el.innerHTML = `
       <section class="public-ips" aria-labelledby="pip-title">
         <div class="section-head">
-          <h2 id="pip-title">Public IPv4</h2>
+          <h2 id="pip-title">${r.ipv6Enabled || r.addresses.some((a) => a.ipv6?.on) ? 'Public IP addresses' : 'Public IPv4'}</h2>
           ${r.canAssign ? `<button class="btn" data-ip-add>${icon('plus')}<span>Add public address${r.priceMonthly ? ` · ${rp(r.priceMonthly)} / month` : ''}</span></button>`
             : `<span class="small muted">${r.addresses.length >= r.maxPerServer ? `At most ${r.maxPerServer} per server` : 'No address free right now; please contact support'}</span>`}
         </div>
@@ -61,10 +80,11 @@ export function createPublicIps(ctx) {
                 <td>${a.ptr ? `<span class="mono">${esc(a.ptr)}</span> · ` : '<span class="muted">Not set</span> · '}<button class="link-btn" data-ip-ptr>${a.ptr ? 'Change' : 'Set reverse DNS'}</button></td>
                 <td><div class="row end"><button class="btn danger" data-ip-release>Release</button></div></td>
               </tr>
+              ${v6Row(a, r)}
               ${a.apply === 'manual' ? `<tr class="ip-help-row"><td colspan="4">${manualHelp(a)}</td></tr>` : ''}`).join('')}
             </tbody></table></div>
           <p class="small muted">Only these addresses can be used on their network cards (the firewall drops anything else).
-            The public card becomes the server's default route.</p>`
+            The public card becomes the server's default route${r.addresses.some((a) => a.ipv6?.on) ? ' (IPv6 too)' : ''}.</p>`
         : '<p class="muted small">No public address. The server reaches the internet through your private network.</p>'}
       </section>`;
   }
@@ -85,6 +105,21 @@ export function createPublicIps(ctx) {
         if (!(await confirmAction(`Release ${addr.address}? The server loses this address; it can't be reserved back.`, 'Release'))) return true;
         await api(`/api/ips/${addr.id}`, { method: 'DELETE' });
         toast(`${addr.address} released`);
+      } else if (t.hasAttribute('data-ip-v6-on') || t.hasAttribute('data-ip-v6-off')) {
+        const on = t.hasAttribute('data-ip-v6-on');
+        const v = addr.ipv6;
+        const msg = on ? `Switch IPv6 on for ${addr.address}? The server gets ${v.address}/64 (the whole ${v.prefix} is yours) on the same network card.${v.monthly ? ` It costs ${rp(v.monthly)} per month (before tax), billed with the server.` : ''}`
+          : `Switch IPv6 off for ${addr.address}? The server loses ${v.prefix} and its reverse DNS.`;
+        if (!(await confirmAction(msg, on ? 'Switch on' : 'Switch off'))) return true;
+        t.disabled = true;
+        const x = await api(`/api/ips/${addr.id}/ipv6`, { method: 'PUT', body: { enabled: on } });
+        toast(on ? (x.apply === 'restart' ? `IPv6 ${x.address} added; active after a restart from this panel` : x.apply === 'manual' ? `IPv6 ${x.address} added; set it up inside the server` : `IPv6 ${x.address} is active`)
+          : (x.apply === 'restart' ? 'IPv6 switched off; gone from the server after a restart' : 'IPv6 switched off'));
+      } else if (t.hasAttribute('data-ip-ptr6')) {
+        const h = await promptText(`Reverse DNS for ${addr.ipv6.address}`, { value: addr.ipv6.ptr ?? '', hint: 'A full host name, e.g. mail.example.com. Make its AAAA record point to this address first. Empty removes it.', okLabel: 'Save' });
+        if (h === null) return true;
+        const x = await api(`/api/ips/${addr.id}/ptr`, { method: 'PUT', body: { hostname: h, family: 6 } });
+        toast(x.ptr ? (x.published ? `Reverse DNS set to ${x.ptr}` : `Saved; your provider publishes it (${x.ptr})`) : 'Reverse DNS removed');
       } else if (t.hasAttribute('data-ip-ptr')) {
         const h = await promptText(`Reverse DNS for ${addr.address}`, { value: addr.ptr ?? '', hint: 'A full host name, e.g. mail.example.com. Make its A record point to this address first. Empty removes it.', okLabel: 'Save' });
         if (h === null) return true;

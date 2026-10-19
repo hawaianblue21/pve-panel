@@ -170,8 +170,11 @@ export async function renewalQuote(vmid, months, s = stored()) {
   const volMonthly = vols.reduce((a, v) => a + v.monthly, 0);
   const extras = volMonthly > 0 ? [{ description: `Block storage: ${vols.map((v) => `${v.label} ${v.sizeGb} GB ${v.tier}`).join(', ')}`, monthly: volMonthly }] : [];
   // public IPv4 addresses of the server
-  const ips = ipsOfServer(vmid).filter((a) => a.monthly > 0);
-  if (ips.length) extras.push({ description: `Public IPv4: ${ips.map((a) => a.address).join(', ')}`, monthly: ips.reduce((a, x) => a + x.monthly, 0) });
+  const charged = ipsOfServer(vmid).filter((a) => a.monthly > 0);
+  for (const [family, label] of [[4, 'Public IPv4'], [6, 'IPv6']]) {
+    const ips = charged.filter((a) => a.family === family);
+    if (ips.length) extras.push({ description: `${label}: ${ips.map((a) => a.address).join(', ')}`, monthly: ips.reduce((a, x) => a + x.monthly, 0) });
+  }
   return { price: { ...p, volumesMonthly: volMonthly }, ...periodLines(`${p.name} (${vmid})${size ? ` · ${size}` : ''}`, p.monthly, months, s, extras) };
 }
 

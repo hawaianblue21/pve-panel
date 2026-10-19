@@ -119,7 +119,7 @@ PVE Panel was built with substantial help from an AI assistant (**Claude by Anth
 - Choose their own color scheme and light / dark mode (when the panel owner allows it)
 - Open **support tickets** (optionally about one of their servers), follow the conversation and get answers by email
 - Search the **help center** (knowledge base) and rate articles
-- **Public IPv4** for their servers, with reverse DNS
+- **Public IPv4** for their servers, optionally with an **IPv6 /64** each, with reverse DNS
 - **API tokens** with chosen permissions for scripts and integrations
 - **Storage**: block volumes (create, attach, detach, move between servers, enlarge) and S3 object storage buckets with access keys
 - Ask the **AI assistant**: answers from the help center and their own servers and tickets, hands over to a ticket
@@ -262,7 +262,7 @@ It caps the **total** of its members, on top of each customer's own limits:
 | Pool limit | Empty | 0 | Above 0 |
 | --- | --- | --- | --- |
 | vCPU, memory, disk | no cap at pool level | none allowed | total cap |
-| Public IPv4 | stored, counted once IPAM ships | | |
+| Public IPv4 | no cap at pool level | none allowed | up to N addresses (their IPv6 /64s don't count) |
 | GPUs | **not included** | not included | up to N GPUs |
 | S3 buckets / S3 GB | **not included** / no GB cap | not included | up to N |
 
@@ -355,7 +355,7 @@ Customer API: `GET/PUT /api/vms/:vmid/snapshot-schedule` (`{ frequency: off|dail
 
 Pools of public addresses in **Public IPs** (admin portal): a subnet routed to a Proxmox bridge (optionally a VLAN tag),
 its gateway, DNS servers, an optional datacenter, a price per address per month and an optional reverse zone. Customers
-add addresses on the server page (Overview → Public IPv4), up to a number per server, within their resource pool.
+add addresses on the server page (Overview → Public IP addresses), up to a number per server, within their resource pool.
 
 | Server | What the panel does | Active |
 |---|---|---|
@@ -375,7 +375,28 @@ add addresses on the server page (Overview → Public IPv4), up to a number per 
   zone on the pool, the panel writes it there (`PATCH /api/v1/servers/<id>/zones/<zone>`), otherwise it is stored for you.
 - Addresses are billed with their server (renewal invoice line) and count against the pool's public IP cap.
 
-Customer API: `GET/POST /api/vms/:vmid/ips`, `DELETE /api/ips/:id`, `PUT /api/ips/:id/ptr`.
+#### IPv6 (optional)
+
+IPv6 is off until an administrator switches it on (**Public IPs → Settings → Customers can switch IPv6 on**) and gives a
+pool an **IPv6 prefix** (for example `2001:db8:100::/56`), a gateway (`fe80::1`, or an address in the prefix's first
+/64), an optional ip6.arpa reverse zone and a price per /64.
+
+- Every IPv4 address of the pool maps to a fixed **/64** of the prefix: the n-th address of the subnet gets the n-th /64
+  (`198.51.100.2` → `2001:db8:100:2::/64`). The prefix needs at least as many /64s as the subnet has addresses (a /28
+  needs /60 or larger). Nothing is allocated separately: the /64 follows its IPv4 address through assignment, cool-down
+  and release. The first /64 is never handed out (it belongs to the subnet's network address).
+- Customers switch IPv6 on or off **per address**. The server gets `<prefix>::1/64` on the same network card
+  (cloud-init `ip6=`/`gw6=`, containers `ip6=`/`gw6=` at once, other VMs by hand with the values shown); the IP filter
+  admits the whole /64 (Proxmox adds the card's link-local address itself). Reverse DNS for `<prefix>::1` goes to the
+  ip6.arpa zone, which must cover the prefix.
+- **Switching IPv6 off** in the settings stops new /64s; servers that have one keep it until their owner switches it
+  off. A pool's prefix and gateway are locked while any server uses IPv6 from it.
+- Your router must deliver each /64 on the pool's bridge: the prefix on-link on the bridge, or a route per /64.
+- A /64 with a price is billed with its server as its own renewal line (`IPv6: 2001:db8:100:2::/64`). Reinstalls and
+  snapshot rollbacks put it back as it is recorded.
+
+Customer API: `GET/POST /api/vms/:vmid/ips`, `DELETE /api/ips/:id`, `PUT /api/ips/:id/ptr` (`{ hostname, family: 4|6 }`),
+`PUT /api/ips/:id/ipv6` (`{ enabled }`).
 
 ---
 
