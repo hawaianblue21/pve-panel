@@ -1972,6 +1972,7 @@ export function createAdmin({ root, api, toast, fail, confirmAction, promptText,
     if (infra.handles(st.tab)) infra.onChange(e, st.tab);
     if (desk.handles(st.tab)) desk.onChange(e, st.tab);
     if (plans.handles(st.tab)) plans.onChange(e, st.tab);
+    if (jobs.handles(st.tab)) jobs.onChange(e, st.tab);
   });
 
   root.addEventListener('submit', (e) => {

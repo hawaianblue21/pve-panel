@@ -175,7 +175,9 @@ const ROUTES = {
   'PUT /api/admin/clusters/:id': 'rbac.write',
   'DELETE /api/admin/clusters/:id': 'rbac.write',
   'GET /api/admin/jobs': 'servers.read',
+  'POST /api/admin/jobs/retry': 'servers.read',
   'GET /api/admin/updates/fleet': 'servers.read',
+  'POST /api/admin/updates/check': 'updates.write',
   'GET /api/admin/updates/rollouts': 'servers.read',
   'GET /api/admin/updates/rollouts/:id': 'servers.read',
   'POST /api/admin/updates/rollouts': 'updates.write',
@@ -204,6 +206,7 @@ const ROUTES = {
   'GET /api/admin/storage/s3/buckets': 'storage.read',
   'POST /api/admin/storage/s3/buckets': 'storage.write',
   'DELETE /api/admin/storage/s3/buckets/:name': 'storage.write',
+  'PATCH /api/admin/storage/s3/buckets/:name': 'storage.write',
   'POST /api/admin/storage/s3/keys/:userId': 'storage.write',
 
   'GET /api/admin/gpu': 'gpu.read',

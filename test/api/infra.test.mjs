@@ -237,6 +237,25 @@ test('S3: buckets and keys per customer, scoped by policy and capped by the pool
   assert.equal((await carol.post('/api/storage/keys')).status, 403);
 });
 
+test('S3: read-only buckets allow the customer\'s key only reading and listing', async () => {
+  const logs = `pp${bob.userId}-logs`;
+  const policy = () => seaweed.users.get(`ppu${bob.userId}`).policies.get('panel-buckets');
+  assert.deepEqual(policy().Statement.map((x) => x.Action), [['s3:*']]);
+  assert.equal((await alice.patch(`/api/storage/buckets/${logs}`, { readOnly: true })).status, 404, 'not Alice\'s bucket');
+  const r = await bob.patch(`/api/storage/buckets/${logs}`, { readOnly: true });
+  assert.equal(r.status, 200, r.text);
+  assert.deepEqual(r.json, { name: logs, readOnly: true });
+  assert.deepEqual(policy().Statement, [{
+    Effect: 'Allow', Action: ['s3:GetObject', 's3:GetObjectVersion', 's3:GetObjectTagging', 's3:ListBucket', 's3:ListBucketVersions', 's3:GetBucketLocation'],
+    Resource: [`arn:aws:s3:::${logs}`, `arn:aws:s3:::${logs}/*`],
+  }]);
+  assert.equal((await bob.get('/api/storage')).json.buckets[0].readOnly, true);
+  const listed = (await admin.get('/api/admin/storage/s3/buckets')).json.buckets.find((x) => x.name === logs);
+  assert.equal(listed.readOnly, true);
+  assert.equal((await admin.patch(`/api/admin/storage/s3/buckets/${logs}`, { readOnly: false })).status, 200);
+  assert.deepEqual(policy().Statement.map((x) => x.Action), [['s3:*']]);
+});
+
 test('S3: deleting a customer removes their IAM identity but keeps their buckets', async () => {
   assert.equal((await admin.del(`/api/admin/users/${alice.userId}`)).status, 202);
   await waitFor(async () => !(await admin.get('/api/admin/users')).json.some((u) => u.id === alice.userId),

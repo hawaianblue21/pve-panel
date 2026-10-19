@@ -246,11 +246,12 @@ export function createInfra({ root, api, toast, fail, confirmAction, esc }) {
       <div class="table-wrap"><table class="table">
         <thead><tr><th>Bucket</th><th>Customer</th><th>Quota</th><th>Used</th><th>Apply quota in weed shell</th><th><span class="sr-only">Actions</span></th></tr></thead>
         <tbody>${b.buckets.map((x) => `
-          <tr><td class="mono">${esc(x.name)}</td><td>${x.owner ? esc(x.owner) : '<span class="tag warn">no owner</span>'}</td>
+          <tr><td><span class="mono">${esc(x.name)}</span>${x.readOnly ? ' <span class="tag warn">read-only</span>' : ''}</td><td>${x.owner ? esc(x.owner) : '<span class="tag warn">no owner</span>'}</td>
             <td>${x.quotaGb ? `${x.quotaGb} GB` : '<span class="muted">none</span>'}</td>
             <td>${x.usage ? `${(x.usage.bytes / 1024 ** 3).toFixed(2)} GB · ${x.usage.objects}${x.usage.truncated ? '+' : ''} objects` : `<span class="muted">${esc(x.usageError ?? '')}</span>`}</td>
             <td class="mono small">${esc(x.quotaCommand ?? '')}</td>
-            <td class="actions">${w ? `<button class="btn danger" data-bucket-delete="${esc(x.name)}">Delete</button>` : ''}</td></tr>`).join('')
+            <td class="actions">${w ? `<button class="btn" data-bucket-ro="${esc(x.name)}" data-on="${x.readOnly ? '0' : '1'}">${x.readOnly ? 'Make writable' : 'Make read-only'}</button>
+              <button class="btn danger" data-bucket-delete="${esc(x.name)}">Delete</button>` : ''}</td></tr>`).join('')
           || '<tr><td colspan="6" class="muted">No buckets yet.</td></tr>'}</tbody>
       </table></div>
       ${w ? `
@@ -393,6 +394,13 @@ export function createInfra({ root, api, toast, fail, confirmAction, esc }) {
       return true;
     }
     if ('secretDismiss' in d) { st.secret = null; renderStorage(); return true; }
+    if (d.bucketRo) {
+      const on = d.on === '1';
+      if (await confirmAction(on ? `Make ${d.bucketRo} read-only? The customer's access key can then only read and list it.` : `Make ${d.bucketRo} writable for the customer again?`, on ? 'Make read-only' : 'Make writable')) {
+        await run(() => api(`/api/admin/storage/s3/buckets/${encodeURIComponent(d.bucketRo)}`, { method: 'PATCH', body: { readOnly: on } }), on ? 'Bucket is read-only' : 'Bucket is writable');
+      }
+      return true;
+    }
     if (d.bucketDelete) {
       if (await confirmAction(`Delete bucket ${d.bucketDelete}? It must be empty.`, 'Delete')) {
         await run(() => api(`/api/admin/storage/s3/buckets/${encodeURIComponent(d.bucketDelete)}`, { method: 'DELETE' }), 'Bucket deleted');

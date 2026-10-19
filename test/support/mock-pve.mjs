@@ -380,6 +380,8 @@ export async function startMockPve({ port = 0, second = false } = {}) {
             vm.lu = { runId: args[0], scope: args[1], auto: args[2] === '1', scenario: scen, pm, at: Date.now() };
             log('LU started', vmid, JSON.stringify(vm.lu)); out = 'started\n';
           }
+        } else if (/PVEPANEL-LU-CHECK/.test(cmd[2])) {
+          out = JSON.stringify(pm === 'none' ? { pm } : { pm, pending: vm.luPending ?? 7, security: 2, rebootRequired: false }) + '\n';
         } else if (/PVEPANEL-LU-STATUS/.test(cmd[2])) {
           out = vm.lu ? luStatus(vm) + '\n' : '{}\n';
         } else { code = 1; err = 'unknown command'; }
@@ -401,6 +403,9 @@ export async function startMockPve({ port = 0, second = false } = {}) {
           vm.wu = { config: input.config, scenario: scen, stage: 'searching', stageAt: Date.now(), round: 1, installed: [] };
           log('WU started', vmid, JSON.stringify(input.config));
           out = 'started\n';
+        } else if (/PVEPANEL-WU-CHECK/.test(decoded)) {
+          if (!/Microsoft\.Update\.Session/.test(decoded)) { const pid = ++pidSeq; execs.set(String(pid), { out: '', at: Date.now(), code: 1, err: 'bad script' }); return send(res, { pid }); }
+          out = JSON.stringify({ pending: 5, security: 3, rebootRequired: true });
         } else if (/PVEPANEL-WU-STATUS/.test(decoded)) {
           out = vm.wu ? wuStatus(vm, vmid) : '{}';
         } else if (/PVEPANEL-WU-CLEANUP/.test(decoded)) {

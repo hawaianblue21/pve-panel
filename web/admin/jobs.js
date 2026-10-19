@@ -6,6 +6,8 @@ const FLAG = { ok: ['Up to date', 'ok'], never: ['Never updated', 'warn'], stale
 const ITEM = { pending: ['Waiting', ''], started: ['Running', ''], done: ['Done', 'ok'], failed: ['Failed', 'bad'], skipped: ['Skipped', 'warn'] };
 const RO = { running: ['Running', ''], paused: ['Paused', 'warn'], done: ['Done', 'ok'], cancelled: ['Cancelled', ''] };
 const RINGS = [['10,30,60', '3 rings: 10 %, 30 %, 60 %'], ['25,75', '2 rings: 25 %, 75 %'], ['100', 'All at once']];
+const RETRY = { delete: ['Retry deletion', 'servers.delete'], updates: ['Retry updates', 'updates.write'], snapshot: ['Retry snapshot', 'servers.manage'] };
+const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const tag = (map, k) => `<span class="tag ${map[k]?.[1] ?? ''}">${map[k]?.[0] ?? k}</span>`;
 const when = (d) => {
   if (!d) return '';
@@ -30,12 +32,16 @@ export function createJobs({ root, api, toast, fail, confirmAction, esc }) {
     if (tab === 'jobs') renderJobs();
     if (tab === 'updates') renderUpdates();
     // keep running work fresh while the tab is open
-    const busy = tab === 'jobs' ? st.jobs?.counts.running : st.rollouts.some((r) => r.state === 'running');
+    const busy = tab === 'jobs' ? st.jobs?.counts.running
+      : st.rollouts.some((r) => r.state === 'running') || st.fleet?.servers.some((s) => s.check?.state === 'checking');
     if (busy) {
-      st.timer = setTimeout(async () => {
+      const tick = async () => {
         if (!root.querySelector(`[data-admin-tab="${tab}"][aria-selected="true"]`)) return;
-        try { await load(tab); render(tab); } catch { /* next time */ }
-      }, 5000);
+        // someone is filling in the rollout form: don't wipe it, look again later
+        if (root.querySelector('#rollout-form')?.contains(document.activeElement)) { st.timer = setTimeout(tick, 5000); return; }
+        try { await load(tab); render(tab); } catch { st.timer = setTimeout(tick, 5000); }
+      };
+      st.timer = setTimeout(tick, 5000);
     }
   }
 
@@ -49,16 +55,18 @@ export function createJobs({ root, api, toast, fail, confirmAction, esc }) {
             ${[['all', 'All'], ['running', `Running ${j.counts.running}`], ['failed', `Failed ${j.counts.failed}`], ['done', 'Done']].map(([v, l]) =>
               `<button role="radio" aria-checked="${st.filter === v}" data-job-filter="${v}">${l}</button>`).join('')}
           </div>
-          <span class="small muted">Servers being set up, reinstalled or deleted, update runs and rollouts; finished work of the last 7 days.</span>
+          <span class="small muted">Servers being set up, reinstalled or deleted, update runs and rollouts; finished work of the last 7 days. Failed deletions, update runs and automatic snapshots can be retried.</span>
         </div>
         ${j.jobs.length ? `
           <div class="table-wrap"><table class="table">
-            <thead><tr><th>Job</th><th>Server or target</th><th>By</th><th>Started</th><th>State</th><th>Details</th></tr></thead>
+            <thead><tr><th>Job</th><th>Server or target</th><th>By</th><th>Started</th><th>State</th><th>Details</th><th><span class="sr-only">Actions</span></th></tr></thead>
             <tbody>${j.jobs.map((x) => `
-              <tr class="${x.state === 'failed' ? 'row-attention' : ''}"><td>${esc(x.action)}</td>
+              <tr class="${x.state === 'failed' ? 'row-attention' : ''}" data-job="${esc(x.id)}"><td>${esc(x.action)}</td>
                 <td>${esc(x.target)}${x.vmid && !String(x.target).includes(x.vmid) ? ` <span class="mono muted small">${x.vmid}</span>` : ''}</td>
                 <td class="small">${esc(x.by ?? '')}</td><td class="small nowrap">${esc(when(x.at))}</td><td>${tag(STATE_TAG, x.state)}</td>
-                <td class="small">${esc(x.detail ?? '')}${x.rolloutId ? ' <button class="link-btn" data-open-rollouts>Open</button>' : ''}</td></tr>`).join('')}
+                <td class="small">${esc(x.detail ?? '')}${x.rolloutId ? ' <button class="link-btn" data-open-rollouts>Open</button>' : ''}
+                  ${x.retryNote ? `<br><span class="muted">${esc(x.retryNote)}</span>` : ''}</td>
+                <td><div class="row end">${x.retry && can(RETRY[x.retry][1]) ? `<button class="btn" data-job-retry>${RETRY[x.retry][0]}</button>` : ''}</div></td></tr>`).join('')}
             </tbody></table></div>` : '<p class="muted">Nothing here.</p>'}
       </div>`;
   }
@@ -66,6 +74,16 @@ export function createJobs({ root, api, toast, fail, confirmAction, esc }) {
   // ---- Updates --------------------------------------------------------------------------
   const keep = (s) => ({ all: true, never: s.flag === 'never', stale: s.flag === 'stale', failed: s.flag === 'failed', running: s.flag === 'running',
     windows: s.os === 'windows', linux: s.os === 'linux' })[st.fleetFilter];
+
+  function pendingCell(s) {
+    const c = s.check;
+    if (!s.patchable) return '';
+    if (!c) return '<span class="muted">not checked</span>';
+    if (c.state === 'checking') return '<span class="muted">checking…</span>';
+    if (c.state === 'failed') return `<span class="warn-text" title="${esc(when(c.checkedAt))}">${esc(c.error ?? 'Check failed')}</span>`;
+    return `<strong>${c.pending}</strong>${c.pending ? ` <span class="muted">(${c.security} security)</span>` : ' <span class="muted">up to date</span>'}${c.rebootRequired ? ' · restart pending' : ''}
+      <br><span class="muted">${esc(when(c.checkedAt))}</span>`;
+  }
 
   function renderUpdates() {
     const f = st.fleet;
@@ -89,7 +107,7 @@ export function createJobs({ root, api, toast, fail, confirmAction, esc }) {
             ${st.rollouts.map((r) => `
               <div class="rollout" data-rollout="${r.id}">
                 <div class="rollout-head">
-                  <div><strong>${esc(r.name)}</strong> ${tag(RO, r.state)} <span class="small muted">${esc(r.scope)} updates${r.snapshot ? ', snapshot first' : ''} · stops above ${r.maxFailPct} % failed · ${esc(when(r.createdAt))}</span>
+                  <div><strong>${esc(r.name)}</strong> ${tag(RO, r.state)} <span class="small muted">${esc(r.scope)} updates${r.snapshot ? ', snapshot first' : ''} · stops above ${r.maxFailPct} % failed${r.window ? ` · window ${esc(r.window.text)}` : ''} · ${esc(when(r.createdAt))}</span>
                     ${r.reason ? `<p class="small warn-text" style="margin:4px 0 0">${esc(r.reason)}</p>` : ''}</div>
                   <div class="row">
                     ${w && r.state === 'running' ? '<button class="btn" data-ro="pause">Pause</button>' : ''}
@@ -113,6 +131,7 @@ export function createJobs({ root, api, toast, fail, confirmAction, esc }) {
           </section>` : ''}
 
         <div class="row" style="margin-bottom:10px">
+          ${w ? `<button class="btn" data-check-picked ${picked.length ? '' : 'disabled'}>Check now${picked.length ? ` (${picked.length})` : ''}</button>` : ''}
           <div class="segmented" role="radiogroup" aria-label="Show">
             ${[['all', 'All'], ['never', 'Never updated'], ['stale', 'Older than 30 days'], ['failed', 'Failed'], ['running', 'Running'], ['windows', 'Windows'], ['linux', 'Linux']].map(([v, l]) =>
               `<button role="radio" aria-checked="${st.fleetFilter === v}" data-fleet-filter="${v}">${l}</button>`).join('')}
@@ -120,7 +139,7 @@ export function createJobs({ root, api, toast, fail, confirmAction, esc }) {
         </div>
         <div class="table-wrap"><table class="table fleet-table">
           <thead><tr>${w ? `<th><input type="checkbox" data-pick-all aria-label="Select all shown" ${rows.filter((s) => s.patchable).every((s) => st.picked.has(s.vmid)) && rows.some((s) => s.patchable) ? 'checked' : ''}></th>` : ''}
-            <th>Server</th><th>Customer</th><th>OS</th><th>Power</th><th>Last run</th><th>State</th></tr></thead>
+            <th>Server</th><th>Customer</th><th>OS</th><th>Power</th><th>Last run</th><th>Pending</th><th>State</th></tr></thead>
           <tbody>${rows.map((s) => `
             <tr data-fleet="${s.vmid}">
               ${w ? `<td>${s.patchable ? `<input type="checkbox" data-pick aria-label="Select ${esc(s.name)}" ${st.picked.has(s.vmid) ? 'checked' : ''}>` : ''}</td>` : ''}
@@ -128,7 +147,8 @@ export function createJobs({ root, api, toast, fail, confirmAction, esc }) {
               <td>${esc(s.os === 'windows' ? 'Windows' : s.os === 'linux' ? 'Linux' : s.os === 'container' ? 'Container' : 'Other')}</td>
               <td class="small">${esc(s.status)}${s.expired ? ' · expired' : ''}</td>
               <td class="small">${s.lastRun ? `${esc(when(s.lastRun.finishedAt ?? s.lastRun.startedAt))}${s.lastRun.state === 'done' ? ` · ${s.lastRun.installed} installed` : ''}${s.lastRun.rebootRequired ? ' · restart needed' : ''}` : '<span class="muted">never</span>'}</td>
-              <td>${s.patchable ? tag(FLAG, s.flag) : '<span class="small muted">not through the panel</span>'}</td></tr>`).join('') || '<tr><td colspan="7" class="muted">No servers here.</td></tr>'}
+              <td class="small">${pendingCell(s)}</td>
+              <td>${s.patchable ? tag(FLAG, s.flag) : '<span class="small muted">not through the panel</span>'}</td></tr>`).join('') || '<tr><td colspan="8" class="muted">No servers here.</td></tr>'}
           </tbody></table></div>
 
         ${w ? `
@@ -147,7 +167,16 @@ export function createJobs({ root, api, toast, fail, confirmAction, esc }) {
               <div class="row">
                 <label class="inline-check"><input type="checkbox" name="snapshot" checked> Snapshot first</label>
                 <label class="inline-check"><input type="checkbox" name="autoRestart" checked> Restart when needed</label>
+                <label class="inline-check"><input type="checkbox" name="useWindow"> Only in a maintenance window</label>
               </div>
+              <fieldset class="window-fields" data-window hidden>
+                <legend class="small muted">Runs start only on these days, between these hours (${esc(st.fleet.timeZone ?? 'panel time zone')}); started runs finish.</legend>
+                <div class="row">${DAYS.map((d, i) => `<label class="inline-check"><input type="checkbox" name="day" value="${i}" ${i === 0 || i === 6 ? 'checked' : ''}> ${d}</label>`).join('')}</div>
+                <div class="grid-3">
+                  <label>From <select name="winStart">${Array.from({ length: 24 }, (_, h) => `<option value="${h}" ${h === 1 ? 'selected' : ''}>${String(h).padStart(2, '0')}:00</option>`).join('')}</select></label>
+                  <label>Until <select name="winEnd">${Array.from({ length: 24 }, (_, h) => `<option value="${h}" ${h === 5 ? 'selected' : ''}>${String(h).padStart(2, '0')}:00</option>`).join('')}</select></label>
+                </div>
+              </fieldset>
               <div class="row"><button class="btn primary" ${picked.length ? '' : 'disabled'}>Start rollout on ${picked.length} server${picked.length === 1 ? '' : 's'}</button>
                 ${picked.length ? '' : '<span class="small muted">Select servers in the list above.</span>'}</div>
             </form>
@@ -161,6 +190,20 @@ export function createJobs({ root, api, toast, fail, confirmAction, esc }) {
     try {
       if (t.dataset.jobFilter) { st.filter = t.dataset.jobFilter; await load('jobs'); render('jobs'); return true; }
       if (t.hasAttribute('data-open-rollouts')) { root.querySelector('[data-admin-tab="updates"]')?.click(); return true; }
+      if (t.hasAttribute('data-check-picked')) {
+        const vmids = [...st.picked].filter((v) => st.fleet.servers.some((s) => s.vmid === v && s.patchable));
+        const r = await api('/api/admin/updates/check', { method: 'POST', body: { vmids } });
+        toast(`Checking ${r.queued} server${r.queued === 1 ? '' : 's'}${r.skipped ? ` (${r.skipped} already being checked)` : ''}; nothing is installed`);
+        await load('updates'); render('updates'); return true;
+      }
+      if (t.hasAttribute('data-job-retry')) {
+        const job = st.jobs.jobs.find((x) => x.id === t.closest('[data-job]').dataset.job);
+        if (!(await confirmAction(`${RETRY[job.retry][0]} for ${job.target}?`, RETRY[job.retry][0]))) return true;
+        t.disabled = true;
+        const r = await api('/api/admin/jobs/retry', { method: 'POST', body: { id: job.id } });
+        toast(r.message);
+        await load('jobs'); render('jobs'); return true;
+      }
       if (t.dataset.fleetFilter) { st.fleetFilter = t.dataset.fleetFilter; render('updates'); return true; }
       if (t.hasAttribute('data-pick')) {
         const v = Number(t.closest('[data-fleet]').dataset.fleet);
@@ -197,6 +240,7 @@ export function createJobs({ root, api, toast, fail, confirmAction, esc }) {
       await api('/api/admin/updates/rollouts', { method: 'POST', body: {
         name: el.name.value.trim(), vmids, rings: el.rings.value.split(',').map(Number), scope: el.scope.value,
         snapshot: el.snapshot.checked, autoRestart: el.autoRestart.checked, maxFailPct: Number(el.maxFailPct.value),
+        window: el.useWindow.checked ? { days: [...f.querySelectorAll('[name=day]:checked')].map((x) => Number(x.value)), start: Number(el.winStart.value), end: Number(el.winEnd.value) } : null,
       } });
       st.picked.clear();
       toast('Rollout started');
@@ -208,6 +252,9 @@ export function createJobs({ root, api, toast, fail, confirmAction, esc }) {
     setPermissions(list) { st.perms = new Set(list); },
     tabs: () => TABS.filter(([, , perm]) => can(perm)).map(([id, label]) => [id, label]),
     handles: (tab) => TABS.some(([id]) => id === tab),
-    load, render, onClick, onChange() {}, onSubmit,
+    load, render, onClick, onSubmit,
+    onChange(e) {
+      if (e.target.name === 'useWindow') root.querySelector('[data-window]').hidden = !e.target.checked;
+    },
   };
 }

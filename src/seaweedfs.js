@@ -8,7 +8,8 @@
 // the old standalone `weed iam` (port 8111) also works via "IAM endpoint". The panel
 //   - creates one IAM user per customer ("<prefix>u<id>"),
 //   - creates buckets named "<prefix><id>-<name>" with the admin identity,
-//   - keeps a policy on the customer's IAM user that allows exactly their buckets,
+//   - keeps a policy on the customer's IAM user that allows exactly their buckets
+//     (read-only buckets: only reading and listing, e.g. to freeze a finished backup),
 //   - issues access keys (the secret is shown once and not stored).
 // Hard per-bucket quotas are enforced by SeaweedFS itself (`s3.bucket.quota`
 // in `weed shell`); the panel records the quota, counts it against the
@@ -159,22 +160,30 @@ async function ensureAccount(c, userId) {
   return db.prepare('SELECT * FROM s3_accounts WHERE user_id = ?').get(userId);
 }
 
-/** IAM policy that allows a customer exactly their buckets. */
+export const READ_ACTIONS = ['s3:GetObject', 's3:GetObjectVersion', 's3:GetObjectTagging', 's3:ListBucket', 's3:ListBucketVersions', 's3:GetBucketLocation'];
+
+/**
+ * IAM policy that allows a customer exactly their buckets: everything on writable
+ * ones, reading and listing on read-only ones. buckets: names, or { name, readOnly }.
+ */
 export function bucketPolicy(buckets) {
+  const list = buckets.map((b) => (typeof b === 'string' ? { name: b, readOnly: false } : b));
+  const arns = (bs) => bs.flatMap((b) => [`arn:aws:s3:::${b.name}`, `arn:aws:s3:::${b.name}/*`]);
+  const rw = list.filter((b) => !b.readOnly);
+  const ro = list.filter((b) => b.readOnly);
   return {
     Version: '2012-10-17',
-    Statement: [{
-      Effect: 'Allow',
-      Action: ['s3:*'],
-      Resource: buckets.flatMap((b) => [`arn:aws:s3:::${b}`, `arn:aws:s3:::${b}/*`]),
-    }],
+    Statement: [
+      ...(rw.length ? [{ Effect: 'Allow', Action: ['s3:*'], Resource: arns(rw) }] : []),
+      ...(ro.length ? [{ Effect: 'Allow', Action: READ_ACTIONS, Resource: arns(ro) }] : []),
+    ],
   };
 }
 
 async function syncPolicy(c, userId) {
   const account = db.prepare('SELECT * FROM s3_accounts WHERE user_id = ?').get(userId);
   if (!account) return;
-  const buckets = db.prepare('SELECT name FROM s3_buckets WHERE user_id = ? ORDER BY name').all(userId).map((b) => b.name);
+  const buckets = db.prepare('SELECT name, read_only FROM s3_buckets WHERE user_id = ? ORDER BY name').all(userId).map((b) => ({ name: b.name, readOnly: !!b.read_only }));
   if (buckets.length) {
     await iam(c, 'PutUserPolicy', {
       UserName: account.iam_user, PolicyName: 'panel-buckets', PolicyDocument: JSON.stringify(bucketPolicy(buckets)),
@@ -230,6 +239,27 @@ export async function deleteBucket(req, name, { userId = null } = {}) {
   audit(req, null, 's3_bucket_delete', { bucket: name });
 }
 
+/**
+ * Read-only on: the customer's key can only read and list the bucket (nothing can be
+ * added, changed or deleted with it); off: full access again. The panel's own
+ * identity is not affected.
+ */
+export async function setBucketReadOnly(req, name, readOnly, { userId = null } = {}) {
+  const c = connection();
+  const row = db.prepare('SELECT * FROM s3_buckets WHERE name = ?').get(name);
+  if (!row || (userId !== null && row.user_id !== userId)) throw new S3Error(404, 'Bucket not found');
+  if (!!row.read_only === !!readOnly) return { name, readOnly: !!readOnly };
+  db.prepare('UPDATE s3_buckets SET read_only = ? WHERE name = ?').run(readOnly ? 1 : 0, name);
+  try {
+    if (row.user_id) await syncPolicy(c, row.user_id);
+  } catch (err) {
+    db.prepare('UPDATE s3_buckets SET read_only = ? WHERE name = ?').run(row.read_only, name);
+    throw err;
+  }
+  audit(req, null, readOnly ? 's3_bucket_read_only' : 's3_bucket_writable', { bucket: name });
+  return { name, readOnly: !!readOnly };
+}
+
 /** New access key for a customer; the previous key stops working. Secret shown once. */
 export async function issueAccessKey(req, userId) {
   const c = connection();
@@ -277,11 +307,11 @@ export function quotaCommand(bucket, quotaGb) {
 
 export function listBuckets({ userId = null } = {}) {
   const rows = db.prepare(`
-    SELECT b.name, b.user_id AS userId, b.quota_gb AS quotaGb, b.created_at AS createdAt, u.email AS owner
+    SELECT b.name, b.user_id AS userId, b.quota_gb AS quotaGb, b.read_only AS readOnly, b.created_at AS createdAt, u.email AS owner
     FROM s3_buckets b LEFT JOIN users u ON u.id = b.user_id
     ${userId !== null ? 'WHERE b.user_id = ?' : ''} ORDER BY b.name
   `).all(...(userId !== null ? [userId] : []));
-  return rows.map((r) => ({ ...r, quotaCommand: quotaCommand(r.name, r.quotaGb) }));
+  return rows.map((r) => ({ ...r, readOnly: !!r.readOnly, quotaCommand: quotaCommand(r.name, r.quotaGb) }));
 }
 
 export async function listBucketsWithUsage(opts) {

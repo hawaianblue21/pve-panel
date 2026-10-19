@@ -612,6 +612,8 @@ db.exec(`
 
 // IPv6 (optional): a pool may carry an IPv6 prefix; every IPv4 address of the pool
 // maps to its own /64 in it, switched on per address by the customer.
+// read-only bucket: the customer's access key may only read and list it
+addColumn('s3_buckets', 'read_only', 'INTEGER NOT NULL DEFAULT 0');
 addColumn('ip_pools', 'ipv6_cidr', 'TEXT');
 addColumn('ip_pools', 'ipv6_gateway', 'TEXT');
 addColumn('ip_pools', 'ipv6_reverse_zone', 'TEXT');
@@ -679,6 +681,21 @@ db.exec(`
     PRIMARY KEY (rollout_id, vmid)
   );
 `);
+// pending-update counts per server ("Check now" in the Updates tab)
+db.exec(`
+  CREATE TABLE IF NOT EXISTS update_checks (
+    vmid            INTEGER PRIMARY KEY REFERENCES vms(vmid) ON DELETE CASCADE,
+    state           TEXT NOT NULL,              -- checking | done | failed
+    pending         INTEGER,
+    security        INTEGER,
+    reboot_required INTEGER,
+    error           TEXT,
+    checked_at      TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+`);
+// maintenance window of a rollout: JSON { days, start, end } (clock.js), or NULL for any time
+addColumn('rollouts', 'window_json', 'TEXT');
+
 
 // ---- Proxmox clusters besides the main one (pve.js routes requests to them) -------
 // network_clusters: the clusters a customer's private network (VNet) exists on;

@@ -1,12 +1,16 @@
 // Fleet updates: the fleet view, rollouts in rings with a failure limit (pause,
-// resume, cancel), skipped servers, customer emails, and the job list.
+// resume, cancel), skipped servers, customer emails, maintenance windows, pending
+// update counts (Check now), the job list and retrying failed jobs.
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
+import path from 'node:path';
+import { DatabaseSync } from 'node:sqlite';
 import { startStack, waitFor } from '../support/stack.mjs';
 
 let stack;
 let admin;
 let rina;
+let ro;                    // a read-only administrator
 const ids = [];
 const rollout = async (id) => (await admin.get(`/api/admin/updates/rollouts/${id}`)).json;
 
@@ -46,7 +50,7 @@ test('rollout rules are checked', async () => {
   const u = await admin.post('/api/admin/users', { email: 'ro@example.com', password: 'readonly-password-1', isAdmin: true });
   const role = (await admin.get('/api/admin/rbac')).json.roles.find((r) => r.key === 'support').id;
   await admin.put(`/api/admin/rbac/admins/${u.json.id}`, { roleId: role });
-  const ro = stack.admin();
+  ro = stack.admin();
   await ro.post('/api/auth/login', { email: 'ro@example.com', password: 'readonly-password-1' });
   assert.equal((await ro.post('/api/admin/updates/rollouts', { name: 'x', vmids: ids })).status, 403);
   assert.equal((await ro.get('/api/admin/updates/fleet')).status, 200);
@@ -92,4 +96,69 @@ test('jobs: update runs and finished server work; cancel stops pending servers',
   assert.equal(c.json.state, 'cancelled');
   assert.equal((await admin.post(`/api/admin/updates/rollouts/${r.id}/resume`)).status, 409);
   assert.equal((await admin.get('/api/admin/updates/rollouts')).json.rollouts.length, 2);
+});
+
+test('maintenance window: outside it nothing starts and the rollout says why', async () => {
+  const bad = (window) => admin.post('/api/admin/updates/rollouts', { name: 'w', vmids: [ids[1]], rings: [100], window });
+  assert.equal((await bad({ days: [], start: 1, end: 5 })).status, 400);
+  assert.equal((await bad({ days: [1], start: 3, end: 3 })).status, 400);
+  assert.equal((await bad({ days: [7], start: 1, end: 5 })).status, 400);
+  // a two-hour window starting in two hours (UTC, the panel's time zone here): never now
+  const h = (new Date().getUTCHours() + 2) % 24;
+  const r = await admin.post('/api/admin/updates/rollouts', { name: 'Night window', vmids: [ids[1]], rings: [100], window: { days: [0, 1, 2, 3, 4, 5, 6], start: h, end: (h + 2) % 24 } });
+  assert.equal(r.status, 201, r.text);
+  assert.deepEqual([r.json.window.days.length, r.json.window.start], [7, h]);
+  assert.match(r.json.window.text, /^every day \d\d:00–\d\d:00( \(next day\))? UTC$/);
+  const waiting = await waitFor(async () => { const x = await rollout(r.json.id); return x.reason ? x : null; }, { timeout: 15_000, what: 'waiting note' });
+  assert.match(waiting.reason, /^Waiting for the maintenance window \(every day/);
+  assert.equal(waiting.state, 'running');
+  assert.equal(waiting.items[0].state, 'pending', 'nothing started');
+  await new Promise((res) => setTimeout(res, 2500));
+  assert.equal((await rollout(r.json.id)).items[0].state, 'pending');
+  assert.equal((await admin.post(`/api/admin/updates/rollouts/${r.json.id}/cancel`)).json.state, 'cancelled');
+});
+
+test('check now: pending updates counted inside running servers, without installing', async () => {
+  assert.equal((await ro.post('/api/admin/updates/check', { vmids: ids })).status, 403, 'needs updates.write');
+  const r = await admin.post('/api/admin/updates/check', { vmids: [...ids, 99999] });
+  assert.equal(r.status, 202, r.text);
+  assert.deepEqual(r.json, { queued: 3, skipped: 1 });
+  const fleet = await waitFor(async () => {
+    const f = (await admin.get('/api/admin/updates/fleet')).json;
+    return f.servers.every((s) => s.check && s.check.state !== 'checking') ? f : null;
+  }, { timeout: 30_000, what: 'checks finished' });
+  const c = Object.fromEntries(fleet.servers.map((s) => [s.vmid, s.check]));
+  assert.deepEqual([c[ids[0]].state, c[ids[0]].pending, c[ids[0]].security, c[ids[0]].rebootRequired], ['done', 7, 2, false]);
+  assert.equal(c[ids[1]].state, 'done');
+  assert.deepEqual([c[ids[2]].state, c[ids[2]].error], ['failed', 'The server is not running'], 'the stopped server');
+});
+
+test('retry: the latest failed update run starts again; a failed creation can\'t be retried; a failed deletion can', { timeout: 90_000 }, async () => {
+  await stack.mock.control(`/__lu/${ids[0]}/normal`);
+  const failedRun = (await admin.get('/api/admin/jobs?filter=failed')).json.jobs.find((j) => j.kind === 'updates' && j.vmid === ids[0]);
+  assert.equal(failedRun.retry, 'updates');
+  assert.equal((await ro.post('/api/admin/jobs/retry', { id: failedRun.id })).status, 403, 'needs updates.write');
+  assert.equal((await admin.post('/api/admin/jobs/retry', { id: 'run-999999' })).status, 404);
+  const r = await admin.post('/api/admin/jobs/retry', { id: failedRun.id });
+  assert.equal(r.status, 200, r.text);
+  assert.equal(r.json.retried, true);
+  await waitFor(async () => ((await admin.get('/api/admin/updates/fleet')).json.servers.find((s) => s.vmid === ids[0]).flag === 'ok' ? true : null), { timeout: 60_000, interval: 500, what: 'retried run done' });
+  assert.equal((await admin.get('/api/admin/jobs?filter=failed')).json.jobs.some((j) => j.kind === 'updates' && j.vmid === ids[0] && j.retry), false, 'older failure not offered');
+
+  const db = new DatabaseSync(path.join(stack.dir, 'panel.db'));
+  db.prepare("UPDATE vms SET state = 'failed', error = 'Setting up failed: the clone timed out' WHERE vmid = ?").run(ids[2]);
+  let job = (await admin.get('/api/admin/jobs?filter=failed')).json.jobs.find((j) => j.id === `vm-${ids[2]}`);
+  assert.equal(job.retry, null);
+  assert.match(job.retryNote, /customer reinstalls or deletes/);
+  const no = await admin.post('/api/admin/jobs/retry', { id: job.id });
+  assert.equal(no.status, 409);
+  assert.match(no.json.error, /customer's sign-in details/);
+
+  db.prepare("UPDATE vms SET state = 'failed', error = 'Deleting failed: storage timeout' WHERE vmid = ?").run(ids[2]);
+  db.close();
+  job = (await admin.get('/api/admin/jobs?filter=failed')).json.jobs.find((j) => j.id === `vm-${ids[2]}`);
+  assert.equal(job.retry, 'delete');
+  const del = await admin.post('/api/admin/jobs/retry', { id: job.id });
+  assert.equal(del.status, 200, del.text);
+  await waitFor(async () => ((await rina.get(`/api/vms/${ids[2]}`)).status === 404 ? true : null), { timeout: 30_000, what: 'deleted' });
 });

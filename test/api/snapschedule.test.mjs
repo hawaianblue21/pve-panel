@@ -85,7 +85,21 @@ test('when the customer\'s own snapshots use every slot, the run is skipped with
   assert.equal(s.lastStatus, 'failed');
   assert.match(s.lastError, /All 3 snapshot slots are used by your own snapshots/);
   assert.deepEqual(snaps().sort(), ['mine', 'mine2', 'mine3']);
-  for (const n of ['mine2', 'mine3']) await rina.del(`/api/vms/${vm}/snapshots/${n}`);
+  // the failure is a job an administrator can retry; while the slots are full it fails again
+  const job = () => admin.get('/api/admin/jobs?filter=failed').then((r) => r.json.jobs.find((j) => j.action === 'Automatic snapshot'));
+  const failed = await job();
+  assert.equal(failed.retry, 'snapshot');
+  const again = await admin.post('/api/admin/jobs/retry', { id: failed.id });
+  assert.equal(again.status, 409);
+  assert.match(again.json.error, /failed again: All 3 snapshot slots/);
+  await rina.del(`/api/vms/${vm}/snapshots/mine3`);
+  await waitFor(() => (snaps().length === 2 ? true : null), { what: 'one slot free' });
+  const ok = await admin.post('/api/admin/jobs/retry', { id: (await job()).id });
+  assert.equal(ok.status, 200, ok.text);
+  assert.equal(autos().length, 1);
+  assert.equal((await schedule()).lastStatus, 'ok');
+  assert.equal((await job())?.retry, undefined, 'no longer offered: the latest run worked');
+  for (const n of ['mine2', ...autos()]) await rina.del(`/api/vms/${vm}/snapshots/${n}`);
   await waitFor(() => (snaps().length === 1 ? true : null), { what: 'own snapshots deleted' });
   await rina.put(`/api/vms/${vm}/snapshot-schedule`, { frequency: 'off' });
   assert.equal(await schedule(), null);

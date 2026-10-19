@@ -11,15 +11,27 @@
 // update run (snapshot first if chosen, same checks as when a customer starts
 // it); servers that can't run (stopped, no agent, switched off, expired) are
 // skipped with the reason. Customers get an email when their server is updated.
+// An optional maintenance window (days and hours in the panel's time zone) limits
+// when runs start; outside it the rollout waits (runs already started finish).
 //
-// Jobs: a read-only view of background work: servers being created, reinstalled
-// or deleted (and failed ones), update runs, rollouts, and recent finished work
-// from the activity log.
+// Jobs: background work: servers being created, reinstalled or deleted (and failed
+// ones), update runs, rollouts, and recent finished work from the activity log.
+// Some failures can be retried from there: a failed deletion, the latest failed
+// update run of a server, the latest failed automatic snapshot. A failed creation or
+// reinstall can't: it needs the customer's sign-in details, so the customer
+// reinstalls or deletes the server.
+//
+// Check now: counts pending updates inside servers (nothing is installed), so an
+// administrator sees what a rollout would bring.
 
 import { db, audit } from './db.js';
+import { can } from './rbac.js';
 import { clusterGuests, guestPath, pve } from './pve.js';
-import { startUpdates } from './winupdate.js';
+import { startUpdates, checkPending, activeRun } from './winupdate.js';
+import { runSchedule } from './snapschedule.js';
+import { deleteServer } from './provision.js';
 import { emailConfigured, sendMail, rolloutNoticeMessage } from './mail.js';
+import { insideWindow, windowText, TZ } from './clock.js';
 
 const fail = (status, message) => Object.assign(new Error(message), { statusCode: status, expose: true });
 const FINAL_RUN = ['done', 'failed'];
@@ -43,6 +55,7 @@ export async function fleet() {
     } catch { /* unknown */ }
   }));
   const last = new Map(db.prepare('SELECT * FROM winupdates WHERE id IN (SELECT MAX(id) FROM winupdates GROUP BY vmid)').all().map((w) => [w.vmid, w]));
+  const checks = new Map(db.prepare('SELECT * FROM update_checks').all().map((c) => [c.vmid, c]));
   const now = Date.now();
   const servers = rows.map((r) => {
     const g = guests.get(r.vmid);
@@ -58,13 +71,16 @@ export async function fleet() {
         rebootRequired: s.rebootRequired === true,
       } : null,
       patchable: ['windows', 'linux'].includes(os),
+      check: checks.has(r.vmid) ? (({ state, pending, security, reboot_required: reboot, error, checked_at: at }) => ({
+        state, pending, security, rebootRequired: !!reboot, error, checkedAt: at,
+      }))(checks.get(r.vmid)) : null,
       flag: !w ? 'never' : !FINAL_RUN.includes(w.state) ? 'running' : w.state === 'failed' ? 'failed'
         : now - finished > 30 * DAY ? 'stale' : 'ok',
     };
   });
   const patchable = servers.filter((x) => x.patchable);
   return {
-    servers,
+    servers, timeZone: TZ,
     kpis: {
       servers: servers.length, patchable: patchable.length,
       ok: patchable.filter((x) => x.flag === 'ok').length, never: patchable.filter((x) => x.flag === 'never').length,
@@ -73,6 +89,52 @@ export async function fleet() {
       runsWeek: db.prepare("SELECT COUNT(*) AS n FROM winupdates WHERE started_at >= datetime('now', '-7 days')").get().n,
     },
   };
+}
+
+// ---- Check now: pending updates per server ---------------------------------------------------------
+
+const CHECK_PARALLEL = 4;
+const checkQueue = [];
+let checking = 0;
+
+function pumpChecks() {
+  while (checking < CHECK_PARALLEL && checkQueue.length) {
+    const vmid = checkQueue.shift();
+    checking += 1;
+    (async () => {
+      try {
+        const row = db.prepare('SELECT * FROM vms WHERE vmid = ?').get(vmid);
+        if (!row) return;
+        const c = await checkPending(row);
+        db.prepare("UPDATE update_checks SET state = 'done', pending = ?, security = ?, reboot_required = ?, error = NULL, checked_at = datetime('now') WHERE vmid = ?")
+          .run(c.pending, c.security, c.rebootRequired ? 1 : 0, vmid);
+      } catch (err) {
+        db.prepare("UPDATE update_checks SET state = 'failed', error = ?, checked_at = datetime('now') WHERE vmid = ?").run(String(err.message).slice(0, 300), vmid);
+      } finally {
+        checking -= 1;
+        pumpChecks();
+      }
+    })();
+  }
+}
+
+/** Counts pending updates on these servers in the background (4 at a time). */
+export function startChecks(req, vmids) {
+  const ids = [...new Set((vmids ?? []).map(Number))];
+  if (!ids.length || ids.length > 1000) throw fail(400, 'Choose 1 to 1000 servers');
+  const rows = db.prepare(`SELECT vmid FROM vms WHERE vmid IN (${ids.map(() => '?').join(',')})`).all(...ids).map((r) => r.vmid);
+  const queued = [];
+  for (const vmid of rows) {
+    const cur = db.prepare('SELECT state FROM update_checks WHERE vmid = ?').get(vmid);
+    if (cur?.state === 'checking') continue;
+    db.prepare(`INSERT INTO update_checks (vmid, state, checked_at) VALUES (?, 'checking', datetime('now'))
+      ON CONFLICT(vmid) DO UPDATE SET state = 'checking', error = NULL, checked_at = excluded.checked_at`).run(vmid);
+    checkQueue.push(vmid);
+    queued.push(vmid);
+  }
+  if (queued.length) audit(req, null, 'admin_updates_check', { servers: queued.length });
+  pumpChecks();
+  return { queued: queued.length, skipped: ids.length - queued.length };
 }
 
 // ---- Rollouts -----------------------------------------------------------------------------------
@@ -87,6 +149,7 @@ function pubRollout(r) {
   return {
     id: r.id, name: r.name, scope: r.scope, snapshot: !!r.snapshot, autoRestart: !!r.auto_restart, maxFailPct: r.max_fail_pct,
     state: r.state, reason: r.reason, createdAt: r.created_at, finishedAt: r.finished_at, rings,
+    window: r.window_json ? { ...JSON.parse(r.window_json), text: windowText(JSON.parse(r.window_json)) } : null,
     items: items.map((i) => ({ vmid: i.vmid, name: i.label || `server ${i.vmid}`, ring: i.ring, state: i.state, note: i.note })),
   };
 }
@@ -99,7 +162,18 @@ export function getRollout(id) {
 }
 
 /** rings: percentages of the servers per ring, e.g. [10, 30, 60] (they add up to 100). */
-export function createRollout(req, { name, vmids, rings = [10, 30, 60], scope = 'security', snapshot = true, autoRestart = true, maxFailPct = 2 }) {
+/** A maintenance window from input, or null: { days: [0..6], start: 0..23, end: 0..23 }. */
+function windowInput(w) {
+  if (w === null || w === undefined) return null;
+  const days = [...new Set((w.days ?? []).map(Number))].sort((a, b) => a - b);
+  if (!days.length || days.some((d) => !Number.isInteger(d) || d < 0 || d > 6)) throw fail(400, 'Maintenance window: choose at least one day');
+  const start = Number(w.start);
+  const end = Number(w.end);
+  if (![start, end].every((h) => Number.isInteger(h) && h >= 0 && h <= 23) || start === end) throw fail(400, 'Maintenance window: start and end hours 0 to 23, not the same');
+  return { days, start, end };
+}
+
+export function createRollout(req, { name, vmids, rings = [10, 30, 60], scope = 'security', snapshot = true, autoRestart = true, maxFailPct = 2, window = null }) {
   const n = String(name ?? '').trim();
   if (!n || n.length > 80) throw fail(400, 'Name: up to 80 characters, e.g. "October security updates"');
   const ids = [...new Set((vmids ?? []).map(Number))];
@@ -111,6 +185,7 @@ export function createRollout(req, { name, vmids, rings = [10, 30, 60], scope = 
     || rings.reduce((a, p) => a + p, 0) !== 100) throw fail(400, 'Rings: 1 to 5 whole percentages that add up to 100');
   const pct = Number(maxFailPct);
   if (!Number.isInteger(pct) || pct < 0 || pct > 50) throw fail(400, 'Failure limit: 0 to 50 %');
+  const win = windowInput(window);
   if (db.prepare("SELECT 1 FROM rollouts WHERE state IN ('running', 'paused')").get()) throw fail(409, 'Another rollout is still running or paused. Finish or cancel it first.');
 
   // ring sizes: rounded up, at least one server per ring while servers are left
@@ -123,13 +198,13 @@ export function createRollout(req, { name, vmids, rings = [10, 30, 60], scope = 
   });
   db.exec('BEGIN IMMEDIATE');
   try {
-    const id = Number(db.prepare(`INSERT INTO rollouts (name, scope, snapshot, auto_restart, max_fail_pct, state, created_by)
-      VALUES (?, ?, ?, ?, ?, 'running', ?)`).run(n, scope === 'all' ? 'all' : 'security', snapshot ? 1 : 0, autoRestart ? 1 : 0, pct, req.account.id).lastInsertRowid);
+    const id = Number(db.prepare(`INSERT INTO rollouts (name, scope, snapshot, auto_restart, max_fail_pct, state, created_by, window_json)
+      VALUES (?, ?, ?, ?, ?, 'running', ?, ?)`).run(n, scope === 'all' ? 'all' : 'security', snapshot ? 1 : 0, autoRestart ? 1 : 0, pct, req.account.id, win ? JSON.stringify(win) : null).lastInsertRowid);
     const ins = db.prepare("INSERT INTO rollout_items (rollout_id, vmid, ring, state) VALUES (?, ?, ?, 'pending')");
     let k = 0;
     sizes.forEach((size, ring) => { for (let j = 0; j < size; j += 1) ins.run(id, order[k++], ring + 1); });
     db.exec('COMMIT');
-    audit(req, null, 'admin_rollout_created', { id, name: n, servers: ids.length, rings: sizes, scope, snapshot: !!snapshot, maxFailPct: pct });
+    audit(req, null, 'admin_rollout_created', { id, name: n, servers: ids.length, rings: sizes, scope, snapshot: !!snapshot, maxFailPct: pct, window: win });
     setImmediate(() => tick().catch(() => {}));
     return getRollout(id);
   } catch (err) { db.exec('ROLLBACK'); throw err; }
@@ -186,6 +261,14 @@ export async function tick(log) {
           continue;
         }
       }
+      // outside the maintenance window nothing new starts (runs already started go on)
+      const win = r.window_json ? JSON.parse(r.window_json) : null;
+      const waitNote = win ? `Waiting for the maintenance window (${windowText(win)})` : null;
+      if (win && !insideWindow(win)) {
+        if (r.reason !== waitNote) db.prepare('UPDATE rollouts SET reason = ? WHERE id = ?').run(waitNote, r.id);
+        continue;
+      }
+      if (waitNote && r.reason === waitNote) db.prepare('UPDATE rollouts SET reason = NULL WHERE id = ?').run(r.id);
       // start what is pending in this ring
       for (const i of db.prepare("SELECT * FROM rollout_items WHERE rollout_id = ? AND ring = ? AND state = 'pending'").all(r.id, ring)) {
         const row = db.prepare('SELECT * FROM vms WHERE vmid = ?').get(i.vmid);
@@ -212,6 +295,8 @@ export async function tick(log) {
 }
 
 export function startRolloutEngine(log) {
+  // checks that were running when the panel stopped never finish
+  db.prepare("UPDATE update_checks SET state = 'failed', error = 'Interrupted by a panel restart' WHERE state = 'checking'").run();
   const every = Math.max(2, Number(process.env.ROLLOUT_INTERVAL_SECONDS || 30)) * 1000;
   setInterval(() => { tick(log).catch(() => {}); }, every).unref();
 }
@@ -232,6 +317,10 @@ const FINISHED = {
 export async function jobs({ filter = 'all' } = {}) {
   const out = [];
   const users = new Map(db.prepare('SELECT id, email FROM users').all().map((u) => [u.id, u.email]));
+  const latestRun = new Map(db.prepare('SELECT vmid, MAX(id) AS id FROM winupdates GROUP BY vmid').all().map((r) => [r.vmid, r.id]));
+  const latestSnap = new Map(db.prepare("SELECT vmid, MAX(id) AS id FROM audit_log WHERE action IN ('snapshot_auto', 'snapshot_auto_failed') GROUP BY vmid").all().map((r) => [r.vmid, r.id]));
+  const ready = new Set(db.prepare("SELECT vmid FROM vms WHERE state = 'ready'").all().map((r) => r.vmid));
+  const schedules = new Set(db.prepare('SELECT vmid FROM snapshot_schedules').all().map((r) => r.vmid));
   // servers being set up, reinstalled or deleted, or failed
   for (const v of db.prepare("SELECT vmid, label, user_id, state, progress, error, spec FROM vms WHERE state IN ('creating', 'deleting', 'failed')").all()) {
     const spec = v.spec ? JSON.parse(v.spec) : {};
@@ -239,6 +328,8 @@ export async function jobs({ filter = 'all' } = {}) {
     out.push({
       id: `vm-${v.vmid}`, kind: 'server', action: what, target: v.label || spec.hostname || `server ${v.vmid}`, vmid: v.vmid, by: users.get(v.user_id) ?? null,
       state: v.state === 'failed' ? 'failed' : 'running', detail: v.state === 'failed' ? v.error : v.progress, at: spec.reinstalledAt ?? null,
+      ...(v.state === 'failed' ? (/^Deleting failed/.test(v.error ?? '') ? { retry: 'delete' }
+        : { retry: null, retryNote: 'Needs the customer\'s sign-in details: the customer reinstalls or deletes the server' }) : {}),
     });
   }
   // update runs in the last 14 days
@@ -249,6 +340,7 @@ export async function jobs({ filter = 'all' } = {}) {
       by: users.get(w.user_id) ?? null, state: w.state === 'done' ? 'done' : w.state === 'failed' ? 'failed' : 'running',
       detail: w.state === 'failed' ? (s.error ?? w.error ?? 'Failed') : w.state === 'done' ? `${Array.isArray(s.installed) ? s.installed.length : 0} installed` : (s.message ?? w.state),
       at: w.started_at,
+      ...(w.state === 'failed' && latestRun.get(w.vmid) === w.id && ready.has(w.vmid) ? { retry: 'updates' } : {}),
     });
   }
   // rollouts in progress
@@ -265,11 +357,55 @@ export async function jobs({ filter = 'all' } = {}) {
     const [action, state] = FINISHED[e.action];
     const d = e.detail ? JSON.parse(e.detail) : {};
     out.push({ id: `log-${e.id}`, kind: 'log', action, target: e.vmid ? `server ${e.vmid}` : (d.name ?? d.label ?? ''), vmid: e.vmid, by: users.get(e.user_id) ?? null,
-      state, detail: state === 'failed' ? (d.error ?? 'Failed') : (d.label ?? d.address ?? ''), at: e.created_at });
+      state, detail: state === 'failed' ? (d.error ?? 'Failed') : (d.label ?? d.address ?? ''), at: e.created_at,
+      ...(e.action === 'snapshot_auto_failed' && latestSnap.get(e.vmid) === e.id && schedules.has(e.vmid) && ready.has(e.vmid) ? { retry: 'snapshot' } : {}) });
   }
   const counts = { running: out.filter((j) => j.state === 'running').length, failed: out.filter((j) => j.state === 'failed').length, done: out.filter((j) => j.state === 'done').length };
   const rank = { running: 0, failed: 1, done: 2 };
   const list = out.filter((j) => filter === 'all' || j.state === filter)
     .sort((a, b) => rank[a.state] - rank[b.state] || (utc(b.at) || 0) - (utc(a.at) || 0)).slice(0, 300);
   return { jobs: list, counts };
+}
+
+const RETRY_PERMISSION = { delete: 'servers.delete', updates: 'updates.write', snapshot: 'servers.manage' };
+
+/** Retries a failed job of the list (see jobs()); returns { retried, message }. */
+export async function retryJob(req, jobId) {
+  const job = (await jobs({ filter: 'failed' })).jobs.find((j) => j.id === jobId);
+  if (!job) throw fail(404, 'That job is not in the list of failed jobs any more');
+  if (!job.retry) throw fail(409, job.retryNote ?? 'This job can\'t be retried');
+  const need = RETRY_PERMISSION[job.retry];
+  if (!can(req.account, need)) throw fail(403, `Retrying this needs the permission ${need}`);
+  const row = db.prepare('SELECT * FROM vms WHERE vmid = ?').get(job.vmid);
+  if (!row) throw fail(404, 'The server is gone');
+  if (job.retry === 'delete') {
+    db.prepare("UPDATE vms SET state = 'ready', error = NULL WHERE vmid = ?").run(row.vmid);
+    try {
+      const r = await deleteServer(req, { ...row, state: 'ready', error: null });
+      audit(req, row.vmid, 'admin_job_retried', { job: jobId, what: 'delete' });
+      return { retried: true, message: r.removed ? 'The server record was removed' : 'Deleting again' };
+    } catch (err) {
+      db.prepare("UPDATE vms SET state = 'failed', error = ? WHERE vmid = ?").run(row.error, row.vmid);
+      throw err;
+    }
+  }
+  if (job.retry === 'updates') {
+    if (activeRun(row.vmid)) throw fail(409, 'Updates are already being installed on this server');
+    const w = db.prepare('SELECT * FROM winupdates WHERE id = ?').get(Number(jobId.slice(4)));
+    // as the server's owner would (same checks), recorded as the administrator's action
+    await startUpdates(req, row, { scope: w.scope, snapshot: !!w.snapshot, autoRestart: !!w.auto_restart });
+    audit(req, row.vmid, 'admin_job_retried', { job: jobId, what: 'updates' });
+    return { retried: true, message: 'Update run started again' };
+  }
+  const s = db.prepare('SELECT * FROM snapshot_schedules WHERE vmid = ?').get(row.vmid);
+  if (!s) throw fail(409, 'Automatic snapshots are switched off for this server');
+  try {
+    await runSchedule(s);
+    db.prepare("UPDATE snapshot_schedules SET last_run_at = ?, last_status = 'ok', last_error = NULL WHERE vmid = ?").run(new Date().toISOString(), row.vmid);
+  } catch (err) {
+    db.prepare("UPDATE snapshot_schedules SET last_run_at = ?, last_status = 'failed', last_error = ? WHERE vmid = ?").run(new Date().toISOString(), String(err.message).slice(0, 300), row.vmid);
+    throw fail(409, `The snapshot failed again: ${err.message}`);
+  }
+  audit(req, row.vmid, 'admin_job_retried', { job: jobId, what: 'snapshot' });
+  return { retried: true, message: 'Automatic snapshot taken' };
 }

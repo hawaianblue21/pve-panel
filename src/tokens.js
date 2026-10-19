@@ -40,7 +40,7 @@ const CUSTOMER_ROUTES = {
 
   'POST /api/volumes': 'storage', 'PATCH /api/volumes/:id': 'storage', 'DELETE /api/volumes/:id': 'storage',
   'POST /api/volumes/:id/attach': 'storage', 'POST /api/volumes/:id/detach': 'storage', 'POST /api/volumes/:id/resize': 'storage',
-  'POST /api/storage/buckets': 'storage', 'DELETE /api/storage/buckets/:name': 'storage',
+  'POST /api/storage/buckets': 'storage', 'PATCH /api/storage/buckets/:name': 'storage', 'DELETE /api/storage/buckets/:name': 'storage',
 
   'POST /api/vms/:vmid/ips': 'network', 'DELETE /api/ips/:id': 'network', 'PUT /api/ips/:id/ptr': 'network', 'PUT /api/ips/:id/ipv6': 'network',
   'POST /api/vpn/devices': 'network', 'DELETE /api/vpn/devices/:id': 'network',

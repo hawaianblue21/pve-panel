@@ -297,7 +297,8 @@ embedded there), an admin access key and secret (encrypted at rest, never shown 
 customers and a bucket prefix. The panel signs requests with AWS Signature V4 and:
 
 - creates one IAM user per customer (`<prefix>u<id>`) and buckets named `<prefix><id>-<name>`,
-- keeps an inline policy on that user allowing exactly their buckets,
+- keeps an inline policy on that user allowing exactly their buckets (a **read-only** bucket only for reading and
+  listing: GetObject, ListBucket and the like),
 - issues access keys whose secret is shown **once** (rotating a key revokes the old one),
 - reads bucket usage, and counts bucket quotas against the pool.
 
@@ -307,8 +308,10 @@ Deleting a customer removes their IAM user and key; their buckets stay (without 
 unless an administrator deletes them.
 
 Customers manage buckets and their access key under **Storage → Object storage** (with ready-made AWS CLI,
-rclone and restic snippets). Customer API: `GET /api/storage`, `POST /api/storage/buckets`,
-`DELETE /api/storage/buckets/:name`, `POST /api/storage/keys`.
+rclone and restic snippets). **Make read-only** freezes a bucket for the customer's key (for example a finished
+backup, so a compromised script can't delete it); **Make writable** undoes it. Administrators can do the same in
+**Object storage**. Customer API: `GET /api/storage`, `POST /api/storage/buckets`, `PATCH /api/storage/buckets/:name`
+(`{ readOnly }`), `DELETE /api/storage/buckets/:name`, `POST /api/storage/keys`.
 
 ### Block storage (volumes)
 
@@ -1116,9 +1119,24 @@ Ring 1 (10 %) ──► all finished, ≤ limit failed? ──► Ring 2 (30 %) 
 
 Each run is an ordinary update run (security or all updates, snapshot first, restart when needed) with the same
 checks as when a customer starts it; servers that can't run (stopped, no guest agent, updates switched off, expired)
-are skipped with the reason. Customers get an email when their server is updated. **Jobs** lists background work:
-servers being set up, reinstalled or deleted (and failed ones), update runs, rollouts, and finished work of the last
-7 days.
+are skipped with the reason. Customers get an email when their server is updated.
+
+- **Maintenance window** (optional): days of the week and hours in the panel's time zone (`PANEL_TIMEZONE`, e.g.
+  Sat and Sun 01:00–05:00; an end before the start runs past midnight). Outside it no new run starts and the rollout
+  shows *Waiting for the maintenance window*; runs already started finish.
+- **Check now**: counts pending updates inside the selected running servers (apt / dnf simulation, Windows Update
+  search; nothing is downloaded or installed), four at a time, and shows *N pending (M security)* with the time of the
+  check, so you see what a rollout would bring. Windows searches can take minutes.
+
+**Jobs** lists background work: servers being set up, reinstalled or deleted (and failed ones), update runs, rollouts,
+and finished work of the last 7 days. Failed work can be **retried** where the panel has everything it needs:
+
+| Failed job | Retry | Permission |
+|---|---|---|
+| Deleting a server | deletes again (the server must be shut down) | `servers.delete` |
+| Update run (the server's latest) | starts the run again with the same options | `updates.write` |
+| Automatic snapshot (the server's latest) | takes the snapshot now | `servers.manage` |
+| Creating or reinstalling a server | not possible: it needs the customer's sign-in details, so the customer reinstalls or deletes it | |
 
 ---
 

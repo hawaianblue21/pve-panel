@@ -22,7 +22,7 @@ Status: ✅ implemented · 🟡 partly (what is missing is listed) · ⬜ design
 | Billing overview, invoice detail | `Admin-Billing.dc.html`, `Admin-Invoice.dc.html` | ✅ KPIs, filters, confirm transfer, cancel, wallet adjustment, fixed price (refunds to card and dunning steps missing) |
 | Hosts & onboarding (owner only) | `Admin-Hosts.dc.html` | ✅ clusters (connect with test, TLS pin, conflicts, disable, remove), nodes, version, load, maintenance; existing guests are adopted by assigning them in Servers (bulk import wizard missing) |
 | OS templates (owner only) | `Admin-Templates.dc.html` | 🟡 offering templates, owner-only changes; import wizard (qcow2, vmdk, ova, iso) and telemetry missing |
-| Provisioning jobs | `Admin-Jobs.dc.html` | ✅ Jobs tab: servers being set up, reinstalled, deleted or failed, update runs, rollouts, finished work of 7 days (retry and step list missing) |
+| Provisioning jobs | `Admin-Jobs.dc.html` | ✅ Jobs tab: servers being set up, reinstalled, deleted or failed, update runs, rollouts, finished work of 7 days (retry for failed deletions, update runs and automatic snapshots; step list missing) |
 | In-browser console | `Admin-Console.dc.html` | ✅ |
 | Access & roles (RBAC) | `Admin-Access.dc.html` | ✅ |
 | Resource allocation pools | `Admin-Pools.dc.html` | ✅ |
@@ -35,7 +35,7 @@ Status: ✅ implemented · 🟡 partly (what is missing is listed) · ⬜ design
 | AI assistant | `Admin-AI.dc.html` | ✅ provider settings, usage, conversations with tool calls (behaviour presets and knowledge-gap view missing) |
 | API tokens & integrations (owner only) | `Admin-Integrations.dc.html` | ✅ API tokens (customer and admin, scopes, read-only, expiry, last use; owners see all), Zammad, AI provider, Xendit and Midtrans in Settings (webhooks out missing) |
 | Settings & white label (owner only) | `Admin-Settings.dc.html` | 🟡 branding, single sign-on, appearance, updates, email, expiry; Proxmox clusters, Proxmox Backup Server missing |
-| Patch management | `Admin-Updates.dc.html` | ✅ fleet view (last run, never, older than 30 days, failed), rollouts in rings with failure limit, pause/resume/cancel, customer emails (pending-update counts before a run and maintenance windows missing) |
+| Patch management | `Admin-Updates.dc.html` | ✅ fleet view (last run, never, older than 30 days, failed), rollouts in rings with failure limit, pause/resume/cancel, customer emails, pending-update counts (Check now), maintenance windows |
 | Server lifecycle (expiry) | `Admin-Lifecycle.dc.html` | 🟡 rules, reminders, stop, grace, deletion, pause; queue view missing |
 
 ## Customer portal
@@ -51,7 +51,7 @@ Status: ✅ implemented · 🟡 partly (what is missing is listed) · ⬜ design
 | Security & 2FA | `Customer-Security.dc.html` | ✅ |
 | Billing & wallet, invoice & pay | `Customer-Billing.dc.html`, `Customer-Invoice.dc.html` | ✅ wallet, top-up, renewals, invoices (print/PDF), Xendit, Midtrans, bank transfer |
 | Block storage | `Customer-Block.dc.html` | ✅ tiers, create, attach/detach/move, enlarge, delete (snapshots: server-level incl. attached volumes, automatic daily/weekly; IOPS figures missing) |
-| Object storage | `Customer-Object.dc.html` | ✅ buckets, quota, usage, access key shown once, AWS CLI / rclone / restic snippets (read-only buckets missing) |
+| Object storage | `Customer-Object.dc.html` | ✅ buckets, quota, usage, access key shown once, AWS CLI / rclone / restic snippets, read-only buckets |
 | Support tickets | `Customer-Tickets.dc.html` | ✅ |
 | Knowledge base (help center) | `Customer-KB.dc.html` | ✅ |
 | AI assistant | `Customer-Assistant.dc.html` | ✅ answers with sources, ratings, handover to a ticket |

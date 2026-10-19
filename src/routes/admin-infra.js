@@ -11,7 +11,7 @@ import {
   listPools, createPool, updatePool, deletePool, poolUsage, poolMembers, setPoolMember, LIMIT_FIELDS,
 } from '../pools.js';
 import {
-  s3Settings, saveS3Settings, testConnection, listBucketsWithUsage, createBucket, deleteBucket, issueAccessKey, accountOf,
+  s3Settings, saveS3Settings, testConnection, listBucketsWithUsage, createBucket, deleteBucket, issueAccessKey, accountOf, setBucketReadOnly,
 } from '../seaweedfs.js';
 import {
   gpuInventory, createProfile, updateProfile, deleteProfile, attachGpu, detachGpu,
@@ -189,6 +189,10 @@ export default async function adminInfraRoutes(app) {
       },
     },
   }, async (req, reply) => reply.code(201).send(await createBucket(req, req.body.userId, req.body.name, req.body.quotaGb ?? 0)));
+
+  app.patch('/api/admin/storage/s3/buckets/:name', {
+    schema: { body: { type: 'object', required: ['readOnly'], additionalProperties: false, properties: { readOnly: { type: 'boolean' } } } },
+  }, async (req) => setBucketReadOnly(req, req.params.name, req.body.readOnly));
 
   app.delete('/api/admin/storage/s3/buckets/:name', async (req, reply) => {
     await deleteBucket(req, req.params.name);
