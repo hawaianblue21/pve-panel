@@ -34,14 +34,17 @@ const DEFAULTS = {
   parallelPerNode: 2,
   bwlimitMBs: 200,         // per job; 0 = no limit
   manualPerDay: 2,         // customer's own backups per server per day
-  keepAfterDeleteDays: 30, // backups of a deleted server, then removed
+  keepAfterDeleteDays: 14, // backups of a deleted server, then removed (always)
   encrypt: true,           // a key per customer
   defaultPolicyId: null,   // servers without a plan (or a plan without a policy)
 };
 
 export function backupSettings() {
   const row = db.prepare('SELECT value FROM settings WHERE key = ?').get(KEY);
-  return { ...DEFAULTS, ...(row ? JSON.parse(row.value) : {}) };
+  const s = { ...DEFAULTS, ...(row ? JSON.parse(row.value) : {}) };
+  // backups of deleted servers are always removed in the end (0 once meant "keep")
+  if (!(Number(s.keepAfterDeleteDays) >= 1)) s.keepAfterDeleteDays = DEFAULTS.keepAfterDeleteDays;
+  return s;
 }
 
 export function saveBackupSettings(input) {
@@ -60,7 +63,7 @@ export function saveBackupSettings(input) {
   int('parallelPerNode', 1, 16, 'Parallel jobs per node');
   int('bwlimitMBs', 0, 10_000, 'Bandwidth limit (MB/s, 0 = none)');
   int('manualPerDay', 0, 24, 'Manual backups per server per day');
-  int('keepAfterDeleteDays', 0, 3650, 'Days to keep backups of deleted servers');
+  int('keepAfterDeleteDays', 1, 3650, 'Days to keep backups of deleted servers');
   if (input.defaultPolicyId !== undefined) {
     const id = input.defaultPolicyId === null ? null : Number(input.defaultPolicyId);
     if (id !== null && !db.prepare('SELECT 1 FROM backup_policies WHERE id = ?').get(id)) throw fail(400, 'Policy not found');

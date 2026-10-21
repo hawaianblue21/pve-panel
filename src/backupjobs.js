@@ -10,7 +10,7 @@
 //   Load       at most parallelPerNode backups per node at a time; bandwidth per job.
 //   Retention  Proxmox prunes after each backup (prune-backups from the policy).
 //   Orphans    backups on a customer's storage of a server that is no longer theirs:
-//              removed keepAfterDeleteDays after the panel first saw them (0 = never).
+//              removed keepAfterDeleteDays (default 14) after the panel first saw them.
 
 import { db, audit } from './db.js';
 import { pve, clusterGuests } from './pve.js';
@@ -227,7 +227,6 @@ export async function purgeOrphans(log) {
       if (owned.get(vmid, st.user_id)) continue;
       db.prepare('INSERT INTO backup_orphans (storage, cluster_id, vmid, user_id, first_seen) VALUES (?, ?, ?, ?, ?) ON CONFLICT DO NOTHING')
         .run(st.storage, st.cluster_id, vmid, st.user_id, nowIso());
-      if (!s.keepAfterDeleteDays) continue;
       const o = db.prepare('SELECT first_seen FROM backup_orphans WHERE storage = ? AND vmid = ?').get(st.storage, vmid);
       if (Date.now() - Date.parse(o.first_seen) < s.keepAfterDeleteDays * 86_400_000) continue;
       let n = 0;

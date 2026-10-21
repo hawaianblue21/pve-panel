@@ -84,7 +84,7 @@ export function createBackups({ root, api, toast, fail, confirmAction, esc }) {
             <td class="small">${esc(x.lastError ?? '')}</td></tr>`).join('')}</tbody></table></div>
         ${attention.length > 8 ? `<p class="small muted">${attention.length - 8} more under <button class="linklike" data-bk-view="servers">Servers</button>.</p>` : ''}` : ''}
       ${c.orphans.length ? `<div class="notice" style="margin-top:16px"><p>Backups of ${c.orphans.length} server${c.orphans.length === 1 ? '' : 's'} that are no longer the customer's
-        ${d.settings.keepAfterDeleteDays ? `are removed ${d.settings.keepAfterDeleteDays} days after the panel noticed (first: ${esc(when(c.orphans[0].firstSeen))})` : 'are kept (removal is off)'}.</p></div>` : ''}
+        are removed ${d.settings.keepAfterDeleteDays} days after the panel noticed (first: ${esc(when(c.orphans[0].firstSeen))}).</p></div>` : ''}
       ${d.servers.length ? `
         <h2 class="h2">Datastores</h2>
         <div class="pbs-cards">${d.servers.map((x) => {
@@ -110,7 +110,7 @@ export function createBackups({ root, api, toast, fail, confirmAction, esc }) {
         <div class="settings-head">
           <h2 class="twofa-title">Settings <span class="pill ${s.enabled ? 'pill-running' : ''}">${s.enabled ? 'On' : 'Off'}</span></h2>
           <p class="muted">Jobs start inside the backup window (panel time zone), a few per node at a time. Every customer has their own
-            namespace on the backup server${s.encrypt ? ' and their own encryption key' : ''}. Backups of a deleted server are kept for the days below, then removed (0: kept).</p>
+            namespace on the backup server${s.encrypt ? ' and their own encryption key' : ''}. Backups of a deleted server are kept for the days below, then removed, protected ones too. Customers don't see them.</p>
         </div>
         <form id="bk-settings" class="email-form" novalidate>
           <div class="grid-3">
@@ -119,7 +119,7 @@ export function createBackups({ root, api, toast, fail, confirmAction, esc }) {
             <label>Parallel jobs per node <input name="parallelPerNode" type="number" min="1" max="16" value="${s.parallelPerNode}" ${w ? '' : 'disabled'}></label>
             <label>Bandwidth per job (MB/s, 0 = none) <input name="bwlimitMBs" type="number" min="0" max="10000" value="${s.bwlimitMBs}" ${w ? '' : 'disabled'}></label>
             <label>Manual backups per server per day <input name="manualPerDay" type="number" min="0" max="24" value="${s.manualPerDay}" ${w ? '' : 'disabled'}></label>
-            <label>Keep backups of deleted servers (days, 0 = keep) <input name="keepAfterDeleteDays" type="number" min="0" max="3650" value="${s.keepAfterDeleteDays}" ${w ? '' : 'disabled'}></label>
+            <label>Keep backups of deleted servers (days) <input name="keepAfterDeleteDays" type="number" min="1" max="3650" value="${s.keepAfterDeleteDays}" ${w ? '' : 'disabled'}></label>
             <label>Default policy <span class="hint">servers without a plan policy</span>
               <select name="defaultPolicyId" ${w ? '' : 'disabled'}><option value="">None (no backups)</option>
                 ${d.policies.map((p) => `<option value="${p.id}" ${s.defaultPolicyId === p.id ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}</select></label>

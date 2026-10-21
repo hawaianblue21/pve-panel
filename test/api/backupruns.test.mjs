@@ -122,17 +122,20 @@ test('backups of a server that is no longer the customer\'s are removed after th
   await waitFor(async () => ((await runs())[0].state === 'ok' ? true : null), { what: 'runs to settle' });
   assert.ok(backupsOf(VM).length >= 1);
   backupsOf(VM)[0].protected = true;                                  // protected ones go too
-  await admin.put('/api/admin/backups/settings', { keepAfterDeleteDays: 30 });
+  const cur = (await admin.get('/api/admin/backups')).json.settings;
+  assert.equal(cur.keepAfterDeleteDays, 14, 'kept 14 days by default');
+  assert.equal((await admin.put('/api/admin/backups/settings', { keepAfterDeleteDays: 0 })).status, 400, 'always removed in the end');
   assert.equal((await admin.del(`/api/admin/vms/${VM}`)).status, 204);
   const o = await waitFor(async () => (await admin.get('/api/admin/backups')).json.coverage.orphans.find((x) => x.vmid === VM), { what: 'the orphan to be listed' });
   assert.equal(o.email, 'mila@example.com');
-  await sleep(1500);
-  assert.ok(backupsOf(VM).length >= 1, 'kept during the grace period');
+  sql('UPDATE backup_orphans SET first_seen = ?', new Date(Date.now() - 13 * 86_400_000).toISOString());
+  await sleep(2500);
+  assert.ok(backupsOf(VM).length >= 1, 'kept during the 14 days');
 
-  sql('UPDATE backup_orphans SET first_seen = ?', new Date(Date.now() - 31 * 86_400_000).toISOString());
+  sql('UPDATE backup_orphans SET first_seen = ?', new Date(Date.now() - 15 * 86_400_000).toISOString());
   await waitFor(() => (backupsOf(VM).length === 0 ? true : null), { what: 'the backups to be removed' });
   await waitFor(async () => ((await admin.get('/api/admin/backups')).json.coverage.orphans.length === 0 ? true : null), { what: 'the orphan list to clear' });
   const log = sql("SELECT detail FROM audit_log WHERE action = 'backup_purged'");
   assert.equal(log.length, 1);
-  assert.equal(JSON.parse(log[0].detail).afterDays, 30);
+  assert.equal(JSON.parse(log[0].detail).afterDays, 14);
 });
