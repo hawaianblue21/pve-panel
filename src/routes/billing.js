@@ -1,6 +1,7 @@
 // Customer portal: billing (wallet, invoices, renewals) and the payment-gateway
 // notifications (public, authenticated per gateway in billing.js).
 import * as billing from '../billing.js';
+import { setRenewCancelled } from '../dunning.js';
 
 const NUMBER = { type: 'object', required: ['number'], properties: { number: { type: 'string', pattern: '^[A-Z0-9]{1,8}-\\d{6}-\\d{4}$' } } };
 const VMID = { type: 'object', required: ['vmid'], properties: { vmid: { type: 'integer', minimum: 1 } } };
@@ -49,6 +50,11 @@ export default async function billingRoutes(app) {
   app.put('/api/billing/servers/:vmid/auto-renew', {
     ...auth, schema: { params: VMID, body: { type: 'object', required: ['enabled'], additionalProperties: false, properties: { enabled: { type: 'boolean' } } } },
   }, async (req) => billing.setAutoRenew(req, req.params.vmid, req.body.enabled));
+
+  // don't renew: the server ends on its end date, no more invoices or reminders
+  app.put('/api/billing/servers/:vmid/renew', {
+    ...auth, schema: { params: VMID, body: { type: 'object', required: ['cancelled'], additionalProperties: false, properties: { cancelled: { type: 'boolean' } } } },
+  }, async (req) => setRenewCancelled(req, req.params.vmid, req.body.cancelled));
 
   app.put('/api/billing/profile', {
     ...auth,

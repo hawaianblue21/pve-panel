@@ -1233,6 +1233,7 @@ function expiryBadge(e) {
 }
 
 /** Banner on the server page. */
+const rpShort = (n) => `Rp ${Math.round(Number(n) || 0).toLocaleString('id-ID')}`;
 function expiryBanner(vm) {
   const e = vm.expiry;
   if (!e) return '';
@@ -1250,6 +1251,23 @@ function expiryBanner(vm) {
       </div>`;
   }
   const d = daysLeft(e.expiresAt);
+  if (e.invoice) {
+    const i = e.invoice;
+    return `
+      <div class="notice warn expiry-banner">
+        <p>${icon('wallet', { size: 16 })} ${i.overdue
+          ? `<strong>Invoice ${esc(i.number)} is overdue.</strong> ${i.stopAt ? `The server is stopped on <strong>${esc(fmtDay(i.stopAt))}</strong> if it is still unpaid.` : ''}`
+          : `The renewal for the next month, invoice <strong>${esc(i.number)}</strong>, is due on <strong>${esc(fmtDay(i.dueAt))}</strong>.`}</p>
+        <a class="btn primary" href="#billing/${esc(i.number)}">${icon('wallet')}<span>Pay ${esc(rpShort(i.total))}</span></a>
+      </div>`;
+  }
+  if (e.renewCancelled) {
+    return `
+      <div class="notice expiry-banner">
+        <p>${icon('clock', { size: 16 })} Not renewed: this server ends on <strong>${esc(fmtDay(e.expiresAt))}</strong> (in ${d} day${d === 1 ? '' : 's'}).</p>
+        ${state.billingEnabled ? '<a class="btn" href="#billing">Renew after all</a>' : ''}
+      </div>`;
+  }
   return `
     <div class="notice ${d <= 7 ? 'warn' : ''} expiry-banner">
       <p>${icon('clock', { size: 16 })} This server expires on <strong>${esc(fmtDay(e.expiresAt))}</strong>

@@ -81,3 +81,45 @@ test('set up billing, top up with Xendit, renew from the wallet and by bank tran
   await customer.reload();
   await expect(customer.locator('.invoice-doc .tag')).toHaveText('Paid');
 });
+
+test('dunning: a renewal invoice before the end date, its timeline and pause; the customer pays or lets the server end', async ({ browser }) => {
+  const admin = await browser.newPage();
+  await signIn(admin, process.env.E2E_ADMIN_URL, 'admin@example.com', 'correct-horse-battery');
+  const A = process.env.E2E_ADMIN_URL;
+  const before = (await (await admin.request.get(`${A}/api/admin/expiry/queue`)).json()).items.find((x) => x.vmid === 101).expiresAt;
+  await admin.request.put(`${A}/api/admin/vms/101/expiry`, { data: { expiresAt: new Date(Date.now() + 5 * 86_400_000).toISOString() } });
+
+  await admin.locator('[data-admin-tab=billing]').click();
+  await expect(admin.locator('.dunning')).toBeVisible();
+  await admin.locator('[data-dunning-run]').click();
+  await expect(admin.locator('.toast').last()).toContainText('1 issued');
+  await expect(admin.locator('.dunning-steps li').first()).toContainText('Invoiced');
+  await expect(admin.locator('.dunning-steps li.has').first()).toContainText('1');
+
+  await admin.locator('[data-billing-status=unpaid]').click();
+  await admin.locator('tr[data-billing-invoice]').first().click();
+  await expect(admin.locator('.timeline')).toContainText('Invoice issued');
+  await expect(admin.locator('.timeline')).toContainText('Reminder 7 days before');
+  await admin.locator('[data-dunning-pause="true"]').click();
+  await admin.locator('#confirm-ok').click();
+  await expect(admin.locator('#dun-tl .tag')).toHaveText('paused');
+  await admin.locator('[data-dunning-pause="false"]').click();
+  await expect(admin.locator('.timeline')).toContainText('Dunning resumed');
+
+  // customer: the banner on the server, then "don't renew" and back
+  const customer = await browser.newPage();
+  await signIn(customer, process.env.E2E_CUSTOMER_URL, 'lena@example.com', 'another-long-password');
+  await customer.locator('#vm-list .unit[data-vmid="101"]').click();
+  await expect(customer.locator('.expiry-banner')).toContainText('The renewal for the next month');
+  await customer.locator('#nav-billing').click();
+  await customer.locator('[data-server="101"] [data-renew-mode]').selectOption('cancel');
+  await customer.locator('#confirm-ok').click();
+  await expect(customer.locator('.toast').last()).toContainText('Not renewed');
+  await customer.locator('#vm-list .unit[data-vmid="101"]').click();
+  await expect(customer.locator('.expiry-banner')).toContainText('Not renewed');
+  await customer.locator('#nav-billing').click();
+  await customer.locator('[data-server="101"] [data-renew-mode]').selectOption('invoice');
+  await expect(customer.locator('.toast').last()).toContainText('You get an invoice');
+
+  await admin.request.put(`${A}/api/admin/vms/101/expiry`, { data: { expiresAt: before } });
+});

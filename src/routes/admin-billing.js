@@ -1,13 +1,14 @@
 // Admin portal: invoices, payments, wallets, prices and the billing settings.
 import { audit } from '../db.js';
 import * as billing from '../billing.js';
+import { runDunning, setPaused, sendReminder, dunningOverview } from '../dunning.js';
 
 const NUMBER = { type: 'object', required: ['number'], properties: { number: { type: 'string', maxLength: 40 } } };
 
 export default async function adminBillingRoutes(app) {
   app.get('/api/admin/billing', {
     schema: { querystring: { type: 'object', additionalProperties: false, properties: { status: { type: 'string', enum: ['unpaid', 'paid', 'void', 'refunded', 'overdue', 'reported'] }, q: { type: 'string', maxLength: 100 } } } },
-  }, async (req) => billing.adminOverview(req.query));
+  }, async (req) => ({ ...billing.adminOverview(req.query), dunning: dunningOverview() }));
 
   app.get('/api/admin/billing/invoices/:number', { schema: { params: NUMBER } }, async (req) => billing.adminInvoice(req.params.number));
 
@@ -18,6 +19,24 @@ export default async function adminBillingRoutes(app) {
   app.post('/api/admin/billing/invoices/:number/void', {
     schema: { params: NUMBER, body: { type: 'object', required: ['reason'], additionalProperties: false, properties: { reason: { type: 'string', maxLength: 500 } } } },
   }, async (req) => billing.adminVoid(req, req.params.number, req.body.reason));
+
+  // dunning: pause or resume, a reminder now; refunds (wallet or recorded outside the panel)
+  app.post('/api/admin/billing/invoices/:number/dunning', {
+    schema: { params: NUMBER, body: { type: 'object', required: ['paused'], additionalProperties: false, properties: { paused: { type: 'boolean' } } } },
+  }, async (req) => setPaused(req, req.params.number, req.body.paused));
+  app.post('/api/admin/billing/invoices/:number/reminder', {
+    config: { rateLimit: { max: 20, timeWindow: '10 minutes' } }, schema: { params: NUMBER },
+  }, async (req) => sendReminder(req, req.params.number));
+  app.post('/api/admin/billing/invoices/:number/refund', {
+    schema: {
+      params: NUMBER,
+      body: {
+        type: 'object', required: ['via', 'reason'], additionalProperties: false,
+        properties: { via: { type: 'string', enum: ['wallet', 'external'] }, reference: { type: 'string', maxLength: 120 }, reason: { type: 'string', maxLength: 200 } },
+      },
+    },
+  }, async (req) => billing.adminRefund(req, req.params.number, req.body));
+  app.post('/api/admin/billing/dunning/run', async (req) => runDunning({ log: req.log }));
 
   app.post('/api/admin/billing/wallets/:userId', {
     schema: {

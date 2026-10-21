@@ -84,11 +84,12 @@ export function createBilling(ctx) {
           <h2 class="h2" id="b-servers">Servers</h2>
           ${d.servers.length ? `
             <div class="table-wrap"><table class="table bill-servers">
-              <thead><tr><th>Server</th><th>Runs until</th><th>Per month</th><th>Renew for</th><th>Auto-renew</th></tr></thead>
+              <thead><tr><th>Server</th><th>Runs until</th><th>Per month</th><th>Renew for</th><th>At the end date</th></tr></thead>
               <tbody>${d.servers.map(serverRow).join('')}</tbody>
             </table></div>
-            <p class="small muted">Renewing adds the months to the current end date. With auto-renew, one month is paid from your wallet
-              a few days before the end date; if the balance is too low we email you.</p>`
+            <p class="small muted">Renewing adds the months to the current end date. About a week before the end date you get an invoice
+              for the next month; on its due date it is paid from your wallet if the balance covers it. <em>Pay from the wallet early</em>
+              pays a few days before the end date. <em>Don't renew</em> lets the server end: no invoice, and it is stopped on its end date.</p>`
           : '<p class="muted">None of your servers has an end date, so there is nothing to renew.</p>'}
         </section>
 
@@ -151,7 +152,10 @@ export function createBilling(ctx) {
             <button class="btn primary" data-renew ${s.monthly == null ? 'disabled' : ''}>Renew${s.monthly == null ? '' : ` · ${rp(estimate(s.monthly, opt, data.taxRate))}`}</button>
           </div>
         </td>
-        <td data-label="Auto-renew"><label class="inline-check"><input type="checkbox" data-auto-renew ${s.autoRenew ? 'checked' : ''}> <span class="sr-only">Auto-renew ${esc(s.name)}</span>Monthly</label></td>
+        <td data-label="At the end date"><select data-renew-mode aria-label="What happens to ${esc(s.name)} at the end date">
+          <option value="invoice" ${!s.autoRenew && !s.renewCancelled ? 'selected' : ''}>Invoice me</option>
+          <option value="auto" ${s.autoRenew ? 'selected' : ''}>Pay from the wallet early</option>
+          <option value="cancel" ${s.renewCancelled ? 'selected' : ''}>Don't renew</option></select></td>
       </tr>`;
   }
 
@@ -265,14 +269,23 @@ export function createBilling(ctx) {
   });
 
   detail().addEventListener('change', async (e) => {
-    if (ctx.state.view === 'billing' && e.target.matches('[data-auto-renew]')) {
+    if (ctx.state.view === 'billing' && e.target.matches('[data-renew-mode]')) {
       const vmid = Number(e.target.closest('[data-server]').dataset.server);
-      const enabled = e.target.checked;
+      const s = data.servers.find((x) => x.vmid === vmid);
+      const mode = e.target.value;
+      if (mode === 'cancel' && !(await confirmAction(`Don't renew ${s.name}? An open renewal invoice is cancelled and the server is stopped on its end date (${day(s.expiresAt)}).`, 'Don\'t renew'))) {
+        render();
+        return;
+      }
       try {
-        await api(`/api/billing/servers/${vmid}/auto-renew`, { method: 'PUT', body: { enabled } });
-        data.servers.find((x) => x.vmid === vmid).autoRenew = enabled;
-        toast(enabled ? 'Auto-renew is on: one month is paid from your wallet before the end date' : 'Auto-renew is off');
-      } catch (err) { e.target.checked = !enabled; fail(err); }
+        if (mode === 'cancel') await api(`/api/billing/servers/${vmid}/renew`, { method: 'PUT', body: { cancelled: true } });
+        else {
+          if (s.renewCancelled) await api(`/api/billing/servers/${vmid}/renew`, { method: 'PUT', body: { cancelled: false } });
+          await api(`/api/billing/servers/${vmid}/auto-renew`, { method: 'PUT', body: { enabled: mode === 'auto' } });
+        }
+        toast({ cancel: 'Not renewed: the server ends on its end date', auto: 'One month is paid from your wallet a few days before the end date', invoice: 'You get an invoice before the end date' }[mode]);
+        await open();
+      } catch (err) { fail(err); render(); }
     }
     if (ctx.state.view === 'invoice' && e.target.name === 'method') {
       const form = e.target.form;

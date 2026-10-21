@@ -441,6 +441,12 @@ db.exec(`
 addColumn('vms', 'auto_renew', 'INTEGER NOT NULL DEFAULT 0');
 addColumn('vms', 'price_monthly', 'INTEGER');            // fixed price; NULL = from the rate card
 addColumn('users', 'billing_profile', 'TEXT');           // JSON: name, address, tax ID on invoices
+// Dunning (dunning.js): what was sent for an unpaid renewal and whether it is paused
+addColumn('invoices', 'dunning', 'TEXT');                // JSON: { sent: [...], paused, pausedBy, pausedAt }
+addColumn('invoices', 'refund_via', 'TEXT');             // wallet | external
+addColumn('invoices', 'refund_ref', 'TEXT');             // reference of a refund made outside the panel
+addColumn('invoices', 'refunded_at', 'TEXT');
+addColumn('vms', 'renew_cancelled', 'INTEGER NOT NULL DEFAULT 0');   // customer: don't renew, let it end
 
 // Invoices from before plans: widen the allowed kinds and states (SQLite can't change a CHECK in place)
 {
