@@ -1,41 +1,45 @@
 /* =========================================================================
-   Design tokens
-   Fog background, white surfaces, slate ink (text + sidebar), one signal
-   blue for actions, and status colours that mean the same thing everywhere.
+   Design tokens: the PVE Panel App UI
+   Midnight navy surfaces, one signal blue for actions, IBM Plex Sans for text,
+   Space Grotesk for headings and figures, JetBrains Mono for labels and data.
+   Dark is the panel's default mode (Settings → Appearance); light keeps the
+   same navy sidebar. Status colours mean the same thing everywhere.
    ========================================================================= */
 :root {
-  --bg: #eef2f6;
+  --bg: #eef2f7;
   --surface: #ffffff;
-  --surface-2: #f6f8fb;
-  --ink: #172230;
-  --muted: #5a6878;
-  --line: #d9e0e8;
-  --signal: #3558e6;
+  --surface-2: #f5f7fb;
+  --ink: #0e1626;
+  --muted: #4f5d70;
+  --line: #d6dde7;
+  --signal: #1f5fd1;
   --signal-ink: #ffffff;
   --run: #1f9d6b;
   --warn: #e09b2d;
   --danger: #d14343;
 
-  --side: #172230;
-  --side-ink: #e6ecf3;
-  --side-muted: #93a2b5;
-  --side-hover: rgb(255 255 255 / 0.07);
-  --side-active: rgb(255 255 255 / 0.11);
+  --side: #0d1424;
+  --side-ink: #e6ebf2;
+  --side-muted: #93a0b4;
+  --side-hover: rgb(255 255 255 / 0.06);
+  --side-active: color-mix(in srgb, var(--signal-soft) 16%, var(--side));
+  --side-line: color-mix(in srgb, var(--side-ink) 10%, var(--side));
 
   /* aliases used by older markup and the console page */
-  --signal-soft: #7c94ff;      /* accent on dark backgrounds (sign-in graphic) */
+  --signal-soft: #8ec2ff;      /* accent on dark backgrounds (sign-in graphic, sidebar) */
   --accent: var(--signal);
   --accent-ink: var(--signal-ink);
   --idle: #9aa6b2;
   --chart-a: var(--signal);
   --chart-b: var(--run);
 
-  --sans: "Instrument Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --sans: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --display: "Space Grotesk", "IBM Plex Sans", system-ui, sans-serif;
   --mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
 
-  --r-sm: 8px;
+  --r-sm: 10px;
   --r-md: 12px;
-  --r-lg: 16px;
+  --r-lg: 14px;
 
   color-scheme: light dark;
 }
@@ -44,35 +48,35 @@
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-mode="light"]) {
-    --bg: #0f1720;
-    --surface: #16212d;
-    --surface-2: #1b2836;
-    --ink: #e4eaf1;
-    --muted: #93a2b5;
-    --line: #2a3848;
-    --signal: #7c94ff;
-    --signal-ink: #0f1720;
-    --run: #3ccb8c;
-    --warn: #f0b04d;
-    --danger: #f07171;
-    --side: #0b121a;
+    --bg: #0a101c;
+    --surface: #101828;
+    --surface-2: #0c1322;
+    --ink: #e6ebf2;
+    --muted: #93a0b4;
+    --line: #1f2a3f;
+    --signal: #4c9aff;
+    --signal-ink: #06101f;
+    --run: #3dd68c;
+    --warn: #f5b94c;
+    --danger: #ff8a8a;
+    --side: #0d1424;
     --idle: #5d6d7d;
   }
 }
-/* chosen dark mode (Account → Appearance), whatever the device says */
+/* dark mode chosen (the panel default, or Account → Appearance), whatever the device says */
 :root[data-mode="dark"] {
-  --bg: #0f1720;
-  --surface: #16212d;
-  --surface-2: #1b2836;
-  --ink: #e4eaf1;
-  --muted: #93a2b5;
-  --line: #2a3848;
-  --signal: #7c94ff;
-  --signal-ink: #0f1720;
-  --run: #3ccb8c;
-  --warn: #f0b04d;
-  --danger: #f07171;
-  --side: #0b121a;
+  --bg: #0a101c;
+  --surface: #101828;
+  --surface-2: #0c1322;
+  --ink: #e6ebf2;
+  --muted: #93a0b4;
+  --line: #1f2a3f;
+  --signal: #4c9aff;
+  --signal-ink: #06101f;
+  --run: #3dd68c;
+  --warn: #f5b94c;
+  --danger: #ff8a8a;
+  --side: #0d1424;
   --idle: #5d6d7d;
 }
 
@@ -84,7 +88,7 @@ html, body { height: 100%; margin: 0; }
 body {
   background: var(--bg);
   color: var(--ink);
-  font: 400 15px/1.55 var(--sans);
+  font: 400 14.5px/1.55 var(--sans);
   -webkit-font-smoothing: antialiased;
 }
 [hidden] { display: none !important; }
@@ -548,7 +552,7 @@ label { display: grid; gap: 6px; font-weight: 600; font-size: 14px; }
 .table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--surface); }
 .table { width: 100%; border-collapse: collapse; font-size: 14px; }
 .table th {
-  text-align: left; font-weight: 600; color: var(--muted); font-size: 13px;
+  text-align: left; font: 500 11px/1.4 var(--mono); letter-spacing: 0.05em; text-transform: uppercase; color: var(--muted);
   padding: 11px 16px; border-bottom: 1px solid var(--line); white-space: nowrap; background: var(--surface-2);
 }
 .table td { padding: 10px 16px; border-bottom: 1px solid var(--line); vertical-align: middle; }
@@ -1220,3 +1224,75 @@ a.btn { text-decoration: none; }
 .seg-running { background: var(--signal); }
 .seg-pending { background: transparent; }
 @media (max-width: 640px) { .ring { grid-template-columns: 1fr; } }
+
+
+/* =========================================================================
+   PVE Panel App UI
+   Headings and figures in Space Grotesk, labels in JetBrains Mono caps,
+   rounded cards on navy, a grouped sidebar in both portals.
+   ========================================================================= */
+.page-head h1, .detail-head h1, .admin h1, .server-title h1, .login-box h1, .about-version {
+  font-family: var(--display); font-weight: 600; letter-spacing: -0.015em;
+}
+.page-head h1, .detail-head h1, .admin h1 { font-size: 28px; }
+.h2, .section-head h2, .twofa-title, .h3, .chart h3, .map-card h2 { font-family: var(--display); font-weight: 600; letter-spacing: -0.005em; }
+.brand, .login-brand { font-family: var(--display); font-weight: 700; letter-spacing: -0.01em; }
+.eyebrow, .nav-group-label, .side-label {
+  font: 500 11px/1.4 var(--mono); letter-spacing: 0.06em; text-transform: uppercase;
+}
+.eyebrow { margin: 0 0 4px; color: var(--muted); }
+.kpi { padding: 16px; gap: 6px; border-radius: var(--r-md); }
+.kpi > .muted.small:first-child, .kpi > span:first-child { font-size: 13px; }
+.kpi strong { font: 600 26px/1.15 var(--display); letter-spacing: -0.01em; }
+.kpi-link:hover:not(:disabled) { border-color: color-mix(in srgb, var(--signal) 55%, var(--line)); }
+.btn { min-height: 40px; border-radius: var(--r-sm); }
+.btn.primary { font-weight: 600; }
+.icon-btn { border-radius: var(--r-sm); }
+input, textarea, select { min-height: 42px; border-radius: var(--r-sm); background: var(--surface-2); }
+textarea { min-height: 0; }
+.table-wrap, .rows, .chart, .specs, .security-card, .pool-card, .map-card { border-radius: var(--r-lg); }
+.tag { font-family: var(--mono); font-size: 11.5px; letter-spacing: 0.02em; }
+.pill { font-size: 12px; }
+.mono, code, .version-badge, .about-version { font-family: var(--mono); }
+.server-row .row-name { font-family: var(--display); font-weight: 600; }
+
+/* Sidebar (both portals) */
+.sidebar { border-right: 1px solid var(--side-line); }
+.brand-text { display: flex; flex-direction: column; line-height: 1.15; }
+.brand-sub { font: 400 12px var(--sans); color: var(--side-muted); letter-spacing: 0; }
+.nav-item { min-height: 40px; border-radius: 8px; }
+.nav-item[aria-current="true"], .nav-item[aria-current="page"] { background: var(--side-active); color: #fff; font-weight: 600; }
+.nav-item[aria-current="true"] .icon, .nav-item[aria-current="page"] .icon { color: var(--signal-soft); }
+.nav-group { display: grid; gap: 2px; }
+.nav-group + .nav-group { margin-top: 16px; }
+.nav-group-label { margin: 0; padding: 0 10px 6px; color: var(--side-muted); font-weight: 500; }
+.side-label { color: var(--side-muted); font-weight: 500; }
+.side-label .count { font-family: var(--mono); letter-spacing: 0; text-transform: none; }
+
+/* Admin portal: grouped sidebar instead of a row of tabs */
+.admin-shell { display: grid; }
+.admin-nav { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow-y: auto; padding: 4px 0 8px; scrollbar-width: thin; }
+.admin-nav .nav-item.tab {
+  border: 0; border-radius: 8px; padding: 0 10px; margin: 0;
+  font: 500 14px var(--sans); color: var(--side-muted); justify-content: flex-start;
+}
+.admin-nav .nav-item.tab:hover { background: var(--side-hover); color: var(--side-ink); }
+.admin-nav .nav-item.tab[aria-selected="true"] { background: var(--side-active); color: #fff; font-weight: 600; border: 0; }
+.admin-nav.inline { flex-direction: row; flex-wrap: wrap; gap: 6px; }
+.admin-foot { display: grid; grid-template-columns: 32px minmax(0, 1fr) auto; align-items: center; gap: 10px; }
+.avatar {
+  width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center;
+  background: var(--side-active); color: var(--signal-soft); font: 600 12px var(--sans);
+}
+.foot-text { display: grid; gap: 4px; min-width: 0; justify-items: start; }
+.foot-text .account { max-width: 100%; }
+.admin { padding: 28px clamp(16px, 3vw, 36px) 56px; }
+.admin-inner { max-width: 1400px; }
+.admin-head { margin-bottom: 18px; align-items: flex-start; }
+.admin .tabs { margin-top: 0; }
+@media (max-width: 860px) {
+  .admin-foot { grid-template-columns: 32px minmax(0, 1fr) auto; }
+  .admin-nav { max-height: none; }
+}
+.sidebar .brand-mark, .sidebar .brand svg { color: var(--signal-soft); }
+.admin-login { padding: 32px 16px; place-items: center; }

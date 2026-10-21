@@ -186,21 +186,32 @@ window.addEventListener('hashchange', () => {
 
 function renderList() {
   const supportViews = ['support', 'support-new', 'ticket'];
-  $('#rack-actions').innerHTML = [
-    `<button class="nav-item" id="nav-overview" aria-current="${state.view === 'overview'}">${icon('overview')}<span>Overview</span></button>`,
-    state.account.canCreate
-      ? `<button class="nav-item" id="new-server" aria-current="${state.view === 'create'}">${icon('plus')}<span>New server</span></button>` : '',
-    state.account.vpn?.enabled
-      ? `<button class="nav-item" id="vpn-access" aria-current="${state.view === 'vpn'}">${icon('shield')}<span>VPN access</span></button>` : '',
-    state.assistantEnabled
-      ? `<button class="nav-item" id="nav-assistant" aria-current="${state.view === 'assistant'}">${icon('spark')}<span>AI assistant</span></button>` : '',
-    state.storageEnabled
-      ? `<button class="nav-item" id="nav-storage" aria-current="${state.view === 'storage'}">${icon('disk')}<span>Storage</span></button>` : '',
-    state.billingEnabled
-      ? `<button class="nav-item" id="nav-billing" aria-current="${['billing', 'invoice'].includes(state.view)}">${icon('wallet')}<span>Billing</span></button>` : '',
-    `<button class="nav-item" id="nav-support" aria-current="${supportViews.includes(state.view)}">${icon('chat')}<span>Support</span>${state.supportWaiting ? `<span class="nav-badge" title="Tickets waiting for your reply">${state.supportWaiting}</span>` : ''}</button>`,
-    `<button class="nav-item" id="nav-help" aria-current="${['help', 'article'].includes(state.view)}">${icon('book')}<span>Help center</span></button>`,
-  ].join('');
+  // grouped as in the PVE Panel App UI; a group without items is left out
+  const groups = [
+    ['Compute', [
+      `<button class="nav-item" id="nav-overview" aria-current="${state.view === 'overview'}">${icon('overview')}<span>Overview</span></button>`,
+      state.account.canCreate
+        ? `<button class="nav-item" id="new-server" aria-current="${state.view === 'create'}">${icon('plus')}<span>New server</span></button>` : '',
+    ]],
+    ['Storage & network', [
+      state.storageEnabled
+        ? `<button class="nav-item" id="nav-storage" aria-current="${state.view === 'storage'}">${icon('disk')}<span>Storage</span></button>` : '',
+      state.account.vpn?.enabled
+        ? `<button class="nav-item" id="vpn-access" aria-current="${state.view === 'vpn'}">${icon('shield')}<span>VPN access</span></button>` : '',
+    ]],
+    ['Billing', [
+      state.billingEnabled
+        ? `<button class="nav-item" id="nav-billing" aria-current="${['billing', 'invoice'].includes(state.view)}">${icon('wallet')}<span>Billing &amp; wallet</span></button>` : '',
+    ]],
+    ['Support', [
+      `<button class="nav-item" id="nav-support" aria-current="${supportViews.includes(state.view)}">${icon('chat')}<span>Tickets</span>${state.supportWaiting ? `<span class="nav-badge" title="Tickets waiting for your reply">${state.supportWaiting}</span>` : ''}</button>`,
+      state.assistantEnabled
+        ? `<button class="nav-item" id="nav-assistant" aria-current="${state.view === 'assistant'}">${icon('spark')}<span>AI assistant</span></button>` : '',
+      `<button class="nav-item" id="nav-help" aria-current="${['help', 'article'].includes(state.view)}">${icon('book')}<span>Help center</span></button>`,
+    ]],
+  ];
+  $('#rack-actions').innerHTML = groups.map(([title, items]) => [title, items.filter(Boolean)]).filter(([, items]) => items.length)
+    .map(([title, items]) => `<div class="nav-group"><h2 class="nav-group-label">${title.replace('&', '&amp;')}</h2>${items.join('')}</div>`).join('');
 
   $('#vm-count').textContent = state.vms.length ? String(state.vms.length) : '';
   $('#vm-list').innerHTML = state.vms.length ? state.vms.map((vm) => `

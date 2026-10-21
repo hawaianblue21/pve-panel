@@ -6,7 +6,7 @@
   <title>Administration – Server panel</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Space+Grotesk:wght@500;600;700&display=swap">
   <link rel="stylesheet" href="/shared/styles.css">
   <script type="module" src="/main.js"></script>
 </head>
@@ -29,15 +29,24 @@
   </main>
 
   <div id="app-view" class="shell admin-shell" hidden>
-    <header class="topbar">
-      <span class="brand"><span data-brand-mark></span><span data-brand></span></span>
-      <span class="admin-badge">Administration</span>
-      <button id="version-badge" class="version-badge" hidden title="About this version"></button>
-      <span class="spacer"></span>
-      <span id="account-email" class="muted"></span>
-      <button id="logout" class="btn ghost">Sign out</button>
-    </header>
-    <main id="admin-view" class="admin"></main>
+    <aside class="sidebar admin-side">
+      <div class="side-top">
+        <div class="brand"><span data-brand-mark></span><span class="brand-text"><span data-brand></span><span class="brand-sub">Admin portal</span></span></div>
+        <button id="admin-nav-toggle" class="icon-btn side-toggle" aria-label="Menu" aria-expanded="false" aria-controls="admin-side-nav">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+        </button>
+      </div>
+      <div id="admin-side-nav" class="side-nav">
+        <nav id="admin-nav" class="admin-nav" aria-label="Administration"></nav>
+        <div class="side-foot admin-foot">
+          <span class="avatar" id="account-initials" aria-hidden="true"></span>
+          <span class="foot-text"><span id="account-email" class="account"></span>
+            <button id="version-badge" class="version-badge" hidden title="About this version"></button></span>
+          <button id="logout" class="link-btn">Sign out</button>
+        </div>
+      </div>
+    </aside>
+    <main id="admin-view" class="admin main"></main>
   </div>
 
   <div id="toasts" class="toasts" aria-live="polite"></div>

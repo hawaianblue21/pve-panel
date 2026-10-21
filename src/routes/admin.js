@@ -3,7 +3,7 @@ import { db, audit } from '../db.js';
 import { pve, clusterGuests, locateGuest, locateTemplate, invalidateGuestCache, guestPath } from '../pve.js';
 import { startCustomerDeletion, deletionPlan, destroyServer, isProtected } from '../cleanup.js';
 import { tailscaleOverview } from '../tailscale.js';
-import { SCHEMES, currentScheme, setScheme, personalAllowed, setAllowPersonal } from '../appearance.js';
+import { SCHEMES, currentScheme, setScheme, personalAllowed, setAllowPersonal, defaultMode, setDefaultMode, PANEL_MODES } from '../appearance.js';
 import { updatesEnabled, linuxUpdatesEnabled, setUpdatesEnabled } from '../winupdate.js';
 import * as sso from '../sso.js';
 import { branding, saveBranding, saveAsset, removeAsset } from '../branding.js';
@@ -432,20 +432,22 @@ export default async function adminRoutes(app) {
   });
 
   // ---- Settings: appearance (color scheme for everyone) -----------------------
-  app.get('/api/admin/settings/appearance', async () => ({ scheme: currentScheme(), schemes: SCHEMES, allowPersonal: personalAllowed() }));
+  const appearanceNow = () => ({ scheme: currentScheme(), schemes: SCHEMES, allowPersonal: personalAllowed(), mode: defaultMode() });
+  app.get('/api/admin/settings/appearance', async () => appearanceNow());
 
   app.put('/api/admin/settings/appearance', {
     schema: {
       body: {
         type: 'object', additionalProperties: false, minProperties: 1,
-        properties: { scheme: { type: 'string', maxLength: 30 }, allowPersonal: { type: 'boolean' } },
+        properties: { scheme: { type: 'string', maxLength: 30 }, allowPersonal: { type: 'boolean' }, mode: { type: 'string', enum: PANEL_MODES } },
       },
     },
   }, async (req) => {
     if (req.body.scheme !== undefined) setScheme(req.body.scheme);
     if (req.body.allowPersonal !== undefined) setAllowPersonal(req.body.allowPersonal);
+    if (req.body.mode !== undefined) setDefaultMode(req.body.mode);
     audit(req, null, 'admin_appearance', req.body);
-    return { scheme: currentScheme(), schemes: SCHEMES, allowPersonal: personalAllowed() };
+    return appearanceNow();
   });
 
   // ---- Settings: branding (white-label) -------------------------------------------

@@ -73,7 +73,7 @@ export function createBilling(ctx) {
           <div class="kpi"><span class="muted small">Wallet balance</span><strong data-balance>${rp(d.balance)}</strong></div>
           <div class="kpi"><span class="muted small">To pay</span><strong>${rp(unpaid.reduce((a, i) => a + i.total, 0))}</strong>
             <span class="small muted">${unpaid.length} invoice${unpaid.length === 1 ? '' : 's'}</span></div>
-          <div class="kpi"><span class="muted small">Next end date</span><strong>${next ? esc(day(next.expiresAt)) : '·'}</strong>
+          <div class="kpi"><span class="muted small">Next end date</span><strong>${next ? esc(day(next.expiresAt)) : 'None'}</strong>
             <span class="small muted">${next ? esc(next.name) : 'No servers with an end date'}</span></div>
         </div>
 

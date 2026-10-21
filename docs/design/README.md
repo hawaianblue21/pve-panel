@@ -9,6 +9,11 @@ The files are canvas sources (`.dc.html`: HTML with template placeholders such a
 runtime to render and are not standalone pages; read them as annotated mockups. Names, domains and
 figures in them are examples.
 
+Visual language (implemented in `web/shared/styles.css`): midnight navy (`#0A101C` page, `#101828` cards,
+`#0D1424` sidebar), signal blue `#4C9AFF`, status green `#3DD68C` / amber `#F5B94C` / red `#FF8A8A`, IBM Plex Sans,
+Space Grotesk for headings and figures, JetBrains Mono for labels; grouped sidebars as in `Sidebar.dc.html`.
+Dark is the panel's default mode; the light variant keeps the navy sidebar.
+
 Status: ✅ implemented · 🟡 partly (what is missing is listed) · ⬜ design only
 
 ## Admin portal
