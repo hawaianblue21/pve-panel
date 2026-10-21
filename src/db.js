@@ -841,6 +841,20 @@ db.exec(`
   );
   CREATE INDEX IF NOT EXISTS backup_runs_vm ON backup_runs (vmid, started_at);
   CREATE INDEX IF NOT EXISTS backup_runs_state ON backup_runs (state);
+  CREATE TABLE IF NOT EXISTS backup_restores (
+    id          INTEGER PRIMARY KEY,
+    vmid        INTEGER NOT NULL,              -- the server the backup belongs to
+    user_id     INTEGER NOT NULL,
+    mode        TEXT NOT NULL,                 -- replace | new | files
+    volid       TEXT NOT NULL,
+    target_vmid INTEGER,                       -- new: the new server
+    path        TEXT,                          -- files: what was downloaded
+    state       TEXT NOT NULL,                 -- running | ok | failed
+    error       TEXT,
+    started_by  INTEGER,
+    started_at  TEXT NOT NULL DEFAULT (datetime('now')),
+    finished_at TEXT
+  );
   CREATE TABLE IF NOT EXISTS backup_orphans (
     storage    TEXT NOT NULL,
     cluster_id INTEGER NOT NULL,

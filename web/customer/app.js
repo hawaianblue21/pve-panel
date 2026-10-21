@@ -14,6 +14,7 @@ import { createAssistant } from '/assistant.js';
 import { createBilling } from '/billing.js';
 import { createStorage } from '/storage.js';
 import { createPublicIps } from '/publicips.js';
+import { createBackups } from '/backups.js';
 import { renderTokens } from '/shared/tokens.js';
 import { planFieldset, updatePlanChoice, planBody, openUpgrade } from '/plans.js';
 
@@ -124,7 +125,7 @@ async function loadList() {
   renderList();
 }
 
-const STATE_TEXT = { creating: 'Setting up…', deleting: 'Deleting…', failed: 'Setup failed' };
+const STATE_TEXT = { creating: 'Setting up…', deleting: 'Deleting…', restoring: 'Restoring…', failed: 'Setup failed' };
 
 /** 'running' | 'stopped' | 'busy' | 'failed' — drives colours everywhere. */
 function statusOf(vm) {
@@ -362,8 +363,11 @@ function renderPending(vm) {
         servers take 10 to 20 minutes because Windows finishes its own setup first. This page updates by itself.</p>
       <p class="muted">When it's ready you can sign in with the user and password or SSH key you chose.</p>`,
     deleting: '<p class="progress-step"><span class="spinner" aria-hidden="true"></span>Deleting the server and its disks…</p>',
+    restoring: `
+      <p class="progress-step"><span class="spinner" aria-hidden="true"></span>${esc(vm.progress ?? 'Restoring from backup')}…</p>
+      <p>The server is going back to the backup you chose. Large disks take a while; this page updates by itself.</p>`,
     failed: `
-      <p>Setting up this server didn't work.</p>
+      <p>${/^Restoring/.test(vm.error ?? '') ? 'Restoring this server from a backup didn\'t work.' : 'Setting up this server didn\'t work.'}</p>
       ${vm.error ? `<p class="error-box">${esc(vm.error)}</p>` : ''}
       <p class="muted">${vm.reinstallable && state.account.canCreate
         ? 'Reinstall it to try again, remove it, or contact support if it keeps happening.'
@@ -399,6 +403,7 @@ function renderDetail() {
     vm.memoryMb ? `${bytes(vm.memoryMb * 1024 * 1024)} memory` : null,
   ].filter(Boolean).join(', ');
   const tabs = [['overview', 'Overview', 'chart'], ['snapshots', 'Snapshots', 'camera'], ['console', 'Console', 'terminal']];
+  if (state.account.backups) tabs.splice(2, 0, ['backups', 'Backups', 'shield']);
   if (state.account.tailscale) tabs.push(['remote', 'Remote access', 'link']);
   // through the QEMU guest agent: virtual machines only, not containers
   if (vm.type !== 'lxc' && (vm.osFamily === 'windows' || vm.osFamily === 'linux')) tabs.push(['updates', 'Updates', 'download']);
@@ -436,6 +441,7 @@ function renderTab() {
   const body = $('#tab-body');
   if (state.tab === 'overview') renderOverview(body);
   if (state.tab === 'snapshots') renderSnapshots(body);
+  if (state.tab === 'backups') backupsTab.render(body);
   if (state.tab === 'console') renderConsole(body);
   if (state.tab === 'remote') renderRemote(body);
   if (state.tab === 'updates') renderUpdates(body);
@@ -762,6 +768,21 @@ const publicIps = createPublicIps({
 $('#detail').addEventListener('click', (e) => {
   if (state.view === 'server' && state.tab === 'overview' && e.target.closest('#public-ips')) publicIps.onClick(e);
 });
+
+// Backups tab (own module)
+const backupsTab = createBackups({
+  getVm: () => (state.view === 'server' ? state.detail : null),
+  isOpen: () => state.view === 'server' && state.tab === 'backups',
+  reload: async () => { await loadList().catch(() => {}); await loadDetail(); },
+});
+for (const type of ['click', 'change', 'submit']) {
+  $('#detail').addEventListener(type, (e) => {
+    if (state.view !== 'server' || state.tab !== 'backups') return;
+    if (type === 'click') backupsTab.onClick(e);
+    else if (type === 'change') backupsTab.onChange(e);
+    else backupsTab.onSubmit(e);
+  });
+}
 
 $('#detail').addEventListener('click', (e) => {
   if (e.target.closest('[data-help-server]') && state.view === 'server') {
@@ -1875,7 +1896,7 @@ async function startApp(me) {
   state.poll = setInterval(async () => {
     if (document.hidden) return;
     tick += 1;
-    const pending = state.vms.some((v) => v.state === 'creating' || v.state === 'deleting');
+    const pending = state.vms.some((v) => ['creating', 'deleting', 'restoring'].includes(v.state));
     if (!pending && tick % 2) return;
 
     const before = new Map(state.vms.map((v) => [v.vmid, `${v.state}/${v.status}/${v.progress}`]));

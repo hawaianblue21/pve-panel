@@ -26,6 +26,7 @@ const CUSTOMER_ROUTES = {
   'GET /api/account': 'read',
   'GET /api/vms': 'read', 'GET /api/vms/:vmid': 'read', 'GET /api/vms/:vmid/rrd': 'read', 'GET /api/vms/:vmid/snapshots': 'read',
   'GET /api/vms/:vmid/ips': 'read', 'GET /api/vms/:vmid/plans': 'read', 'GET /api/vms/:vmid/updates': 'read', 'GET /api/vms/:vmid/tailscale': 'read', 'GET /api/vms/:vmid/snapshot-schedule': 'read',
+  'GET /api/vms/:vmid/backups': 'read', 'GET /api/vms/:vmid/backups/:id/files': 'read', 'GET /api/vms/:vmid/backups/:id/download': 'read',
   'GET /api/tasks/:upid': 'read', 'GET /api/templates': 'read', 'GET /api/plans': 'read',
   'GET /api/volumes': 'read', 'GET /api/storage': 'read', 'GET /api/vpn': 'read',
   'GET /api/billing': 'read', 'GET /api/billing/invoices/:number': 'read',
@@ -37,6 +38,8 @@ const CUSTOMER_ROUTES = {
   'POST /api/vms/:vmid/resize': 'servers', 'POST /api/vms/:vmid/plan': 'servers', 'POST /api/vms/:vmid/extend': 'servers',
   'POST /api/vms/:vmid/updates': 'servers', 'POST /api/vms/:vmid/snapshots': 'servers', 'DELETE /api/vms/:vmid/snapshots/:name': 'servers',
   'POST /api/vms/:vmid/snapshots/:name/rollback': 'servers', 'PUT /api/vms/:vmid/snapshot-schedule': 'servers', 'POST /api/vms/:vmid/tailscale': 'servers', 'DELETE /api/vms/:vmid/tailscale': 'servers',
+  'POST /api/vms/:vmid/backups': 'servers', 'PUT /api/vms/:vmid/backups/:id': 'servers', 'POST /api/vms/:vmid/backups/:id/restore': 'servers',
+  'PUT /api/vms/:vmid/backups/addon': 'billing',
 
   'POST /api/volumes': 'storage', 'PATCH /api/volumes/:id': 'storage', 'DELETE /api/volumes/:id': 'storage',
   'POST /api/volumes/:id/attach': 'storage', 'POST /api/volumes/:id/detach': 'storage', 'POST /api/volumes/:id/resize': 'storage',

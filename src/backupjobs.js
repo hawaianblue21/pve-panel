@@ -46,7 +46,7 @@ const insertRun = (r) => Number(db.prepare(`INSERT INTO backup_runs
   r.kind, r.windowKey ?? null, r.state, r.upid ?? null, r.error ?? null, r.startedBy ?? null, nowIso(), r.state === 'failed' ? nowIso() : null).lastInsertRowid);
 
 /** Starts vzdump for a server; records the run (failed straight away if it can't start). */
-async function startRun(row, guest, policy, { kind, windowKey = null, startedBy = null }) {
+export async function startRun(row, guest, policy, { kind, windowKey = null, startedBy = null }) {
   const clusterId = Number(guest.cluster ?? 0);
   const base = { vmid: row.vmid, userId: row.user_id, clusterId, node: guest.node, policyId: policy?.id ?? null, kind, windowKey, startedBy };
   let storage = null;
@@ -68,6 +68,10 @@ async function startRun(row, guest, policy, { kind, windowKey = null, startedBy 
   }
 }
 
+/** The customer's own backups of a server in the last 24 hours (not administrators'). */
+export const manualUsed = (row) => db.prepare("SELECT COUNT(*) AS n FROM backup_runs WHERE vmid = ? AND kind = 'manual' AND started_by = ? AND state != 'failed' AND started_at >= ?")
+  .get(row.vmid, row.user_id, new Date(Date.now() - 24 * 3600_000).toISOString()).n;
+
 const running = (vmid) => db.prepare("SELECT 1 FROM backup_runs WHERE vmid = ? AND state = 'running'").get(vmid);
 
 /**
@@ -84,8 +88,7 @@ export async function backupNow(req, row, { byCustomer = false } = {}) {
   if (byCustomer && !policy) throw fail(409, 'This server has no backup plan');
   if (running(row.vmid)) throw fail(409, 'A backup of this server is running already');
   if (byCustomer) {
-    const n = db.prepare("SELECT COUNT(*) AS n FROM backup_runs WHERE vmid = ? AND kind = 'manual' AND state != 'failed' AND started_at >= ?")
-      .get(row.vmid, new Date(Date.now() - 24 * 3600_000).toISOString()).n;
+    const n = manualUsed(row);
     if (n >= s.manualPerDay) throw fail(429, s.manualPerDay ? `Up to ${s.manualPerDay} backups of your own per server a day` : 'Backups of your own are not offered');
   }
   const guest = (await clusterGuests(true)).get(row.vmid);
@@ -98,7 +101,7 @@ export async function backupNow(req, row, { byCustomer = false } = {}) {
 
 // ---- Following runs --------------------------------------------------------------------------
 
-async function follow(run) {
+export async function follow(run) {
   const node = String(run.upid).split(':')[1] ?? run.node;
   const api = pve.on(run.cluster_id);
   let st;
@@ -185,6 +188,10 @@ export async function tickBackups(log, now = new Date()) {
 }
 
 export function startBackupScheduler(log) {
+  // restores cut short by a restart: the server needs a look
+  const cut = db.prepare("UPDATE vms SET state = 'failed', progress = NULL, error = 'Restoring was interrupted (the panel restarted); restore again or ask support' WHERE state = 'restoring'").run().changes;
+  db.prepare("UPDATE backup_restores SET state = 'failed', error = 'Interrupted (the panel restarted)', finished_at = ? WHERE state = 'running'").run(nowIso());
+  if (cut) log?.warn(`${cut} restore(s) were interrupted by a restart`);
   const every = Math.max(1, Number(process.env.BACKUP_TICK_SECONDS || 60)) * 1000;
   setInterval(() => { tickBackups(log).catch((err) => log?.warn(`Backups: ${err.message}`)); }, every).unref();
 }

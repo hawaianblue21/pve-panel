@@ -485,6 +485,16 @@ label { display: grid; gap: 6px; font-weight: 600; font-size: 14px; }
 .snap-list li + li { border-top: 1px solid var(--line); }
 .snap-list .grow { flex: 1; min-width: 180px; }
 .snap-form { display: grid; grid-template-columns: 1fr 2fr auto; gap: 12px; align-items: end; }
+.bk-status { display: grid; gap: 12px; margin-bottom: 20px; max-width: none; }
+.bk-facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 16px; }
+.bk-facts > div { display: grid; gap: 4px; align-content: start; }
+.bk-points li.bk-restore-row, .bk-points li.bk-browse-row { display: block; background: var(--surface-2, var(--surface)); }
+.bk-restore { display: grid; gap: 12px; }
+.bk-restore .plain-fieldset { display: grid; gap: 10px; }
+.bk-indent { margin-left: 28px; max-width: 420px; }
+.bk-browser { display: grid; gap: 10px; }
+.bk-browser .crumbs { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 0; }
+.bk-files td:first-child { width: 60%; }
 
 /* =========================================================================
    Create server

@@ -82,3 +82,60 @@ test('connect a backup server, add a policy, switch backups on', async ({ page }
   await page.locator('#bk-settings button.primary').click();
   await expect(page.locator('.settings-head .pill')).toContainText('Off');
 });
+
+test('a customer backs up a server, browses the files, protects the backup and opens a restore', async ({ page, request }) => {
+  // backups on (window not open now, so only the manual backup runs)
+  const admin = await request.newContext?.({ baseURL: process.env.E2E_ADMIN_URL }) ?? request;
+  const login = await admin.post(`${process.env.E2E_ADMIN_URL}/api/auth/login`, { data: { email: 'admin@example.com', password: 'correct-horse-battery' } });
+  expect(login.ok()).toBeTruthy();
+  const h = new Date().getUTCHours();
+  const on = await admin.put(`${process.env.E2E_ADMIN_URL}/api/admin/backups/settings`, { data: { enabled: true, windowStart: (h + 3) % 24, windowEnd: (h + 5) % 24, manualPerDay: 2 } });
+  expect(on.ok()).toBeTruthy();
+
+  await page.goto(process.env.E2E_CUSTOMER_URL);
+  await page.locator('#login-form [name=email]').fill('lena@example.com');
+  await page.locator('#login-form [name=password]').fill('another-long-password');
+  await page.locator('#login-form button[type=submit]').click();
+  await page.locator('#vm-list .unit[data-vmid="101"]').click();
+  await page.locator('[data-tab=backups]').click();
+  await expect(page.locator('.bk-status')).toContainText('Every day, keeps 7 daily');
+
+  await page.locator('[data-bk-now]').click();
+  await expect(page.locator('.toast').last()).toContainText('Backup started');
+  await expect(page.locator('.bk-status')).toContainText('1 of 2 own backups left today', { timeout: 20_000 });
+  await expect(page.locator('.bk-status')).not.toContainText('Running', { timeout: 20_000 });
+  const point = page.locator('[data-bk-point]').first();
+  await expect(point).toContainText('latest');
+
+  // files
+  await point.locator('[data-bk-browse]').click();
+  await page.locator('.bk-browser [data-bk-path="/etc"]').click();
+  const dl = page.locator('.bk-browser a[download]').first();
+  await expect(dl).toHaveAttribute('href', /download\?path=%2Fetc%2Fhostname/);
+  const [download] = await Promise.all([page.waitForEvent('download'), dl.click()]);
+  expect(download.suggestedFilename()).toBe('hostname');
+  await page.locator('[data-bk-close]').click();
+
+  // protect
+  await point.locator('[data-bk-protect]').click();
+  await expect(page.locator('.toast').last()).toContainText('Backup protected');
+  await expect(page.locator('[data-bk-point]').first()).toContainText('protected');
+
+  // restore: both ways are offered; cancel
+  await page.locator('[data-bk-point]').first().locator('[data-bk-restore]').click();
+  const f = page.locator('#bk-restore-form');
+  await expect(f.locator('[name=hostname]')).toBeVisible();
+  await expect(f.locator('[data-bk-first]')).toBeHidden();
+  const replace = f.locator('[name=mode][value=replace]');
+  if (await replace.isEnabled()) {
+    await replace.check();
+    await expect(f.locator('[data-bk-first]')).toBeVisible();
+  }
+  await f.locator('[data-bk-cancel]').click();
+  await expect(page.locator('#bk-restore-form')).toHaveCount(0);
+
+  // unprotect and switch backups off again for the other specs
+  await page.locator('[data-bk-point]').first().locator('[data-bk-protect]').click();
+  await expect(page.locator('.toast').last()).toContainText('Backup unprotected');
+  expect((await admin.put(`${process.env.E2E_ADMIN_URL}/api/admin/backups/settings`, { data: { enabled: false } })).ok()).toBeTruthy();
+});

@@ -88,7 +88,7 @@ updates, server expiry and the Docker setup. The fork adds:
 | Access & capacity | Roles for administrators (RBAC), datacenters, resource pools with shared caps, GPU passthrough and vGPU, **several Proxmox clusters** |
 | Network | Public IPv4 pools (IPAM) with anti-spoofing and reverse DNS, **optional IPv6 /64 per address** (global switch) |
 | Storage | Block volumes with tiers, SeaweedFS S3 object storage with per-customer IAM, **read-only buckets** |
-| Servers | **Automatic snapshots** (daily or weekly, including attached volumes), Linux package updates |
+| Servers | **Automatic snapshots** (daily or weekly, including attached volumes), **backups on Proxmox Backup Server** (per-customer namespace and encryption key, restores), Linux package updates |
 | Commerce | Plans with monthly prices, wallet, renewals, invoices with PPN, Xendit, Midtrans and bank transfer |
 | Support | Ticket desk (L1 / L2 / L3), knowledge base / help center, optional Zammad sync, AI assistant |
 | Operations | Overview dashboard, Hosts with maintenance mode, Jobs with **retry**, update fleet and rollouts in rings with **maintenance windows** and **Check now** |
@@ -151,6 +151,7 @@ PVE Panel was built with substantial help from an AI assistant (**Claude by Anth
 - View live status and guest information, with Windows / Linux recognition
 - Display CPU, memory, disk and network usage graphs
 - Create, restore and delete snapshots (optionally including RAM), and schedule **automatic snapshots** (daily or weekly, keeping the last N; attached volumes included)
+- **Backups** (Proxmox Backup Server): restore points of each server, back up now (a few a day), protect a backup, browse and download files, restore as a new server or over the server, buy longer retention as an add-on
 - Launch an integrated browser console
 - Create new servers from administrator-approved templates
 - Reinstall self-created servers from a template (same name, size and network address)
@@ -181,7 +182,8 @@ PVE Panel was built with substantial help from an AI assistant (**Claude by Anth
 - Configure provisioning quotas and limits
 - Publish selected templates
 - Start, stop, restart and delete customer-owned servers
-- Review provisioning jobs and failures, and **retry** failed deletions, update runs and automatic snapshots
+- Review provisioning jobs and failures, and **retry** failed deletions, update runs, automatic snapshots and backups
+- **Backups**: connect Proxmox Backup Servers, policies per plan (add-ons per server), backup window, runs, coverage of every server, restores
 - Reset passwords and 2FA, require 2FA per user, link/unlink single sign-on
 - Review the activity log: filter by who acted (customer, administrator, the panel itself, unknown sign-ins), by kind of action (created, changed, deleted, power, security) or by text; open any event for its full record
 - Monitor WireGuard and Tailscale usage
@@ -399,6 +401,56 @@ cards of public addresses released since then are removed, and assigned addresse
 with the same MAC address.
 
 Customer API: `GET/PUT /api/vms/:vmid/snapshot-schedule` (`{ frequency: off|daily|weekly, hour, weekday, keep }`).
+
+### Backups on Proxmox Backup Server
+
+Backups run on one or more **Proxmox Backup Servers** (PBS 3 or 4) that an owner connects under Backups → Backup servers
+(address, API token, datastore, the clusters it serves; a self-signed certificate is pinned by its fingerprint).
+
+**On the backup server**: create an API token (Configuration → Access Control → API Token) and give it the
+`DatastoreAdmin` role on the datastore. The panel creates a namespace per customer (`panel/c<customer id>`), so backups of
+one customer never sit next to another's, even when a VMID is reused. On each cluster the panel adds a storage entry of
+type `pbs` per customer (`pbs<id>-c<customer id>`) when that customer's first backup runs.
+
+**Encryption** (on by default): Proxmox makes a key per customer with the first backup; the panel keeps it sealed (like
+other secrets) and owners can export it (`GET /api/admin/backups/keys/:userId`). Without the key nobody can read those
+backups, the operator of the backup server included, so keep exported keys somewhere safe.
+
+**Policies** say when and how long: daily, or weekly on a day, keeping N daily / weekly / monthly backups (Proxmox
+prunes after every backup). A plan points to a policy; servers without one use the default policy; a server can get
+its own policy from support, or the customer buys a policy that is sold as an **add-on** (monthly price, billed with
+the server's renewal); servers can be excluded.
+
+**Scheduler**: backups start only inside the **backup window** (panel time zone), at most N per node at a time, with a
+bandwidth limit per job. A window belongs to the day it started, so 22:00 to 04:00 is one backup per server. A failed
+backup is tried once more in the same window, then shown under Backups → Servers (Failing) and in Jobs (with retry).
+Admin views: Overview (coverage, last 24 hours, needs attention), Runs, Servers (policy per server, back up now,
+exclude), Restores, Policies and Backup servers.
+
+**Customers** (Backups tab of a server): restore points with size and verify state, **Back up now** (`manualPerDay`
+per server), **protect** up to 3 backups (kept until unprotected), browse the files of a backup and download a file or a
+folder (zip) while the server keeps running, and **restore**:
+
+- *as a new server*: next to the original, same node and plan, counted against the customer's limits and billed like a
+  new server of that plan; only the system disk is restored (public addresses, GPUs and block storage volumes stay with
+  the original);
+- *over the server*: the server must be shut down and may hold no block storage volumes; optionally a backup of the
+  current state first. Public addresses are put back afterwards.
+
+**Deleted servers**: backups of a server that is no longer the customer's (deleted or unassigned) are kept for
+`keepAfterDeleteDays` (default 30; 0 keeps them) after the panel noticed, then removed, protected ones included.
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `BACKUP_TICK_SECONDS` | `60` | How often the scheduler looks for due backups and follows running ones |
+| `BACKUP_RETRY_DELAY_SECONDS` | `900` | Pause before the second attempt of a failed scheduled backup |
+| `BACKUP_PURGE_SECONDS` | `3600` | How often backups of deleted servers are checked (inside the window) |
+
+Customer API: `GET /api/vms/:vmid/backups`, `POST /api/vms/:vmid/backups`, `PUT /api/vms/:vmid/backups/:id`
+(`{ protected }`), `GET /api/vms/:vmid/backups/:id/files?path=`, `GET /api/vms/:vmid/backups/:id/download?path=`,
+`POST /api/vms/:vmid/backups/:id/restore` (`{ mode: new|replace, hostname, backupFirst }`),
+`PUT /api/vms/:vmid/backups/addon` (`{ policyId }`). API tokens need the *servers* permission for changes (*billing* for
+the add-on).
 
 ### Public IPv4 addresses (IPAM)
 

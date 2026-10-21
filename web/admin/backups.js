@@ -5,6 +5,7 @@
 //   Runs      scheduled and manual backups with their outcome
 //   Servers   every customer server: policy (plan, own or default), status, back up now,
 //             exclude
+//   Restores  what customers restored (files, a new server, over the server) and how it went
 //   Policies  when and how long, which plan uses which, add-on prices
 //   Connect   owners connect a backup server (test, certificate pin, datastore, clusters)
 // Same shape as the other tab modules: tabs(), handles(), load(), render(), onClick(), onChange(), onSubmit().
@@ -35,7 +36,7 @@ export function createBackups({ root, api, toast, fail, confirmAction, esc }) {
     p.keepDaily && `${p.keepDaily} daily`, p.keepWeekly && `${p.keepWeekly} weekly`, p.keepMonthly && `${p.keepMonthly} monthly`].filter(Boolean).join(', ')}`;
 
   function render() {
-    const views = [['overview', 'Overview'], ['runs', 'Runs'], ['servers', 'Servers'], ['policies', 'Policies'], ...(can('rbac.write') ? [['connect', 'Backup servers']] : [])];
+    const views = [['overview', 'Overview'], ['runs', 'Runs'], ['servers', 'Servers'], ['restores', 'Restores'], ['policies', 'Policies'], ...(can('rbac.write') ? [['connect', 'Backup servers']] : [])];
     body().innerHTML = `
       <div class="backups-admin">
         <div class="segmented" role="radiogroup" aria-label="Backups" style="margin-bottom:16px">
@@ -47,6 +48,7 @@ export function createBackups({ root, api, toast, fail, confirmAction, esc }) {
     if (st.view === 'overview') el.innerHTML = overview();
     if (st.view === 'runs') el.innerHTML = runsView();
     if (st.view === 'servers') el.innerHTML = serversView();
+    if (st.view === 'restores') el.innerHTML = restoresView();
     if (st.view === 'policies') el.innerHTML = policies();
     if (st.view === 'connect') el.innerHTML = connect();
   }
@@ -182,6 +184,24 @@ export function createBackups({ root, api, toast, fail, confirmAction, esc }) {
             <button class="btn ghost" data-bk-exclude>${x.excluded ? 'Include' : 'Exclude'}</button>` : ''}</div></td>
         </tr>`).join('') || '<tr><td colspan="6" class="muted">Nothing here.</td></tr>'}</tbody></table></div>
       <p class="small muted">A server's own policy replaces its plan's (an add-on policy is billed with the server). Excluded servers are never backed up.</p>`;
+  }
+
+  // ---- Restores -----------------------------------------------------------------------------------
+  function restoresView() {
+    const MODE = { files: 'Files', new: 'As a new server', replace: 'Over the server' };
+    return `
+      <div class="table-wrap"><table class="table" id="bk-restores">
+        <thead><tr><th>Server</th><th>Customer</th><th>What</th><th>Backup</th><th>State</th><th>Started</th><th>Detail</th></tr></thead>
+        <tbody>${st.data.restores.map((r) => `<tr>
+          <td><strong>${esc(r.label || `server ${r.vmid}`)}</strong> <span class="mono small muted">${r.vmid}</span></td>
+          <td class="small">${esc(r.email ?? '')}</td>
+          <td class="small">${MODE[r.mode] ?? esc(r.mode)}</td>
+          <td class="small mono">${esc(r.backup)}</td>
+          <td>${tag(RUN, r.state)}</td>
+          <td class="small">${esc(when(r.startedAt))}</td>
+          <td class="small ${r.state === 'failed' ? 'form-error' : 'muted'}">${esc(r.state === 'failed' ? r.error ?? '' : r.mode === 'files' ? r.path ?? '' : r.mode === 'new' && r.targetVmid ? `new server ${r.targetVmid}` : '')}</td>
+        </tr>`).join('') || '<tr><td colspan="7" class="muted">No restores yet.</td></tr>'}</tbody></table></div>
+      <p class="small muted">The latest 50. Customers restore from the Backups tab of their server; downloads of files are listed too.</p>`;
   }
 
   // ---- Policies ---------------------------------------------------------------------------

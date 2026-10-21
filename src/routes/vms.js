@@ -10,6 +10,7 @@ import {
   limitsOf, usageOf, offeredTemplates, createServer, deleteServer, reinstallServer, resizeServer,
 } from '../provision.js';
 import { networkOf } from '../network.js';
+import { backupSettings } from '../backups.js';
 import { getSchedule, setSchedule, syncAfterRollback } from '../snapschedule.js';
 import { vpnInfoFor } from '../vpn.js';
 import { tailscaleStatus, connectTailscale, disconnectTailscale } from '../tailscale.js';
@@ -56,7 +57,8 @@ async function ownedGuest(req) {
   if (row.state !== 'ready') {
     const err = new Error(row.state === 'creating'
       ? 'This server is still being set up'
-      : row.state === 'deleting' ? 'This server is being deleted' : 'This server could not be set up');
+      : row.state === 'deleting' ? 'This server is being deleted'
+        : row.state === 'restoring' ? 'This server is being restored from a backup' : 'This server could not be set up');
     err.statusCode = 409;
     throw err;
   }
@@ -109,7 +111,7 @@ function summarize(row, guest) {
     type: row.type,
     state: row.state,
     error: row.state === 'failed' ? row.error : null,
-    progress: row.state === 'creating' ? row.progress : null,
+    progress: ['creating', 'restoring'].includes(row.state) ? row.progress : null,
     deletable: !!row.created_by_customer,
     reinstallable: !!row.created_by_customer,
     expiry: expiryInfo(row, expirySettings()),
@@ -171,7 +173,8 @@ export default async function vmRoutes(app) {
     const tailscale = config.tailscale.enabled;
     // Version number only; commit, build date and update status stay admin-only.
     const panelVersion = config.showVersionToCustomers ? versionInfo.version : null;
-    if (!a.can_create) return { canCreate: false, network, vpn, tailscale, panelVersion };
+    const backups = backupSettings().enabled;
+    if (!a.can_create) return { canCreate: false, network, vpn, tailscale, panelVersion, backups };
     const pool = poolOfUser(a.id);
     return {
       canCreate: true,
@@ -186,6 +189,7 @@ export default async function vmRoutes(app) {
       vpn,
       tailscale,
       panelVersion,
+      backups,
     };
   });
 
