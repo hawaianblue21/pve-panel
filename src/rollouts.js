@@ -28,6 +28,7 @@ import { db, audit } from './db.js';
 import { can } from './rbac.js';
 import { clusterGuests, guestPath, pve } from './pve.js';
 import { startUpdates, checkPending, activeRun } from './winupdate.js';
+import { backupNow } from './backupjobs.js';
 import { runSchedule } from './snapschedule.js';
 import { deleteServer } from './provision.js';
 import { emailConfigured, sendMail, rolloutNoticeMessage } from './mail.js';
@@ -343,6 +344,16 @@ export async function jobs({ filter = 'all' } = {}) {
       ...(w.state === 'failed' && latestRun.get(w.vmid) === w.id && ready.has(w.vmid) ? { retry: 'updates' } : {}),
     });
   }
+  // backup runs in the last 3 days (the latest failed one of a server can be retried)
+  const latestBackup = new Map(db.prepare('SELECT vmid, MAX(id) AS id FROM backup_runs GROUP BY vmid').all().map((r) => [r.vmid, r.id]));
+  for (const b of db.prepare("SELECT b.*, v.label FROM backup_runs b LEFT JOIN vms v ON v.vmid = b.vmid WHERE b.started_at >= datetime('now', '-3 days') ORDER BY b.id DESC LIMIT 300").all()) {
+    out.push({
+      id: `backup-${b.id}`, kind: 'backup', action: b.kind === 'manual' ? 'Backup (manual)' : 'Backup', target: b.label || `server ${b.vmid}`, vmid: b.vmid,
+      by: users.get(b.user_id) ?? null, state: b.state === 'ok' ? 'done' : b.state, detail: b.state === 'failed' ? b.error : b.state === 'ok' ? (b.volid ?? '') : b.node,
+      at: b.started_at,
+      ...(b.state === 'failed' && latestBackup.get(b.vmid) === b.id && ready.has(b.vmid) ? { retry: 'backup' } : {}),
+    });
+  }
   // rollouts in progress
   for (const r of db.prepare("SELECT * FROM rollouts WHERE state IN ('running', 'paused')").all()) {
     const p = pubRollout(r);
@@ -367,7 +378,7 @@ export async function jobs({ filter = 'all' } = {}) {
   return { jobs: list, counts };
 }
 
-const RETRY_PERMISSION = { delete: 'servers.delete', updates: 'updates.write', snapshot: 'servers.manage' };
+const RETRY_PERMISSION = { delete: 'servers.delete', updates: 'updates.write', snapshot: 'servers.manage', backup: 'backups.write' };
 
 /** Retries a failed job of the list (see jobs()); returns { retried, message }. */
 export async function retryJob(req, jobId) {
@@ -396,6 +407,11 @@ export async function retryJob(req, jobId) {
     await startUpdates(req, row, { scope: w.scope, snapshot: !!w.snapshot, autoRestart: !!w.auto_restart });
     audit(req, row.vmid, 'admin_job_retried', { job: jobId, what: 'updates' });
     return { retried: true, message: 'Update run started again' };
+  }
+  if (job.retry === 'backup') {
+    const run = await backupNow(req, row);
+    audit(req, row.vmid, 'admin_job_retried', { job: jobId, what: 'backup' });
+    return { retried: true, message: run.state === 'running' ? 'Backup started again' : 'Backup recorded' };
   }
   const s = db.prepare('SELECT * FROM snapshot_schedules WHERE vmid = ?').get(row.vmid);
   if (!s) throw fail(409, 'Automatic snapshots are switched off for this server');
