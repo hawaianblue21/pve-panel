@@ -27,7 +27,7 @@ Status: ✅ implemented · 🟡 partly (what is missing is listed) · ⬜ design
 | Billing overview, invoice detail | `Admin-Billing.dc.html`, `Admin-Invoice.dc.html` | ✅ KPIs, filters, confirm transfer, cancel, wallet adjustment, fixed price (refunds to card and dunning steps missing) |
 | Hosts & onboarding (owner only) | `Admin-Hosts.dc.html` | ✅ clusters (connect with test, TLS pin, conflicts, disable, remove), nodes, version, load, maintenance; existing guests are adopted in bulk from Servers (filter Not assigned, select, Assign) |
 | OS templates (owner only) | `Admin-Templates.dc.html` | 🟡 offering templates, owner-only changes; import wizard (qcow2, vmdk, ova, iso) and telemetry missing |
-| Provisioning jobs | `Admin-Jobs.dc.html` | ✅ Jobs tab: servers being set up, reinstalled, deleted or failed, update runs, rollouts, finished work of 7 days (retry for failed deletions, update runs and automatic snapshots; step list missing) |
+| Provisioning jobs | `Admin-Jobs.dc.html` | ✅ Jobs tab: servers being set up, reinstalled, deleted or failed, update runs, rollouts, finished work of 7 days (retry for failed deletions, update runs, automatic snapshots and backups; step list missing) |
 | In-browser console | `Admin-Console.dc.html` | ✅ |
 | Access & roles (RBAC) | `Admin-Access.dc.html` | ✅ |
 | Resource allocation pools | `Admin-Pools.dc.html` | ✅ |
@@ -39,8 +39,9 @@ Status: ✅ implemented · 🟡 partly (what is missing is listed) · ⬜ design
 | Knowledge base editor | `Admin-KB.dc.html` | ✅ drafts from tickets, visibility, searches without results (AI drafts missing) |
 | AI assistant | `Admin-AI.dc.html` | ✅ provider settings, usage, conversations with tool calls (behaviour presets and knowledge-gap view missing) |
 | API tokens & integrations (owner only) | `Admin-Integrations.dc.html` | ✅ API tokens (customer and admin, scopes, read-only, expiry, last use; owners see all), Zammad, AI provider, Xendit and Midtrans in Settings (webhooks out missing) |
-| Settings & white label (owner only) | `Admin-Settings.dc.html` | 🟡 branding, single sign-on, appearance, updates, email, expiry; Proxmox clusters, Proxmox Backup Server missing |
+| Settings & white label (owner only) | `Admin-Settings.dc.html` | ✅ branding, single sign-on, appearance, updates, email, expiry; Proxmox clusters live under Hosts, Proxmox Backup Servers under Backups |
 | Patch management | `Admin-Updates.dc.html` | ✅ fleet view (last run, never, older than 30 days, failed), rollouts in rings with failure limit, pause/resume/cancel, customer emails, pending-update counts (Check now), maintenance windows |
+| Backups (Proxmox Backup Server) | `Admin-Backups.dc.html` | ✅ Backups tab: Overview (coverage, last 24 hours, needs attention, datastores with dedup / GC / verify, settings), Runs, Servers (own policy, back up now, exclude), Restores, Policies (per plan, add-on price), Backup servers for owners (test, certificate pin, datastore, clusters). Differs from the design: the connect wizard is one form; backups of deleted servers are kept 14 days (1 to 3650, set here), then removed |
 | Server lifecycle (expiry) | `Admin-Lifecycle.dc.html` | ✅ rules, reminders, stop, grace, deletion, pause; queue view (Server lifecycle tab: stage, next step, sent notices, extend, remove date, Check now, pause) |
 
 ## Customer portal
@@ -55,6 +56,7 @@ Status: ✅ implemented · 🟡 partly (what is missing is listed) · ⬜ design
 | Network & VPN | `Customer-Network.dc.html` | ✅ |
 | Security & 2FA | `Customer-Security.dc.html` | ✅ |
 | Billing & wallet, invoice & pay | `Customer-Billing.dc.html`, `Customer-Invoice.dc.html` | ✅ wallet, top-up, renewals, invoices (print/PDF), Xendit, Midtrans, bank transfer |
+| Server backups & restore | `Customer-Backups.dc.html` | ✅ Backups tab of a server: plan, window, encryption, back up now (per day limit), restore points, protect up to 3, browse files and download a file or a folder (zip), restore as a new server or over the server, longer retention as an add-on. Differs from the design: a tab of the server, not a sidebar item; file download per file or folder instead of a multi-select zip; the new server keeps the original's plan and only its system disk; restoring over the server needs it shut down and without block storage volumes; no type-the-name confirmation (a confirm dialog) |
 | Block storage | `Customer-Block.dc.html` | ✅ tiers, create, attach/detach/move, enlarge, delete (snapshots: server-level incl. attached volumes, automatic daily/weekly; IOPS figures missing) |
 | Object storage | `Customer-Object.dc.html` | ✅ buckets, quota, usage, access key shown once, AWS CLI / rclone / restic snippets, read-only buckets |
 | Support tickets | `Customer-Tickets.dc.html` | ✅ |

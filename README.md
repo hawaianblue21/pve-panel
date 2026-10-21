@@ -97,7 +97,7 @@ updates, server expiry and the Docker setup. The fork adds:
 What that means in practice:
 
 - **Container image**: `ghcr.io/hawaianblue21/pve-panel`. Pushes to `main` publish the tag `edge`; `latest` and version
-  tags appear only after a release tag (`git tag v1.12.0 && git push --tags`). Until then set
+  tags appear only after a release tag (`git tag v1.13.0 && git push --tags`). Until then set
   `PANEL_IMAGE=ghcr.io/hawaianblue21/pve-panel:edge`. A new GHCR package is private by default: make it public under
   the repository's **Packages** settings, or `docker login ghcr.io` on the host.
 - **Documentation website**: `https://hawaianblue21.github.io/pve-panel/` is built from `website/` by the Documentation
@@ -517,9 +517,13 @@ Screenshots are taken from a test environment with simulated Proxmox clusters an
 |---|---|
 | ![Snapshots and automatic snapshots](docs/screenshots/customer-snapshots.png) | ![Storage](docs/screenshots/customer-storage.png) |
 
-| Billing (wallet, invoices) | Provisioning |
+| Backups (restore points, files, restore) | Billing (wallet, invoices) |
 |---|---|
-| ![Billing](docs/screenshots/customer-billing.png) | ![Provisioning](docs/screenshots/provisioning.png) |
+| ![Backups](docs/screenshots/customer-backups.png) | ![Billing](docs/screenshots/customer-billing.png) |
+
+| Provisioning |
+|---|
+| ![Provisioning](docs/screenshots/provisioning.png) |
 
 ### Administrator portal
 
@@ -530,6 +534,10 @@ Screenshots are taken from a test environment with simulated Proxmox clusters an
 | Fleet updates and rollouts | Plans |
 |---|---|
 | ![Fleet updates and rollouts](docs/screenshots/admin-fleet-updates.png) | ![Plans](docs/screenshots/admin-plans.png) |
+
+| Backups (Proxmox Backup Server) | Backup coverage per server |
+|---|---|
+| ![Backups overview](docs/screenshots/admin-backups.png) | ![Backup coverage per server](docs/screenshots/admin-backup-servers.png) |
 
 | Public IPs (IPAM) | Version & updates |
 |---|---|
