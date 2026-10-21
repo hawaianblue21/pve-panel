@@ -438,7 +438,8 @@ folder (zip) while the server keeps running, and **restore**:
   current state first. Public addresses are put back afterwards.
 
 **Deleted servers**: backups of a server that is no longer the customer's (deleted or unassigned) are kept for
-`keepAfterDeleteDays` (default 30; 0 keeps them) after the panel noticed, then removed, protected ones included.
+`keepAfterDeleteDays` (default 14, 1 to 3650, set by administrators under Backups → Overview) after the panel noticed,
+then removed, protected ones included. Customers don't see these backups.
 
 | Variable | Default | Meaning |
 |---|---|---|
