@@ -1,13 +1,14 @@
 // Color schemes, chosen by an administrator (Settings → Appearance) and applied
 // to the admin interface, the customer portal, both sign-in pages and emails.
-// Each scheme has a light and a dark variant (the panel follows the device's
-// light/dark setting); contrast is at least 4.5:1 for text (WCAG AA).
+// Each scheme has a light and a dark variant; the panel's default mode is dark
+// (the PVE Panel App UI), light, or the device's setting, chosen by the owner.
+// Contrast is at least 4.5:1 for text (WCAG AA).
 // The colors themselves live in web/shared/styles.css ([data-scheme="…"]).
 
 import { db } from './db.js';
 
 export const SCHEMES = [
-  { id: 'harbor', name: 'Harbor', description: 'Signal blue on slate — the original look', accent: '#3558e6', side: '#172230' },
+  { id: 'harbor', name: 'Harbor', description: 'Signal blue on midnight navy: the PVE Panel App UI', accent: '#1f5fd1', side: '#0d1424' },
   { id: 'forest', name: 'Forest', description: 'Calm green on deep pine', accent: '#1d7350', side: '#132a20' },
   { id: 'ember', name: 'Ember', description: 'Warm orange on dark brown', accent: '#b9400f', side: '#2a1c15' },
   { id: 'orchid', name: 'Orchid', description: 'Violet on aubergine', accent: '#7339e0', side: '#221836' },
@@ -29,6 +30,15 @@ export function currentScheme() {
 /** May users pick their own scheme and light/dark mode (Account → Appearance)? On by default. */
 export const personalAllowed = () => storedSettings().allowPersonal !== false;
 
+/** The panel's mode for everyone without an own choice: dark (default), light or system (the device's). */
+export const PANEL_MODES = ['dark', 'light', 'system'];
+export const defaultMode = () => (PANEL_MODES.includes(storedSettings().mode) ? storedSettings().mode : 'dark');
+
+export function setDefaultMode(mode) {
+  if (!PANEL_MODES.includes(mode)) throw Object.assign(new Error('Default mode: dark, light or system'), { statusCode: 400, expose: true });
+  storeSettings({ ...storedSettings(), mode });
+}
+
 export function setAllowPersonal(allowed) {
   storeSettings({ ...storedSettings(), allowPersonal: !!allowed });
 }
@@ -41,15 +51,16 @@ function storeSettings(value) {
 }
 
 // ---- Personal choice (per account) ------------------------------------------------
-export const MODES = ['system', 'light', 'dark'];
+// 'panel': the panel's default mode; 'system': follow the device
+export const MODES = ['panel', 'system', 'light', 'dark'];
 
 /** What this account sees: its own choice when allowed, else the panel's scheme and the device's mode. */
 export function userAppearance(userId) {
   const u = db.prepare('SELECT ui_scheme, ui_mode FROM users WHERE id = ?').get(userId) ?? {};
   const allowed = personalAllowed();
   const own = allowed && SCHEMES.some((s) => s.id === u.ui_scheme) ? u.ui_scheme : null;
-  const mode = allowed && MODES.includes(u.ui_mode) ? u.ui_mode : 'system';
-  return { allowed, scheme: own, mode, effective: own ?? currentScheme(), panelScheme: currentScheme(), schemes: SCHEMES };
+  const mode = allowed && MODES.includes(u.ui_mode) ? u.ui_mode : 'panel';
+  return { allowed, scheme: own, mode, panelMode: defaultMode(), effective: own ?? currentScheme(), panelScheme: currentScheme(), schemes: SCHEMES };
 }
 
 export function setUserAppearance(userId, { scheme, mode }) {
@@ -60,10 +71,10 @@ export function setUserAppearance(userId, { scheme, mode }) {
     throw Object.assign(new Error('Unknown color scheme'), { statusCode: 400, expose: true });
   }
   if (mode !== undefined && !MODES.includes(mode)) {
-    throw Object.assign(new Error('Mode must be system, light or dark'), { statusCode: 400, expose: true });
+    throw Object.assign(new Error('Mode must be panel, system, light or dark'), { statusCode: 400, expose: true });
   }
   if (scheme !== undefined) db.prepare('UPDATE users SET ui_scheme = ? WHERE id = ?').run(scheme, userId);
-  if (mode !== undefined) db.prepare('UPDATE users SET ui_mode = ? WHERE id = ?').run(mode === 'system' ? null : mode, userId);
+  if (mode !== undefined) db.prepare('UPDATE users SET ui_mode = ? WHERE id = ?').run(mode === 'panel' ? null : mode, userId);
   return userAppearance(userId);
 }
 

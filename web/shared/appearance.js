@@ -34,7 +34,7 @@ export async function renderAppearance(container) {
           </button>`).join('')}
       </div>
       <div class="segmented" role="radiogroup" aria-label="Light or dark">
-        ${[['system', 'Follow device'], ['light', 'Light'], ['dark', 'Dark']].map(([m, label]) => `
+        ${[['panel', `Panel default (${{ dark: 'dark', light: 'light', system: 'device' }[a.panelMode] ?? 'dark'})`], ['system', 'Follow device'], ['light', 'Light'], ['dark', 'Dark']].map(([m, label]) => `
           <button type="button" role="radio" data-my-mode="${m}" aria-checked="${a.mode === m}">${label}</button>`).join('')}
       </div>
     </section>`;

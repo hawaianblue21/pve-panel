@@ -282,7 +282,7 @@ export function createDesk({ root, api, toast, fail, confirmAction, esc, getMe }
           st.editing = await api(`/api/admin/kb/${a.id}`);
           st.preview = false;
           st.kb = await api('/api/admin/kb');
-          root.querySelector('[data-admin-tab="kb"]')?.click();
+          document.querySelector('[data-admin-tab="kb"]')?.click();
         } catch (err) { fail(err); }
         return true;
       }

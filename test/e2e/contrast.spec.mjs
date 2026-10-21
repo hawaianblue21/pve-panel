@@ -32,7 +32,8 @@ for (const mode of ['light', 'dark']) {
     };
     try {
       for (const scheme of SCHEMES) {
-        const r = await admin.request.put(`${A()}/api/admin/settings/appearance`, { data: { scheme } });
+        // the panel default is dark; follow the device here so both modes are measured
+        const r = await admin.request.put(`${A()}/api/admin/settings/appearance`, { data: { scheme, mode: 'system' } });
         expect(r.ok()).toBeTruthy();
 
         await visitor.goto(C());
@@ -66,7 +67,7 @@ for (const mode of ['light', 'dark']) {
         }
       }
     } finally {
-      await admin.request.put(`${A()}/api/admin/settings/appearance`, { data: { scheme: 'harbor' } });
+      await admin.request.put(`${A()}/api/admin/settings/appearance`, { data: { scheme: 'harbor', mode: 'dark' } });
     }
     expect(problems, problems.join('\n')).toEqual([]);
   });

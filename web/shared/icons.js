@@ -66,13 +66,26 @@ export function brandMark(size = 28) {
 // (Account → Appearance), remembered in this browser too.
 const SCHEME_KEY = 'pve-panel.scheme';
 const PERSONAL_KEY = 'pve-panel.personal';
+const MODE_KEY = 'pve-panel.mode';
 let personal = null;   // { scheme, mode } of the signed-in user, or null
 let panelScheme = null;
+let panelMode = 'dark'; // the owner's default for everyone: dark, light or system
+try { panelMode = localStorage.getItem(MODE_KEY) || 'dark'; } catch { /* storage unavailable */ }
 const html = document.documentElement;
 
+/** mode: the user's own ('light', 'dark', 'system') or 'panel'/none for the panel default. */
 function setMode(mode) {
-  if (mode === 'light' || mode === 'dark') html.dataset.mode = mode;
-  else delete html.dataset.mode;
+  const m = mode && mode !== 'panel' ? mode : panelMode;
+  if (m === 'light' || m === 'dark') html.dataset.mode = m;
+  else delete html.dataset.mode;          // system: the device decides
+}
+
+/** The panel's default mode (from /api/brand). */
+function applyPanelMode(mode) {
+  if (!['dark', 'light', 'system'].includes(mode)) return;
+  panelMode = mode;
+  try { localStorage.setItem(MODE_KEY, mode); } catch { /* storage unavailable */ }
+  setMode(personal?.mode);
 }
 
 /** The panel's scheme (for everyone); a personal choice still wins. */
@@ -85,7 +98,8 @@ export function applyScheme(id) {
 
 /** The signed-in user's own choice (from /api/account/appearance); null clears it (sign-out). */
 export function applyPersonal(a) {
-  personal = a && a.allowed ? { scheme: a.scheme ?? null, mode: a.mode ?? 'system' } : null;
+  personal = a && a.allowed ? { scheme: a.scheme ?? null, mode: a.mode ?? 'panel' } : null;
+  if (a?.panelMode) applyPanelMode(a.panelMode);
   try {
     if (personal) localStorage.setItem(PERSONAL_KEY, JSON.stringify(personal)); else localStorage.removeItem(PERSONAL_KEY);
   } catch { /* storage unavailable */ }
@@ -102,8 +116,8 @@ try {
   personal = JSON.parse(localStorage.getItem(PERSONAL_KEY) || 'null');
   const remembered = personal?.scheme || localStorage.getItem(SCHEME_KEY);
   if (remembered) html.dataset.scheme = remembered;
-  setMode(personal?.mode);
 } catch { /* ignore */ }
+setMode(personal?.mode);
 
 let brandInfo = null;
 /** What /api/brand said (after applyBrand), e.g. the support link. */
@@ -119,6 +133,7 @@ export async function applyBrand(suffix = '') {
       name = b.name || name;
       customOsIcons = b.osIcons ?? {};
       applyScheme(b.scheme);
+      applyPanelMode(b.mode);
       brandInfo = b;
       // Own logo (Settings → Branding) instead of the built-in mark
       if (b.logo) {

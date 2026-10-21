@@ -451,7 +451,8 @@ Customer API: `GET/POST /api/vms/:vmid/ips`, `DELETE /api/ips/:id`, `PUT /api/ip
 
 ## 🖼️ Screenshots
 
-Screenshots are taken from a test environment with simulated Proxmox clusters and sample data.
+Screenshots are taken from a test environment with simulated Proxmox clusters and sample data, in the PVE Panel App UI
+(dark mode). Refresh them with `SCREENSHOTS=1 npx playwright test test/e2e/screenshots.spec.mjs`.
 
 ### Customer portal
 
@@ -1591,10 +1592,14 @@ The configured name is used on:
 
 ### Color schemes
 
-Five color schemes — **Harbor** (default), **Forest**, **Ember**, **Orchid**, **Graphite** — each with a light and dark variant. Set in **Settings → Appearance** for everyone: admin interface, customer portal, sign-in pages and emails.
+Both portals follow the **PVE Panel App UI**: midnight navy surfaces, a grouped sidebar (admin: Infrastructure, Resources,
+Customers & billing, Support, System; customers: Compute, Storage & network, Billing, Support), IBM Plex Sans for text,
+Space Grotesk for headings and figures, JetBrains Mono for labels and data.
 
-Users can also pick their **own** scheme and **light, dark or device** mode under **Account → Appearance** (stored with
-their account, so it follows them to other devices). The owner can switch this off; everyone then sees the panel's scheme.
+Five color schemes — **Harbor** (default, the App UI's signal blue), **Forest**, **Ember**, **Orchid**, **Graphite** — each with a light and dark variant. Set in **Settings → Appearance** for everyone: admin interface, customer portal, sign-in pages and emails. The **default mode** for everyone is **dark** (the App UI); the owner can switch it to light or to each device's setting.
+
+Users can also pick their **own** scheme and mode (**panel default, device, light or dark**) under **Account → Appearance** (stored with
+their account, so it follows them to other devices). The owner can switch this off; everyone then sees the panel's scheme and mode.
 
 ![Color schemes](docs/screenshots/color-schemes.png)
 

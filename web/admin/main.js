@@ -41,6 +41,7 @@ setUnauthorizedHandler(showLogin);
 
 const admin = createAdmin({
   root: $('#admin-view'),
+  nav: $('#admin-nav'),
   api, toast, fail, confirmAction, promptText, esc,
   getMe: () => me,
   onAbout: showVersion,
@@ -57,11 +58,20 @@ function showVersion(about) {
 }
 $('#version-badge').addEventListener('click', () => admin.openTab('about'));
 
+// small screens: the sidebar folds into a menu button
+const closeMenu = () => { $('#app-view').classList.remove('nav-open'); $('#admin-nav-toggle').setAttribute('aria-expanded', 'false'); };
+$('#admin-nav-toggle').addEventListener('click', () => {
+  const open = $('#app-view').classList.toggle('nav-open');
+  $('#admin-nav-toggle').setAttribute('aria-expanded', String(open));
+});
+$('#admin-nav').addEventListener('click', (e) => { if (e.target.closest('[data-admin-tab]')) closeMenu(); });
+
 function start(account) {
   me = account;
   $('#login-view').hidden = true;
   $('#app-view').hidden = false;
   $('#account-email').textContent = me.email;
+  $('#account-initials').textContent = me.email.slice(0, 2).toUpperCase();
   loadPersonalAppearance();
   admin.open();
   api('/api/admin/about').then(showVersion).catch(() => {});

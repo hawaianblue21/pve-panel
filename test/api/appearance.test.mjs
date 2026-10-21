@@ -11,8 +11,9 @@ before(async () => {
 });
 after(async () => { await stack?.stop(); });
 
-test('default is Harbor; five schemes are offered', async () => {
+test('default is Harbor in dark mode; five schemes are offered', async () => {
   assert.equal((await stack.customer().get('/api/brand')).json.scheme, 'harbor');
+  assert.equal((await stack.customer().get('/api/brand')).json.mode, 'dark');
   const r = (await admin.get('/api/admin/settings/appearance')).json;
   assert.deepEqual(r.schemes.map((s) => s.id), ['harbor', 'forest', 'ember', 'orchid', 'graphite']);
 });
@@ -22,6 +23,14 @@ test('a scheme set by the admin reaches both portals (also before sign-in)', asy
   assert.equal(r.status, 200, r.text);
   assert.equal((await stack.customer().get('/api/brand')).json.scheme, 'forest');
   assert.equal((await stack.admin().get('/api/brand')).json.scheme, 'forest');
+});
+
+test('the owner sets the default mode for everyone', async () => {
+  assert.equal((await admin.put('/api/admin/settings/appearance', { mode: 'sepia' })).status, 400);
+  const r = await admin.put('/api/admin/settings/appearance', { mode: 'system' });
+  assert.equal(r.json.mode, 'system');
+  assert.equal((await stack.customer().get('/api/brand')).json.mode, 'system');
+  await admin.put('/api/admin/settings/appearance', { mode: 'dark' });
 });
 
 test('unknown schemes are refused; customers cannot change it', async () => {

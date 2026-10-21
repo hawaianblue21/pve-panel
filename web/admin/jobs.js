@@ -36,7 +36,7 @@ export function createJobs({ root, api, toast, fail, confirmAction, esc }) {
       : st.rollouts.some((r) => r.state === 'running') || st.fleet?.servers.some((s) => s.check?.state === 'checking');
     if (busy) {
       const tick = async () => {
-        if (!root.querySelector(`[data-admin-tab="${tab}"][aria-selected="true"]`)) return;
+        if (!document.querySelector(`[data-admin-tab="${tab}"][aria-selected="true"]`)) return;
         // someone is filling in the rollout form: don't wipe it, look again later
         if (root.querySelector('#rollout-form')?.contains(document.activeElement)) { st.timer = setTimeout(tick, 5000); return; }
         try { await load(tab); render(tab); } catch { st.timer = setTimeout(tick, 5000); }
@@ -189,7 +189,7 @@ export function createJobs({ root, api, toast, fail, confirmAction, esc }) {
     if (!t) return false;
     try {
       if (t.dataset.jobFilter) { st.filter = t.dataset.jobFilter; await load('jobs'); render('jobs'); return true; }
-      if (t.hasAttribute('data-open-rollouts')) { root.querySelector('[data-admin-tab="updates"]')?.click(); return true; }
+      if (t.hasAttribute('data-open-rollouts')) { document.querySelector('[data-admin-tab="updates"]')?.click(); return true; }
       if (t.hasAttribute('data-check-picked')) {
         const vmids = [...st.picked].filter((v) => st.fleet.servers.some((s) => s.vmid === v && s.patchable));
         const r = await api('/api/admin/updates/check', { method: 'POST', body: { vmids } });

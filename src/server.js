@@ -12,7 +12,7 @@ import { db } from './db.js';
 import { bootstrapAdmin } from './bootstrap.js';
 import { versionInfo, updateStatus } from './version.js';
 import { startExpiryScheduler } from './expiry.js';
-import { currentScheme } from './appearance.js';
+import { currentScheme, defaultMode } from './appearance.js';
 import { branding, brandingDir, SERVED_FILE } from './branding.js';
 import { startUpdateTracker } from './winupdate.js';
 import authPlugin from './auth.js';
@@ -126,7 +126,7 @@ async function buildServer(name, setup) {
   // Public: the sign-in page shows the product name before anyone is signed in.
   app.get('/api/brand', async () => {
     const b = branding();
-    return { name: b.name, logo: b.logo, favicon: b.favicon, supportUrl: b.supportUrl || null, osIcons: osIcons(), scheme: currentScheme() };
+    return { name: b.name, logo: b.logo, favicon: b.favicon, supportUrl: b.supportUrl || null, osIcons: osIcons(), scheme: currentScheme(), mode: defaultMode() };
   });
   // Liveness for Docker/monitoring: the process runs and the database answers.
   app.get('/healthz', { logLevel: 'warn' }, async (req, reply) => {

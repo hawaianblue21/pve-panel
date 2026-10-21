@@ -22,7 +22,8 @@ test('personal appearance: own scheme and light/dark mode, only for this account
   const a = (await rina.get('/api/account/appearance')).json;
   assert.equal(a.allowed, true);
   assert.equal(a.scheme, null);
-  assert.equal(a.mode, 'system');
+  assert.equal(a.mode, 'panel', 'the panel default until the user chooses');
+  assert.equal(a.panelMode, 'dark');
   assert.equal(a.effective, 'harbor');
 
   const set = await rina.put('/api/account/appearance', { scheme: 'orchid', mode: 'dark' });
@@ -38,8 +39,11 @@ test('personal appearance: own scheme and light/dark mode, only for this account
   assert.equal((await admin.get('/api/account/appearance')).json.effective, 'harbor');
 
   // back to the panel default
-  const reset = await rina.put('/api/account/appearance', { scheme: null, mode: 'system' });
+  const device = await rina.put('/api/account/appearance', { mode: 'system' });
+  assert.equal(device.json.mode, 'system', 'follow the device is its own choice');
+  const reset = await rina.put('/api/account/appearance', { scheme: null, mode: 'panel' });
   assert.equal(reset.json.scheme, null);
+  assert.equal(reset.json.mode, 'panel');
   assert.equal(reset.json.effective, 'harbor');
 });
 
@@ -51,7 +55,7 @@ test('the owner can turn personal appearance off for everyone', async () => {
   const a = (await rina.get('/api/account/appearance')).json;
   assert.equal(a.allowed, false);
   assert.equal(a.effective, 'harbor');
-  assert.equal(a.mode, 'system');
+  assert.equal(a.mode, 'panel');
   assert.equal((await rina.put('/api/account/appearance', { mode: 'dark' })).status, 403);
   await admin.put('/api/admin/settings/appearance', { allowPersonal: true });
   assert.equal((await rina.get('/api/account/appearance')).json.effective, 'ember', 'the choice was kept');

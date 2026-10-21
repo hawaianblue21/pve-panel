@@ -4,7 +4,7 @@ import { renderPasskeys } from '/shared/passkeys.js';
 import { renderIdentities } from '/shared/identities.js';
 import { renderTokens } from '/shared/tokens.js';
 import { renderAppearance } from '/shared/appearance.js';
-import { applyScheme } from '/shared/icons.js';
+import { applyScheme, applyBrand } from '/shared/icons.js';
 import { createInfra } from '/infra.js';
 import { createDesk } from '/desk.js';
 import { createBilling } from '/billing.js';
@@ -150,6 +150,25 @@ const ACTION_LABELS = {
   ip_released: 'Released a public IP address',
   ip_ptr_set: 'Set reverse DNS',
   ipv6_on: 'Switched IPv6 on',
+  snapshot_schedule_set: 'Set automatic snapshots',
+  snapshot_schedule_off: 'Switched automatic snapshots off',
+  snapshot_auto: 'Took an automatic snapshot',
+  snapshot_auto_failed: 'Automatic snapshot failed',
+  s3_bucket_read_only: 'Made a bucket read-only',
+  s3_bucket_writable: 'Made a bucket writable',
+  admin_branding: 'Changed the branding',
+  admin_branding_image: 'Uploaded a branding image',
+  admin_branding_image_removed: 'Removed a branding image',
+  admin_ip_pool_update: 'Changed a public IP pool',
+  admin_ip_pool_delete: 'Deleted a public IP pool',
+  admin_ip_state: 'Reserved or freed a public IP address',
+  admin_ipam_settings: 'Changed the public IP settings',
+  admin_job_retried: 'Retried a failed job',
+  admin_updates_check: 'Checked servers for pending updates',
+  admin_volume_settings: 'Changed the block storage settings',
+  ip_assign_failed: 'Adding a public IP address failed',
+  volume_create_failed: 'Creating a volume failed',
+  volume_renamed: 'Renamed a volume',
   ipv6_off: 'Switched IPv6 off',
   admin_ip_pool_create: 'Added a public IP pool',
   admin_node_maintenance_on: 'Put a node into maintenance',
@@ -192,7 +211,7 @@ export function generatePassword(length = 16) {
   return Array.from(bytes, (b) => chars[b % chars.length]).join('');
 }
 
-export function createAdmin({ root, api, toast, fail, confirmAction, promptText, esc, getMe, onAbout }) {
+export function createAdmin({ root, nav = null, api, toast, fail, confirmAction, promptText, esc, getMe, onAbout }) {
   const st = {
     tab: 'overview', users: [], vms: [], audit: [], filter: '', newUser: null,
     templates: [], storages: {}, vpn: null, perms: null,
@@ -289,21 +308,37 @@ export function createAdmin({ root, api, toast, fail, confirmAction, promptText,
   }
 
   // ---- shell ------------------------------------------------------------
+  // The sidebar of the PVE Panel App UI: tabs in groups, each shown when allowed.
+  const MODULES = [hosts, desk, billing, plans, jobs, infra, volumes, ipam];
+  const GROUPS = [
+    ['Infrastructure', [['overview', 'Overview'], ['hosts', 'Hosts & nodes'], ['servers', 'Servers'], ['jobs', 'Jobs'],
+      ['templates', 'OS templates'], ['updates', 'Updates'], ['ipam', 'Public IPs'], ['vpn', 'VPN']]],
+    ['Resources', [['resources', 'Resource pools'], ['volumes', 'Block storage'], ['storage', 'Object storage'], ['gpu', 'GPU compute']]],
+    ['Customers & billing', [['users', 'Customers'], ['plans', 'Plans'], ['billing', 'Billing']]],
+    ['Support', [['tickets', 'Tickets'], ['kb', 'Knowledge base'], ['ai', 'AI assistant']]],
+    ['System', [['access', 'Access & roles'], ['activity', 'Activity log'], ['settings', 'Settings'], ['account', 'Your account'], ['about', 'About']]],
+  ];
+  const known = (id) => MODULES.some((m) => m.handles(id)) || ['servers', 'users', 'templates', 'vpn', 'activity', 'settings', 'account', 'about'].includes(id);
+  const tabTitle = (id) => GROUPS.flatMap(([, items]) => items).find(([t]) => t === id)?.[1]
+    ?? MODULES.flatMap((m) => m.tabs()).find(([t]) => t === id)?.[1] ?? id;
+
   function render() {
-    const tabs = [...hosts.tabs().filter(([id]) => id === 'overview'), ['servers', 'Servers'], ['users', 'Customers'], ...desk.tabs(), ...billing.tabs(), ...plans.tabs(), ['templates', 'Templates'], ...jobs.tabs(), ['vpn', 'VPN'],
-      ...infra.tabs(), ...hosts.tabs().filter(([id]) => id === 'hosts'), ...volumes.tabs(), ...ipam.tabs(), ['activity', 'Activity'], ['account', 'Your account'], ['settings', 'Settings'], ['about', 'About']]
-      .filter(([id]) => allowedTab(id));
+    const groups = GROUPS.map(([title, items]) => [title, items.filter(([id]) => known(id) && allowedTab(id))]).filter(([, items]) => items.length);
+    const navHtml = groups.map(([title, items]) => `
+      <div class="nav-group">
+        <h2 class="nav-group-label">${esc(title)}</h2>
+        ${items.map(([id, label]) => `<button class="nav-item tab" data-admin-tab="${id}" aria-selected="${st.tab === id}" aria-current="${st.tab === id ? 'page' : 'false'}">${esc(label)}</button>`).join('')}
+      </div>`).join('');
+    if (nav) nav.innerHTML = navHtml;
     root.innerHTML = `
       <div class="admin-inner">
-        <h1>Administration</h1>
-        <div class="tabs" role="tablist">
-          ${tabs.map(([id, label]) =>
-            `<button class="tab" role="tab" data-admin-tab="${id}" aria-selected="${st.tab === id}">${label}</button>`).join('')}
-        </div>
+        <header class="page-head admin-head">
+          <div><p class="eyebrow">Administration</p><h1>${esc(tabTitle(st.tab))}</h1></div>
+        </header>
+        ${nav ? '' : `<nav class="admin-nav inline">${navHtml}</nav>`}
         <section id="admin-body"></section>
       </div>`;
-    // many tabs: keep the open one in view
-    root.querySelector('.tab[aria-selected="true"]')?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    (nav ?? root).querySelector('[data-admin-tab][aria-selected="true"]')?.scrollIntoView({ block: 'nearest' });
   }
 
   function renderTab() {
@@ -1194,7 +1229,7 @@ export function createAdmin({ root, api, toast, fail, confirmAction, promptText,
           <div class="settings-head">
             <h2 class="twofa-title">Appearance</h2>
             <p class="muted">The color scheme for everyone: this admin interface, the customer portal, the sign-in pages
-              and emails. Each scheme has a light and a dark variant; the panel follows each device's light/dark setting.</p>
+              and emails. Each scheme has a light and a dark variant; the default mode below applies to everyone without an own choice.</p>
           </div>
           <div class="scheme-grid" role="radiogroup" aria-label="Color scheme">
             ${ap.schemes.map((sc) => `
@@ -1214,6 +1249,10 @@ export function createAdmin({ root, api, toast, fail, confirmAction, promptText,
             <button type="button" class="btn ghost" data-scheme-cancel hidden>Cancel preview</button>
             <span class="muted small" id="scheme-note"></span>
           </div>
+          <label class="inline-select">Default mode
+            <select data-panel-mode>
+              ${[['dark', 'Dark (PVE Panel App UI)'], ['light', 'Light'], ['system', 'Follow each device']].map(([v, l]) => `<option value="${v}" ${ap.mode === v ? 'selected' : ''}>${l}</option>`).join('')}
+            </select></label>
           <label class="check"><input type="checkbox" data-allow-personal ${ap.allowPersonal ? 'checked' : ''}>
             <span>Users may choose their own scheme and light/dark mode <span class="muted">(Account → Appearance; only for themselves)</span></span></label>
         </section>
@@ -1651,6 +1690,15 @@ export function createAdmin({ root, api, toast, fail, confirmAction, promptText,
   }
 
   // ---- events (bound once) ----------------------------------------------
+  nav?.addEventListener('click', (e) => {
+    const t = e.target.closest('[data-admin-tab]');
+    if (!t) return;
+    st.tab = t.dataset.adminTab;
+    st.newUser = null;
+    render();
+    load();
+  });
+
   root.addEventListener('click', async (e) => {
     const t = e.target.closest('button');
     if (!t) return;
@@ -1924,6 +1972,14 @@ export function createAdmin({ root, api, toast, fail, confirmAction, promptText,
         st.branding = await api(`/api/admin/settings/branding/${input.dataset.brandUpload}`, { method: 'PUT', body: { type: file.type, data } });
         toast('Image saved');
         renderSettings();
+      } catch (err) { fail(err); }
+      return;
+    }
+    if (e.target.matches?.('[data-panel-mode]')) {
+      try {
+        st.appearance = await api('/api/admin/settings/appearance', { method: 'PUT', body: { mode: e.target.value } });
+        await applyBrand('Administration');
+        toast(`Default mode: ${e.target.selectedOptions[0].textContent}`);
       } catch (err) { fail(err); }
       return;
     }
