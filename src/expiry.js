@@ -127,6 +127,52 @@ export function expiryInfo(row, settings = expirySettings()) {
   };
 }
 
+/**
+ * The lifecycle queue (admin): every server with an end date, where it stands and
+ * what happens next. stage: later (more than 7 days) | soon (within 7 days) |
+ * grace (stopped, will be deleted) | stopped (stopped, assigned by an admin: never
+ * deleted, an admin decides) | due (deletion time passed but paused or no warning
+ * delivered).
+ */
+export function expiryQueue({ now = Date.now(), names = new Map() } = {}) {
+  const s = expirySettings();
+  const rows = db.prepare(`SELECT v.*, u.email FROM vms v JOIN users u ON u.id = v.user_id
+    WHERE v.expires_at IS NOT NULL AND u.deleting = 0 ORDER BY v.expires_at`).all();
+  const day = (t) => new Date(t).toISOString().slice(0, 10);
+  const items = rows.map((r) => {
+    const exp = Date.parse(r.expires_at);
+    const sent = JSON.parse(r.expiry_notified || '[]');
+    const warned = sent.includes('expired') || sent.includes('final');
+    let stage; let next; let nextAt = null;
+    if (!r.expired_at) {
+      stage = exp - now <= 7 * DAY ? 'soon' : 'later';
+      const reminders = s.reminderDays.filter((d) => !sent.includes(`r${d}`) && exp - d * DAY > now).sort((a, b) => b - a);
+      if (r.auto_renew) { next = 'Auto-renew from the wallet before the end date'; nextAt = r.expires_at; }
+      else if (reminders.length) { next = `Reminder ${reminders[0]} day${reminders[0] === 1 ? '' : 's'} before`; nextAt = new Date(exp - reminders[0] * DAY).toISOString(); }
+      else { next = 'Stopped at the end date'; nextAt = r.expires_at; }
+    } else if (!r.created_by_customer) {
+      stage = 'stopped'; next = 'Stopped; never deleted automatically (assigned by an administrator)';
+    } else {
+      const deleteAt = Date.parse(r.expired_at) + s.graceDays * DAY;
+      nextAt = new Date(deleteAt).toISOString();
+      if (now < deleteAt) { stage = 'grace'; next = 'Deleted with its disks after the grace period'; }
+      else { stage = 'due'; next = s.pauseDeletions ? 'Deletion due, but deletions are paused' : warned ? 'Deleted at the next check' : 'Deletion held: the customer was not warned by email'; }
+    }
+    return {
+      vmid: r.vmid, name: r.label || names.get(r.vmid) || `server ${r.vmid}`, email: r.email, userId: r.user_id,
+      source: r.created_by_customer ? 'Created by customer' : 'Assigned by administrator', manual: !!r.expiry_manual,
+      expiresAt: r.expires_at, expiredAt: r.expired_at, stage, next, nextAt, autoRenew: !!r.auto_renew,
+      sent: sent.map((x) => (x === 'expired' ? 'stopped notice' : x === 'final' ? 'final warning' : `reminder ${x.slice(1)} d`)),
+      endDay: day(exp),
+    };
+  });
+  const count = (st) => items.filter((i) => i.stage === st).length;
+  return {
+    items, settings: s,
+    counts: { all: items.length, soon: count('soon'), grace: count('grace'), due: count('due'), stopped: count('stopped'), later: count('later') },
+  };
+}
+
 /** The customer's one self-service extension. */
 export function customerExtend(req, row) {
   const info = expiryInfo(row);

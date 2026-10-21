@@ -150,6 +150,40 @@ test('nothing is deleted when the customer could not be warned (no email)', asyn
   assert.equal(stack.mock.vms.has(b), true);
 });
 
+test('the lifecycle queue shows each server\'s stage and next step', async () => {
+  const q = async () => (await admin.get('/api/admin/expiry/queue')).json;
+  let r = await q();
+  const held = r.items.find((i) => i.vmid === b);
+  assert.equal(held.stage, 'due');
+  assert.match(held.next, /not warned by email/);
+  assert.equal(held.source, 'Created by customer');
+  assert.equal(r.counts.due, 1);
+
+  await admin.put('/api/admin/settings/expiry', { pauseDeletions: true });
+  assert.match((await q()).items.find((i) => i.vmid === b).next, /deletions are paused/);
+  await admin.put('/api/admin/settings/expiry', { pauseDeletions: false });
+
+  await admin.put('/api/admin/vms/101/expiry', { expiresAt: iso(Date.now() + 3 * DAY) });
+  r = await q();
+  const soon = r.items.find((i) => i.vmid === 101);
+  assert.deepEqual([soon.stage, soon.source, soon.manual], ['soon', 'Assigned by administrator', true]);
+  assert.equal(soon.next, 'Reminder 1 day before', 'the 7-day reminder lies before the date was set');
+  assert.equal(r.counts.soon, 1);
+
+  setVm(101, { expired_at: iso(Date.now() - DAY) });
+  assert.equal((await q()).items.find((i) => i.vmid === 101).stage, 'stopped');
+  await admin.put('/api/admin/vms/101/expiry', { expiresAt: null });
+  assert.equal((await q()).items.some((i) => i.vmid === 101), false);
+
+  const u = await admin.post('/api/admin/users', { email: 'ro2@example.com', password: 'readonly-password-1', isAdmin: true });
+  const role = (await admin.get('/api/admin/rbac')).json.roles.find((x) => x.key === 'support').id;
+  await admin.put(`/api/admin/rbac/admins/${u.json.id}`, { roleId: role });
+  const ro = stack.admin();
+  await ro.post('/api/auth/login', { email: 'ro2@example.com', password: 'readonly-password-1' });
+  assert.equal((await ro.get('/api/admin/expiry/queue')).status, 200, 'read-only admins see the queue');
+  assert.equal((await ro.put('/api/admin/vms/101/expiry', { extendDays: 7 })).status, 403);
+});
+
 test('a fixed end date applies to all servers of the customer, also assigned ones', async () => {
   const date = new Date(Date.now() + 30 * DAY).toISOString().slice(0, 10);
   const r = await admin.patch(`/api/admin/users/${trial.userId}`, { expiryMode: 'fixed_date', expiryDate: date });

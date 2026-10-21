@@ -41,7 +41,7 @@ Status: ✅ implemented · 🟡 partly (what is missing is listed) · ⬜ design
 | API tokens & integrations (owner only) | `Admin-Integrations.dc.html` | ✅ API tokens (customer and admin, scopes, read-only, expiry, last use; owners see all), Zammad, AI provider, Xendit and Midtrans in Settings (webhooks out missing) |
 | Settings & white label (owner only) | `Admin-Settings.dc.html` | 🟡 branding, single sign-on, appearance, updates, email, expiry; Proxmox clusters, Proxmox Backup Server missing |
 | Patch management | `Admin-Updates.dc.html` | ✅ fleet view (last run, never, older than 30 days, failed), rollouts in rings with failure limit, pause/resume/cancel, customer emails, pending-update counts (Check now), maintenance windows |
-| Server lifecycle (expiry) | `Admin-Lifecycle.dc.html` | 🟡 rules, reminders, stop, grace, deletion, pause; queue view missing |
+| Server lifecycle (expiry) | `Admin-Lifecycle.dc.html` | ✅ rules, reminders, stop, grace, deletion, pause; queue view (Server lifecycle tab: stage, next step, sent notices, extend, remove date, Check now, pause) |
 
 ## Customer portal
 

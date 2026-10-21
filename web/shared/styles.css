@@ -1296,3 +1296,5 @@ textarea { min-height: 0; }
 }
 .sidebar .brand-mark, .sidebar .brand svg { color: var(--signal-soft); }
 .admin-login { padding: 32px 16px; place-items: center; }
+.tag { white-space: nowrap; }
+.kpi-link[aria-pressed="true"] { border-color: var(--signal); box-shadow: inset 0 0 0 1px var(--signal); }
