@@ -6,6 +6,7 @@ import {
   createPolicy, updatePolicy, deletePolicy, setPlanPolicy,
 } from '../backups.js';
 import { listRuns, coverage, backupNow, setServerBackup } from '../backupjobs.js';
+import { listRestores } from '../restore.js';
 import { audit, db } from '../db.js';
 
 const id = { type: 'object', required: ['id'], properties: { id: { type: 'integer', minimum: 1 } } };
@@ -20,7 +21,7 @@ const policy = {
 };
 
 export default async function adminBackupRoutes(app) {
-  app.get('/api/admin/backups', async () => ({ ...(await backupOverview()), coverage: coverage(), runs: listRuns({ limit: 50 }) }));
+  app.get('/api/admin/backups', async () => ({ ...(await backupOverview()), coverage: coverage(), runs: listRuns({ limit: 50 }), restores: listRestores(50) }));
 
   const vmid = { type: 'object', required: ['vmid'], properties: { vmid: { type: 'integer', minimum: 1 } } };
   app.get('/api/admin/backups/runs', {

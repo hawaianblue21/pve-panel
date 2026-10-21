@@ -76,6 +76,25 @@ export class PveError extends Error {
 }
 
 /** One request to one cluster. */
+/** GET that returns the raw response (file downloads); errors as PveError. */
+export async function rawDownload(cluster, path, params) {
+  const url = new URL(`${cluster.url}/api2/json${path}`);
+  for (const [k, v] of Object.entries(params ?? {})) if (v !== undefined && v !== null) url.searchParams.set(k, String(v));
+  let res;
+  try {
+    res = await fetch(url, { headers: { Authorization: cluster.auth }, dispatcher: cluster.dispatcher });
+  } catch (err) {
+    throw new PveError(503, 'The server platform is unreachable right now. Try again in a minute.');
+  }
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    let json = null;
+    try { json = JSON.parse(text); } catch { /* not JSON */ }
+    throw new PveError(res.status, (json?.message || res.statusText || 'Download failed').trim());
+  }
+  return res;
+}
+
 export async function rawRequest(cluster, method, path, params) {
   const url = new URL(`${cluster.url}/api2/json${path}`);
   const init = { method, headers: { Authorization: cluster.auth }, dispatcher: cluster.dispatcher };

@@ -339,6 +339,13 @@ export function policyOfServer(row) {
   return id ? db.prepare('SELECT * FROM backup_policies WHERE id = ?').get(id) ?? null : null;
 }
 
+/** Monthly price of a server's backup add-on (renewals), or null. */
+export function addonOf(vmid) {
+  const r = db.prepare(`SELECT p.name, p.addon_price FROM vms v JOIN backup_policies p ON p.id = v.backup_policy_id
+    WHERE v.vmid = ? AND v.backup_excluded = 0 AND p.addon_price IS NOT NULL`).get(vmid);
+  return r && r.addon_price > 0 ? { name: r.name, monthly: r.addon_price } : null;
+}
+
 /** "keep-daily=7,keep-weekly=4" for Proxmox. */
 export const pruneOf = (p) => [['keep-daily', p.keep_daily], ['keep-weekly', p.keep_weekly], ['keep-monthly', p.keep_monthly]]
   .filter(([, n]) => n > 0).map(([k, n]) => `${k}=${n}`).join(',');
