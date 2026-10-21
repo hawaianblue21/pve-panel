@@ -60,6 +60,20 @@ export async function startMockPve({ port = 0, second = false } = {}) {
   ]);
   const tasks = new Map(); let seq = 0;
   const sdn = { zones: [], vnets: [], subnets: new Map(), pending: 0 };
+  // Backups: storage entries (type pbs) and the backups on them (volid → entry with a copy of the config)
+  const storages = new Map(); const backups = new Map(); const vzdumpFail = new Map(); const vzdumps = [];
+  const pruneBackups = (store, vmid, spec) => {
+    const keep = Object.fromEntries(String(spec || '').split(',').filter(Boolean).map((x) => x.split('=')).map(([k, n]) => [k, Number(n)]));
+    const list = [...backups.values()].filter((b) => b.storage === store && b.vmid === vmid).sort((a, b) => b.ctime - a.ctime);
+    const kept = new Set(list.filter((b) => b.protected).map((b) => b.volid));
+    const bucket = (b, kind) => { const d = new Date(b.ctime * 1000); if (kind === 'keep-daily') return d.toISOString().slice(0, 10);
+      if (kind === 'keep-weekly') { const t = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() - ((d.getUTCDay() + 6) % 7))); return t.toISOString().slice(0, 10); }
+      return d.toISOString().slice(0, 7); };
+    for (const kind of ['keep-daily', 'keep-weekly', 'keep-monthly']) { if (!keep[kind]) continue; const seen = new Set();
+      for (const b of list) { const k = bucket(b, kind); if (seen.has(k)) continue; if (seen.size >= keep[kind]) break; seen.add(k); kept.add(b.volid); } }
+    if (!Object.keys(keep).length) return;
+    for (const b of list) if (!kept.has(b.volid)) { backups.delete(b.volid); log('PRUNE', b.volid); }
+  };
   const started = new Map([[150, 0]]); const gwFiles = new Map(); const GW_PUB = 'Qm9ndXNHYXRld2F5UHVibGljS2V5MTIzNDU2Nzg5MDA='; const execs = new Map(); let pidSeq = 100;
   let failClones = 0;
   const task = (kind, vmid, ms=1500, then=()=>{}, exit=undefined) => { const upid=`UPID:${[...hosts.keys()][0]}:${(++seq).toString(16)}:0:${Date.now()}:${kind}:${vmid}:panel@pve!panel:`; tasks.set(upid, {done:Date.now()+ms, then, fired:true, exit}); setTimeout(then, ms); return upid; };
@@ -289,6 +303,57 @@ export async function startMockPve({ port = 0, second = false } = {}) {
         { type: 'nvidia-661', name: 'NVIDIA A16-8Q', description: 'num_heads=4, frl_config=60, framebuffer=8192M', available: 2 },
       ]);
     }
+    // ---- backups: storage entries, vzdump, contents, restore, file restore ----
+    if (p === '/storage' && req.method === 'GET') return send(res, [...storages.values()].map(({ key, ...x }) => x));
+    if (p === '/storage' && req.method === 'POST') { const b = await body(req); log('STORAGE ADD', b.storage, b.namespace);
+      if (storages.has(b.storage)) return send(res, null, 500, `storage ID '${b.storage}' already defined`);
+      const key = b['encryption-key'] === 'autogen' ? JSON.stringify({ kdf: null, created: new Date().toISOString(), key: `k-${b.storage}-${Math.random().toString(36).slice(2)}`, fingerprint: 'aa:bb' }) : (b['encryption-key'] ?? null);
+      storages.set(b.storage, { storage: b.storage, type: b.type, server: b.server, datastore: b.datastore, namespace: b.namespace, username: b.username, content: b.content, encrypted: !!key, key });
+      return send(res, { storage: b.storage, type: b.type, ...(b['encryption-key'] === 'autogen' ? { config: { 'encryption-key': key } } : {}) }); }
+    { const sm = p.match(/^\/storage\/([\w.-]+)$/); if (sm && req.method === 'DELETE') { if (!storages.delete(sm[1])) return send(res, null, 500, `storage '${sm[1]}' does not exist`); return send(res, null); } }
+    { const vz = p.match(/^\/nodes\/([^/]+)\/vzdump$/); if (vz && req.method === 'POST') { const b = await body(req); const vmid = Number(b.vmid); const v = vms.get(vmid);
+      vzdumps.push({ node: vz[1], ...b });
+      if (!v) return send(res, null, 500, `unable to find VM ${vmid}`);
+      if (!storages.has(b.storage)) return send(res, null, 500, `storage '${b.storage}' does not exist`);
+      const n = vzdumpFail.get(vmid) ?? 0;
+      if (n > 0) { vzdumpFail.set(vmid, n - 1); return send(res, task('vzdump', vmid, 600, () => {}, 'job errors')); }
+      return send(res, task('vzdump', vmid, 700, () => {
+        const ctime = Math.floor(Date.now() / 1000) + (backups.size ? 0 : 0);
+        const volid = `${b.storage}:backup/vm/${vmid}/${new Date(ctime * 1000 + backups.size).toISOString().replace(/\.\d+Z$/, 'Z')}`;
+        backups.set(volid, { volid, storage: b.storage, vmid, ctime: ctime + backups.size, size: Number(v.maxdisk ?? 2 ** 30) / 2, notes: b['notes-template'] ?? '', protected: false,
+          verification: { state: 'ok' }, cfg: JSON.parse(JSON.stringify(v.cfg)), name: v.name, files: ['etc/hostname', 'var/www/html/index.php', 'var/www/html/wp-config.php'] });
+        pruneBackups(b.storage, vmid, b['prune-backups']);
+      }, v.agent === false ? 'WARNINGS: 1' : undefined)); } }
+    { const sc = p.match(/^\/nodes\/([^/]+)\/storage\/([\w.-]+)\/content$/); if (sc && req.method === 'GET') {
+      if (!storages.has(sc[2])) return send(res, null, 500, `storage '${sc[2]}' does not exist`);
+      const vmid = u.searchParams.get('vmid');
+      return send(res, [...backups.values()].filter((b) => b.storage === sc[2] && (!vmid || b.vmid === Number(vmid)))
+        .map(({ cfg, files, storage, name, ...b }) => ({ ...b, format: 'pbs-vm', content: 'backup', protected: b.protected ? 1 : 0 }))); } }
+    { const sv = p.match(/^\/nodes\/([^/]+)\/storage\/([\w.-]+)\/content\/(.+)$/); if (sv) { const volid = decodeURIComponent(sv[3]); const b = backups.get(volid);
+      if (!b) return send(res, null, 500, `volume '${volid}' does not exist`);
+      if (req.method === 'PUT') { const q = await body(req); if (q.protected !== undefined) b.protected = String(q.protected) === '1'; if (q.notes !== undefined) b.notes = q.notes; return send(res, null); }
+      if (req.method === 'DELETE') { if (b.protected) return send(res, null, 500, 'cannot delete protected backup'); return send(res, task('imgdel', b.vmid, 200, () => backups.delete(volid))); }
+      return send(res, { ...b, cfg: undefined, files: undefined }); } }
+    { const fr = p.match(/^\/nodes\/([^/]+)\/storage\/([\w.-]+)\/file-restore\/(list|download)$/); if (fr) {
+      const b = backups.get(u.searchParams.get('volume') ?? ''); if (!b) return send(res, null, 500, 'volume does not exist');
+      const fp = Buffer.from(u.searchParams.get('filepath') || 'Lw==', 'base64').toString();       // "/" by default
+      if (fr[3] === 'download') { const name = fp.split('/').pop(); res.writeHead(200, { 'content-type': 'application/octet-stream' }); return res.end(`content of ${name} from ${b.volid}`); }
+      const prefix = fp === '/' ? '' : fp.replace(/^\//, '').replace(/\/?$/, '/');
+      const kids = new Map();
+      for (const f of b.files) { if (!f.startsWith(prefix)) continue; const restp = f.slice(prefix.length); const [head, ...more] = restp.split('/');
+        kids.set(head, { filepath: Buffer.from(`/${prefix}${head}`).toString('base64'), text: head, type: more.length ? 'd' : 'f', leaf: more.length ? 0 : 1, size: more.length ? undefined : 128 }); }
+      return send(res, [...kids.values()]); } }
+    { const rq = p.match(/^\/nodes\/([^/]+)\/qemu$/); if (rq && req.method === 'POST') { const b = await body(req); const vmid = Number(b.vmid); const bk = backups.get(b.archive ?? '');
+      if (!bk) return send(res, null, 500, `archive '${b.archive}' does not exist`);
+      if (vms.has(vmid) && String(b.force) !== '1') return send(res, null, 500, `unable to restore VM ${vmid} - VM ${vmid} already exists on node '${rq[1]}'`);
+      if (vms.has(vmid) && vms.get(vmid).status !== 'stopped') return send(res, null, 500, `unable to restore VM ${vmid} - VM is running`);
+      log('RESTORE', vmid, b.archive);
+      return send(res, task('qmrestore', vmid, 900, () => { const cfg = JSON.parse(JSON.stringify(bk.cfg));
+        if (String(b.unique) === '1' && cfg.net0) cfg.net0 = cfg.net0.replace(/=[0-9A-Fa-f:]{17}/, `=${newMac()}`);
+        const old = vms.get(vmid);
+        vms.set(vmid, { vmid, node: rq[1], type: 'qemu', name: old?.name ?? `${bk.name}-restore`, status: 'stopped', maxcpu: Number(cfg.cores ?? 1), maxmem: Number(cfg.memory ?? 1024) * 2 ** 20, maxdisk: old?.maxdisk ?? 10 * 2 ** 30, cfg, restoredFrom: bk.volid }); })); } }
+    if (p.startsWith('/__vzdumpfail/')) { const [, , v, n] = p.split('/'); vzdumpFail.set(Number(v), Number(n)); return send(res, 'ok'); }
+
     const m = p.match(/^\/nodes\/([^/]+)\/qemu\/(\d+)(\/.*)?$/);
     if (!m) return send(res, null, 501);
     const vmid = Number(m[2]); const rest = m[3] || ''; const vm = vms.get(vmid);
@@ -473,7 +538,7 @@ export async function startMockPve({ port = 0, second = false } = {}) {
   return {
     url: `http://127.0.0.1:${actualPort}`,
     port: actualPort,
-    vms, sdn, gwFiles, destroyed, clones,
+    vms, sdn, gwFiles, destroyed, clones, storages, backups, vzdumps,
     /** GET a control endpoint, e.g. control('/__lose/104/1') */
     control: (p) => fetch(`http://127.0.0.1:${actualPort}/api2/json${p}`, {
       headers: { authorization: 'PVEAPIToken=panel@pve!panel=x' },

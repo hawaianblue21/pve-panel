@@ -767,3 +767,51 @@ export function audit(req, vmid, action, detail = null) {
     req.ip
   );
 }
+
+// ---- Backups on Proxmox Backup Server (backups.js) ---------------------------------
+// PBS servers (token secret sealed); each serves some clusters (empty = all).
+// Customers get a namespace panel/c<userId> per datastore and a Proxmox storage
+// entry per cluster pointing at it (pbs_storages), created on first use.
+// Policies say when and how long; a plan points to one; a server can override it
+// (add-on) or be excluded.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS pbs_servers (
+    id           INTEGER PRIMARY KEY,
+    name         TEXT NOT NULL UNIQUE,
+    url          TEXT NOT NULL,
+    token_id     TEXT NOT NULL,
+    token_secret TEXT NOT NULL,                -- sealed
+    fingerprint  TEXT,
+    datastore    TEXT NOT NULL,
+    clusters     TEXT NOT NULL DEFAULT '[]',   -- cluster ids served; [] = all
+    enabled      INTEGER NOT NULL DEFAULT 1,
+    created_at   TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE TABLE IF NOT EXISTS pbs_storages (
+    pbs_id     INTEGER NOT NULL REFERENCES pbs_servers(id) ON DELETE CASCADE,
+    user_id    INTEGER NOT NULL,
+    cluster_id INTEGER NOT NULL,
+    storage    TEXT NOT NULL,                  -- Proxmox storage id
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    PRIMARY KEY (pbs_id, user_id, cluster_id)
+  );
+  CREATE TABLE IF NOT EXISTS backup_keys (
+    user_id    INTEGER PRIMARY KEY,
+    key_sealed TEXT NOT NULL,                  -- the PBS encryption key (JSON), sealed
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE TABLE IF NOT EXISTS backup_policies (
+    id            INTEGER PRIMARY KEY,
+    name          TEXT NOT NULL UNIQUE,
+    frequency     TEXT NOT NULL,               -- daily | weekly
+    weekday       INTEGER,                     -- weekly: 0 (Sunday) to 6
+    keep_daily    INTEGER NOT NULL DEFAULT 0,
+    keep_weekly   INTEGER NOT NULL DEFAULT 0,
+    keep_monthly  INTEGER NOT NULL DEFAULT 0,
+    addon_price   INTEGER,                     -- monthly price as a per-server add-on; NULL = not sold
+    created_at    TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+`);
+addColumn('plans', 'backup_policy_id', 'INTEGER REFERENCES backup_policies(id) ON DELETE SET NULL');
+addColumn('vms', 'backup_policy_id', 'INTEGER REFERENCES backup_policies(id) ON DELETE SET NULL');
+addColumn('vms', 'backup_excluded', 'INTEGER NOT NULL DEFAULT 0');
