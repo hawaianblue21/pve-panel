@@ -1,6 +1,6 @@
 {
   "name": "pve-panel",
-  "version": "1.11.0",
+  "version": "1.12.0",
   "description": "Customer self-service control panel for Proxmox VE",
   "private": true,
   "type": "module",
