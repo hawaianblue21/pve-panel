@@ -82,6 +82,7 @@ const ROUTES = {
   'PUT /api/admin/vms/:vmid': 'servers.manage',
   'PUT /api/admin/vms/:vmid/expiry': 'servers.manage',
   'POST /api/admin/vms/:vmid/power/:action': 'servers.manage',
+  'POST /api/admin/vms/bulk': 'servers.manage',
   'DELETE /api/admin/vms/:vmid/server': 'servers.delete',
   'DELETE /api/admin/vms/:vmid': 'servers.manage',
   'GET /api/admin/tasks/:upid': 'servers.read',

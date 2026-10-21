@@ -214,6 +214,7 @@ export function generatePassword(length = 16) {
 export function createAdmin({ root, nav = null, api, toast, fail, confirmAction, promptText, esc, getMe, onAbout }) {
   const st = {
     tab: 'overview', users: [], vms: [], audit: [], filter: '', newUser: null,
+    vmView: { node: '', status: '', owner: '', type: '', group: false }, picked: new Set(),
     templates: [], storages: {}, vpn: null, perms: null,
   };
   // Access control, resource pools, object storage and GPUs (own module)
@@ -371,22 +372,100 @@ export function createAdmin({ root, nav = null, api, toast, fail, confirmAction,
 
   // ---- servers ----------------------------------------------------------
   function renderServers() {
+    const w = !st.perms || st.perms.has('servers.manage');
+    const nodes = [...new Set(st.vms.map((v) => v.node).filter(Boolean))].sort();
+    const sel = (name, label, opts) => `<label class="inline-select"><span class="sr-only">${label}</span>
+      <select data-vm-view="${name}" aria-label="${label}">${opts.map(([v, l]) => `<option value="${v}" ${st.vmView[name] === v ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></label>`;
     root.querySelector('#admin-body').innerHTML = `
-      <div class="section-head">
-        <p class="muted" style="margin:0" id="vm-summary"></p>
-        <input type="search" id="vm-filter" class="filter" placeholder="Filter by ID, name or customer"
+      <p class="muted" style="margin:0 0 12px" id="vm-summary"></p>
+      <div class="vm-toolbar">
+        <input type="search" id="vm-filter" class="filter" placeholder="ID, name, customer or label"
                value="${esc(st.filter)}" aria-label="Filter servers">
+        ${sel('node', 'Node', [['', 'Node: all'], ...nodes.map((n) => [n, `Node: ${n}`])])}
+        ${sel('status', 'Status', [['', 'Status: any'], ['running', 'Running'], ['stopped', 'Stopped'], ['missing', 'Deleted in Proxmox']])}
+        ${sel('owner', 'Customer', [['', 'Customer: any'], ['assigned', 'Assigned'], ['unassigned', 'Not assigned']])}
+        ${sel('type', 'Type', [['', 'Type: VM + container'], ['qemu', 'VMs'], ['lxc', 'Containers']])}
+        <label class="inline-check"><input type="checkbox" data-vm-view="group" ${st.vmView.group ? 'checked' : ''}> Group by node</label>
       </div>
+      ${w ? '<div id="vm-bulk"></div>' : ''}
       <div class="table-wrap">
         <table class="table">
           <thead><tr>
-            <th>ID</th><th>Name in Proxmox</th><th>Node</th><th>Customer</th><th>Name shown to customer</th><th><span class="sr-only">Actions</span></th>
+            ${w ? '<th><input type="checkbox" data-pick-all-vms aria-label="Select all shown servers"></th>' : ''}
+            <th>ID</th><th>Name in Proxmox</th><th data-node-col ${st.vmView.group ? 'hidden' : ''}>Node</th><th>Size</th><th>Customer</th><th>Name shown to customer</th><th><span class="sr-only">Actions</span></th>
           </tr></thead>
           <tbody id="vm-rows"></tbody>
         </table>
       </div>
-      <p class="muted small">Changes save immediately. Customers see a server as soon as it's assigned to them.</p>`;
+      <p class="muted small">Changes save immediately. Customers see a server as soon as it's assigned to them. Select several
+        servers to start, stop or restart them together, or to assign existing guests to a customer in one go.</p>`;
     renderServerRows();
+  }
+
+  /** The servers the filters show. */
+  function shownVms() {
+    const q = st.filter.trim().toLowerCase();
+    const f = st.vmView;
+    return st.vms.filter((v) => (!q
+      || String(v.vmid).includes(q)
+      || v.name.toLowerCase().includes(q)
+      || (v.owner ?? '').toLowerCase().includes(q)
+      || (v.label ?? '').toLowerCase().includes(q))
+      && (!f.node || v.node === f.node)
+      && (!f.status || (f.status === 'stopped' ? !['running', 'missing'].includes(v.status) : v.status === f.status))
+      && (!f.owner || (f.owner === 'assigned' ? !!v.userId : !v.userId))
+      && (!f.type || v.type === f.type));
+  }
+
+  function renderBulkBar() {
+    const box = root.querySelector('#vm-bulk');
+    if (!box) return;
+    st.picked = new Set([...st.picked].filter((id) => st.vms.some((v) => v.vmid === id)));
+    const n = st.picked.size;
+    if (!n) { box.innerHTML = ''; return; }
+    const picked = st.vms.filter((v) => st.picked.has(v.vmid));
+    const assigned = picked.filter((v) => v.userId).length;
+    box.innerHTML = `
+      <div class="bulk-bar" role="region" aria-label="Selected servers">
+        <strong>${n} selected</strong><span class="muted small">${assigned} assigned</span>
+        <button class="link-btn" data-bulk-clear>Clear</button>
+        <span class="spacer"></span>
+        ${[['start', 'Start'], ['shutdown', 'Shut down'], ['reboot', 'Restart'], ['stop', 'Force stop']].map(([a, l]) =>
+          `<button class="btn" data-bulk="${a}" ${assigned ? '' : 'disabled'}>${l}</button>`).join('')}
+        <label class="inline-select"><span class="sr-only">Customer to assign to</span>
+          <select id="bulk-user" aria-label="Customer to assign to"><option value="">Assign to…</option>
+            ${st.users.filter((u) => !u.isAdmin).map((u) => `<option value="${u.id}">${esc(u.email)}</option>`).join('')}</select></label>
+        <button class="btn" data-bulk="assign">Assign</button>
+        <button class="btn" data-bulk="unassign" ${assigned ? '' : 'disabled'}>Unassign</button>
+      </div>`;
+  }
+
+  async function runBulk(action) {
+    const vmids = [...st.picked];
+    const picked = st.vms.filter((v) => st.picked.has(v.vmid));
+    let userId;
+    if (action === 'assign') {
+      userId = Number(root.querySelector('#bulk-user')?.value) || null;
+      if (!userId) { toast('Choose the customer first', 'warn'); return; }
+    }
+    const who = [...new Set(picked.map((v) => v.owner).filter(Boolean))];
+    const q = {
+      start: `Start ${vmids.length} server(s)?`,
+      shutdown: `Shut down ${vmids.length} server(s)?`, reboot: `Restart ${vmids.length} server(s)?`,
+      stop: `Force stop ${vmids.length} server(s)? This cuts power immediately; unsaved data may be lost.`,
+      assign: `Assign ${vmids.length} server(s) to ${st.users.find((u) => u.id === userId)?.email}? They see them at once.`,
+      unassign: `Unassign ${vmids.length} server(s)? They keep running; their customers no longer see them.`,
+    }[action];
+    const affected = who.length && action !== 'assign' ? ` Affected: ${who.slice(0, 4).join(', ')}${who.length > 4 ? ` and ${who.length - 4} more` : ''}.` : '';
+    if (!(await confirmAction(q + affected, { start: 'Start', shutdown: 'Shut down', reboot: 'Restart', stop: 'Force stop', assign: 'Assign', unassign: 'Unassign' }[action]))) return;
+    try {
+      const r = await api('/api/admin/vms/bulk', { method: 'POST', body: { action, vmids, ...(userId ? { userId } : {}) } });
+      const failed = r.results.filter((x) => !x.ok);
+      const skipped = r.results.filter((x) => x.ok && x.skipped).length;
+      toast(`${r.done} done${skipped ? `, ${skipped} skipped` : ''}${failed.length ? `, ${failed.length} failed: ${failed.slice(0, 3).map((x) => `${x.vmid} (${x.error})`).join(', ')}` : ''}`, failed.length ? 'warn' : 'info');
+      st.picked.clear();
+      await load({ quiet: true });
+    } catch (err) { fail(err); }
   }
 
   /** Power and delete buttons, only for servers assigned to a customer. */
@@ -466,23 +545,31 @@ export function createAdmin({ root, nav = null, api, toast, fail, confirmAction,
 
   function renderServerRows() {
     const assigned = st.vms.filter((v) => v.userId).length;
+    const nodes = new Set(st.vms.map((v) => v.node).filter(Boolean)).size;
     root.querySelector('#vm-summary').textContent =
-      `${st.vms.length} servers in the cluster, ${assigned} assigned to customers.`;
+      `${st.vms.length} servers on ${nodes} node${nodes === 1 ? '' : 's'}, ${assigned} assigned to customers.`;
+    const w = !st.perms || st.perms.has('servers.manage');
+    const cols = (w ? 8 : 7) - (st.vmView.group ? 1 : 0);
+    root.querySelector('[data-node-col]')?.toggleAttribute('hidden', st.vmView.group);
 
-    const q = st.filter.trim().toLowerCase();
-    const rows = st.vms.filter((v) => !q
-      || String(v.vmid).includes(q)
-      || v.name.toLowerCase().includes(q)
-      || (v.owner ?? '').toLowerCase().includes(q)
-      || (v.label ?? '').toLowerCase().includes(q));
+    let rows = shownVms();
+    if (st.vmView.group) rows = [...rows].sort((a, b) => String(a.node ?? '~').localeCompare(String(b.node ?? '~')) || a.vmid - b.vmid);
+    const size = (v) => [v.cores && `${v.cores} vCPU`, v.memoryMb && `${+(v.memoryMb / 1024).toFixed(1)} GB`, v.diskGb && `${v.diskGb} GB`].filter(Boolean).join(' · ');
 
     const options = (selected) => `
       <option value="">Not assigned</option>
       ${st.users.map((u) =>
         `<option value="${u.id}" ${u.id === selected ? 'selected' : ''}>${esc(u.email)}</option>`).join('')}`;
 
-    root.querySelector('#vm-rows').innerHTML = rows.length ? rows.map((v) => `
-      <tr data-vmid="${v.vmid}">
+    let lastNode;
+    root.querySelector('#vm-rows').innerHTML = rows.length ? rows.map((v) => {
+      const head = st.vmView.group && v.node !== lastNode
+        ? `<tr class="group-row"><td colspan="${cols}"><strong>${esc(v.node ?? 'Not in Proxmox')}</strong>${v.cluster ? ` <span class="muted small">cluster ${esc(v.cluster)}</span>` : ''}
+            <span class="muted small">· ${rows.filter((x) => x.node === v.node).length} guests</span></td></tr>` : '';
+      lastNode = v.node;
+      return `${head}
+      <tr data-vmid="${v.vmid}" class="${st.picked.has(v.vmid) ? 'row-picked' : ''}">
+        ${w ? `<td><input type="checkbox" data-pick-vm aria-label="Select server ${v.vmid}" ${st.picked.has(v.vmid) ? 'checked' : ''}></td>` : ''}
         <td class="mono">${v.vmid}</td>
         <td>
           <span class="led ${v.status === 'running' ? 'running' : ''}" title="${esc(v.status)}"></span>
@@ -495,7 +582,8 @@ export function createAdmin({ root, nav = null, api, toast, fail, confirmAction,
           ${v.createdByCustomer ? '<span class="tag">created by customer</span>' : ''}
           ${expiryTag(v)}
         </td>
-        <td class="muted">${esc(v.node ?? '–')}</td>
+        ${st.vmView.group ? '' : `<td class="muted">${esc(v.node ?? '–')}${v.cluster ? `<br><span class="small">${esc(v.cluster)}</span>` : ''}</td>`}
+        <td class="small mono nowrap">${esc(size(v) || '–')}</td>
         <td>
           <select data-owner aria-label="Customer for server ${v.vmid}" ${v.status === 'missing' && !v.userId ? 'disabled' : ''}>
             ${options(v.userId)}
@@ -506,8 +594,12 @@ export function createAdmin({ root, nav = null, api, toast, fail, confirmAction,
                  maxlength="80" aria-label="Name shown to customer for server ${v.vmid}" ${v.userId ? '' : 'disabled'}>
         </td>
         <td class="actions">${serverActions(v)}</td>
-      </tr>`).join('')
-      : `<tr><td colspan="6" class="muted">No servers match “${esc(st.filter)}”.</td></tr>`;
+      </tr>`;
+    }).join('')
+      : `<tr><td colspan="${cols}" class="muted">No servers match these filters.</td></tr>`;
+    const all = root.querySelector('[data-pick-all-vms]');
+    if (all) all.checked = rows.length > 0 && rows.every((v) => st.picked.has(v.vmid));
+    renderBulkBar();
   }
 
   async function saveAssignment(row) {
@@ -1892,6 +1984,9 @@ export function createAdmin({ root, nav = null, api, toast, fail, confirmAction,
       return;
     }
 
+    if (t.dataset.bulk) { runBulk(t.dataset.bulk); return; }
+    if (t.hasAttribute('data-bulk-clear')) { st.picked.clear(); renderServerRows(); return; }
+
     if (t.dataset.serverAction) {
       const vm = st.vms.find((x) => x.vmid === Number(t.closest('tr').dataset.vmid));
       if (vm) serverAction(vm, t.dataset.serverAction);
@@ -2009,7 +2104,27 @@ export function createAdmin({ root, nav = null, api, toast, fail, confirmAction,
       form.password.disabled = on;
       return;
     }
+    if (e.target.matches('[data-vm-view]')) {
+      const k = e.target.dataset.vmView;
+      st.vmView[k] = k === 'group' ? e.target.checked : e.target.value;
+      renderServerRows();
+      return;
+    }
+    if (e.target.matches('[data-pick-all-vms]')) {
+      for (const v of shownVms()) { if (e.target.checked) st.picked.add(v.vmid); else st.picked.delete(v.vmid); }
+      renderServerRows();
+      return;
+    }
     const row = e.target.closest('tr[data-vmid]');
+    if (row && e.target.matches('[data-pick-vm]')) {
+      const id = Number(row.dataset.vmid);
+      if (e.target.checked) st.picked.add(id); else st.picked.delete(id);
+      row.classList.toggle('row-picked', e.target.checked);
+      renderBulkBar();
+      const all = root.querySelector('[data-pick-all-vms]');
+      if (all) all.checked = shownVms().every((v) => st.picked.has(v.vmid));
+      return;
+    }
     if (row && (e.target.matches('[data-owner]') || e.target.matches('[data-label]'))) saveAssignment(row);
   });
 

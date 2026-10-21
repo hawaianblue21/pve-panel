@@ -1,6 +1,6 @@
 import bcrypt from 'bcryptjs';
 import { db, audit } from '../db.js';
-import { pve, clusterGuests, locateGuest, locateTemplate, invalidateGuestCache, guestPath } from '../pve.js';
+import { pve, clusterGuests, locateGuest, locateTemplate, invalidateGuestCache, guestPath, clusterById } from '../pve.js';
 import { startCustomerDeletion, deletionPlan, destroyServer, isProtected } from '../cleanup.js';
 import { tailscaleOverview } from '../tailscale.js';
 import { SCHEMES, currentScheme, setScheme, personalAllowed, setAllowPersonal, defaultMode, setDefaultMode, PANEL_MODES } from '../appearance.js';
@@ -350,6 +350,8 @@ export default async function adminRoutes(app) {
         const o = owners.get(Number(g.vmid));
         return {
           vmid: Number(g.vmid), name: g.name ?? '', node: g.node, type: g.type, status: g.status,
+          cluster: clusterById(g.cluster ?? 0)?.name ?? null,
+          cores: g.maxcpu ?? null, memoryMb: g.maxmem ? Math.round(g.maxmem / 1048576) : null, diskGb: g.maxdisk ? Math.round(g.maxdisk / 1073741824) : null,
           userId: o?.user_id ?? null, owner: o?.email ?? null, label: o?.label ?? null,
           state: o?.state ?? null, createdByCustomer: !!o?.created_by_customer,
           expiry: o ? expiryInfo(o, expSettings) : null, expiryManual: !!o?.expiry_manual,
@@ -554,8 +556,8 @@ export default async function adminRoutes(app) {
 
   // ---- Acting on customer servers ------------------------------------------
   // Only servers assigned to a customer; the VPN gateway and templates never.
-  async function customerServer(req) {
-    const vmid = Number(req.params.vmid);
+  async function customerServer(req) { return serverByVmid(Number(req.params.vmid)); }
+  async function serverByVmid(vmid) {
     const row = db.prepare('SELECT * FROM vms WHERE vmid = ?').get(vmid);
     if (!row) {
       const err = new Error('Only servers assigned to a customer can be managed here');
@@ -582,6 +584,69 @@ export default async function adminRoutes(app) {
     invalidateGuestCache();
     audit(req, guest.vmid, `admin_power_${action}`);
     return { task: typeof upid === 'string' && upid.startsWith('UPID:') ? upid : null };
+  });
+
+  // Bulk actions on many servers (Servers tab): power for assigned servers, assigning
+  // guests to a customer (adopting existing guests in one go) and unassigning. Each
+  // server is handled on its own; the answer lists what worked and why the rest didn't.
+  const BULK_POWER = ['start', 'shutdown', 'reboot', 'stop'];
+  app.post('/api/admin/vms/bulk', {
+    config: { rateLimit: { max: 30, timeWindow: '10 minutes' } },
+    schema: {
+      body: {
+        type: 'object', required: ['action', 'vmids'], additionalProperties: false,
+        properties: {
+          action: { type: 'string', enum: [...BULK_POWER, 'assign', 'unassign'] },
+          vmids: { type: 'array', minItems: 1, maxItems: 200, items: { type: 'integer', minimum: 1 } },
+          userId: { type: 'integer', minimum: 1 },
+        },
+      },
+    },
+  }, async (req, reply) => {
+    const { action, userId } = req.body;
+    const vmids = [...new Set(req.body.vmids)];
+    let user = null;
+    if (action === 'assign') {
+      user = db.prepare('SELECT id, email FROM users WHERE id = ?').get(userId ?? 0);
+      if (!user) return badRequest(reply, 'Choose the customer to assign the servers to');
+    }
+    const results = [];
+    for (const vmid of vmids) {
+      try {
+        if (BULK_POWER.includes(action)) {
+          const { row, guest } = await serverByVmid(vmid);
+          if (row.state !== 'ready') throw Object.assign(new Error('busy with another operation'), { statusCode: 409 });
+          const running = guest.status === 'running';
+          if (action === 'start' && running) { results.push({ vmid, ok: true, skipped: 'already running' }); continue; }
+          if (action !== 'start' && !running) { results.push({ vmid, ok: true, skipped: 'not running' }); continue; }
+          await pve.post(`${guestPath(guest)}/status/${action}`);
+          audit(req, vmid, `admin_power_${action}`, { bulk: true });
+        } else if (action === 'assign') {
+          const guest = await locateGuest(vmid);
+          if (guest.template) throw new Error('a template');
+          if (isProtected(vmid, guest)) throw new Error('protected (panel infrastructure)');
+          const previous = db.prepare('SELECT user_id FROM vms WHERE vmid = ?').get(vmid);
+          if (previous?.user_id === user.id) { results.push({ vmid, ok: true, skipped: 'already assigned' }); continue; }
+          db.prepare(`INSERT INTO vms (vmid, user_id, type, label) VALUES (?, ?, ?, NULL)
+            ON CONFLICT(vmid) DO UPDATE SET user_id = excluded.user_id, type = excluded.type`).run(vmid, user.id, guest.type);
+          db.prepare(`UPDATE vms SET expires_at = NULL, expiry_set_at = NULL, expiry_manual = 0, expired_at = NULL,
+                      expiry_notified = NULL, self_extended = 0 WHERE vmid = ?`).run(vmid);
+          audit(req, vmid, 'admin_vm_assign', { email: user.email, bulk: true });
+        } else {
+          const row = db.prepare('SELECT state FROM vms WHERE vmid = ?').get(vmid);
+          if (!row) { results.push({ vmid, ok: true, skipped: 'not assigned' }); continue; }
+          if (['creating', 'deleting'].includes(row.state)) throw new Error('busy with another operation');
+          db.prepare('DELETE FROM vms WHERE vmid = ?').run(vmid);
+          audit(req, vmid, 'admin_vm_unassign', { bulk: true });
+        }
+        results.push({ vmid, ok: true });
+      } catch (err) {
+        results.push({ vmid, ok: false, error: String(err.message).slice(0, 200) });
+      }
+    }
+    if (action === 'assign') applyCustomerRule(user.id);
+    invalidateGuestCache();
+    return { action, done: results.filter((r) => r.ok && !r.skipped).length, results };
   });
 
   // Stops (if needed) and destroys the server with its disks, in the background.
