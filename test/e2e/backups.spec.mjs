@@ -1,4 +1,5 @@
-// Backups: an owner connects a Proxmox Backup Server, adds a policy and switches backups on.
+// Backups: an owner connects a Proxmox Backup Server, adds a policy, switches backups on,
+// backs a server up by hand, follows the run and excludes the server.
 import { test, expect } from '@playwright/test';
 
 test('connect a backup server, add a policy, switch backups on', async ({ page }) => {
@@ -42,7 +43,41 @@ test('connect a backup server, add a policy, switch backups on', async ({ page }
   await expect(page.locator('#bk-settings')).toBeVisible();
   await expect(page.locator('.settings-head .pill')).toContainText('On');
 
+  // a window that is not open now, so only the manual backup below runs
+  const h = new Date().getUTCHours();
+  await s.locator('[name=windowStart]').selectOption(String((h + 3) % 24));
+  await s.locator('[name=windowEnd]').selectOption(String((h + 5) % 24));
+  await s.locator('button.primary').click();
+  await expect(page.locator('.toast').last()).toContainText('Backup settings saved');
+
+  // Servers: back one up now, follow it under Runs
+  await page.locator('[data-bk-view=servers]').click();
+  const first = page.locator('#bk-servers tbody tr[data-bk-vm]').first();
+  await expect(first).toContainText('No backup yet');
+  const vmid = await first.getAttribute('data-bk-vm');
+  await first.locator('[data-bk-now]').click();
+  await expect(page.locator('.toast').last()).toContainText('Backup started');
+  await expect(async () => {
+    await page.locator('[data-admin-tab=backups]').click();
+    await page.locator('[data-bk-view=runs]').click();
+    await expect(page.locator('#bk-runs tbody tr').first()).toContainText('OK', { timeout: 1000 });
+  }).toPass({ timeout: 15_000 });
+  await expect(page.locator('#bk-runs tbody tr').first()).toContainText('Manual');
+
+  // exclude it and include it again
+  await page.locator('[data-bk-view=servers]').click();
+  await page.locator('[data-bk-srv=all]').click();
+  const row = page.locator(`#bk-servers tr[data-bk-vm="${vmid}"]`);
+  await expect(row).toContainText('Protected');
+  await row.locator('[data-bk-exclude]').click();
+  await page.locator('#confirm-ok').click();
+  await expect(page.locator('.toast').last()).toContainText('Excluded from backups');
+  await expect(page.locator(`#bk-servers tr[data-bk-vm="${vmid}"]`)).toContainText('Excluded');
+  await page.locator(`#bk-servers tr[data-bk-vm="${vmid}"] [data-bk-exclude]`).click();
+  await expect(page.locator('.toast').last()).toContainText('Included in backups');
+
   // Leave the shared stack as found: no scheduler side effects for other specs.
+  await page.locator('[data-bk-view=overview]').click();
   await page.locator('#bk-settings [name=enabled]').uncheck();
   await page.locator('#bk-settings button.primary').click();
   await expect(page.locator('.settings-head .pill')).toContainText('Off');

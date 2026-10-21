@@ -1,10 +1,12 @@
 // Admin: backups on Proxmox Backup Server: settings, backup servers (owners),
-// policies and which plan uses which.
+// policies and which plan uses which; runs, coverage, manual backups and per-server
+// overrides (backupjobs.js).
 import {
   backupOverview, saveBackupSettings, testPbs, addPbs, updatePbs, removePbs, exportKey,
   createPolicy, updatePolicy, deletePolicy, setPlanPolicy,
 } from '../backups.js';
-import { audit } from '../db.js';
+import { listRuns, coverage, backupNow, setServerBackup } from '../backupjobs.js';
+import { audit, db } from '../db.js';
 
 const id = { type: 'object', required: ['id'], properties: { id: { type: 'integer', minimum: 1 } } };
 const conn = {
@@ -18,7 +20,22 @@ const policy = {
 };
 
 export default async function adminBackupRoutes(app) {
-  app.get('/api/admin/backups', async () => backupOverview());
+  app.get('/api/admin/backups', async () => ({ ...(await backupOverview()), coverage: coverage(), runs: listRuns({ limit: 50 }) }));
+
+  const vmid = { type: 'object', required: ['vmid'], properties: { vmid: { type: 'integer', minimum: 1 } } };
+  app.get('/api/admin/backups/runs', {
+    schema: { querystring: { type: 'object', properties: { state: { type: 'string', enum: ['running', 'ok', 'failed'] }, vmid: { type: 'integer', minimum: 1 }, limit: { type: 'integer', minimum: 1, maximum: 1000 } } } },
+  }, async (req) => ({ runs: listRuns(req.query) }));
+  app.post('/api/admin/backups/run/:vmid', {
+    config: { rateLimit: { max: 60, timeWindow: '10 minutes' } }, schema: { params: vmid },
+  }, async (req, reply) => {
+    const row = db.prepare('SELECT * FROM vms WHERE vmid = ?').get(req.params.vmid);
+    if (!row) return reply.code(404).send({ error: 'Server not found' });
+    return reply.code(202).send(await backupNow(req, row));
+  });
+  app.put('/api/admin/backups/vms/:vmid', {
+    schema: { params: vmid, body: { type: 'object', additionalProperties: false, minProperties: 1, properties: { policyId: { type: ['integer', 'null'] }, excluded: { type: 'boolean' } } } },
+  }, async (req) => setServerBackup(req, req.params.vmid, req.body));
 
   app.put('/api/admin/backups/settings', {
     schema: {

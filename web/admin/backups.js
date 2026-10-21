@@ -1,7 +1,10 @@
 // Admin portal: Backups on Proxmox Backup Server (Admin-Backups design).
-//   Overview  backup servers with datastore figures, settings (window, limits, encryption,
-//             retention after deletion, default policy); runs and unprotected servers
-//             come with the backup jobs
+//   Overview  coverage and the last 24 hours, servers that need attention, backup servers
+//             with datastore figures, settings (window, limits, encryption, retention
+//             after deletion, default policy)
+//   Runs      scheduled and manual backups with their outcome
+//   Servers   every customer server: policy (plan, own or default), status, back up now,
+//             exclude
 //   Policies  when and how long, which plan uses which, add-on prices
 //   Connect   owners connect a backup server (test, certificate pin, datastore, clusters)
 // Same shape as the other tab modules: tabs(), handles(), load(), render(), onClick(), onChange(), onSubmit().
@@ -11,9 +14,17 @@ const tb = (b) => (b == null ? '·' : b >= 2 ** 40 ? `${(b / 2 ** 40).toFixed(1)
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const when = (iso) => (iso ? new Date(iso).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }) : '');
 const hh = (h) => `${String(h).padStart(2, '0')}:00`;
+const size = (b) => (b == null ? '·' : b >= 2 ** 30 ? `${(b / 2 ** 30).toFixed(1)} GB` : `${Math.max(1, Math.round(b / 2 ** 20))} MB`);
+const took = (a, b) => { if (!a || !b) return ''; const m = Math.round((Date.parse(b) - Date.parse(a)) / 60000); return m < 1 ? '< 1 min' : m < 60 ? `${m} min` : `${Math.floor(m / 60)} h ${m % 60} min`; };
+const STATUS = {
+  protected: ['Protected', 'ok'], pending: ['No backup yet', ''], stale: ['Out of date', 'warn'], failing: ['Failing', 'bad'],
+  'no-policy': ['No policy', 'warn'], excluded: ['Excluded', ''],
+};
+const RUN = { running: ['Running', ''], ok: ['OK', 'ok'], failed: ['Failed', 'bad'] };
+const tag = (map, k) => `<span class="tag ${map[k]?.[1] ?? ''}">${map[k]?.[0] ?? k}</span>`;
 
 export function createBackups({ root, api, toast, fail, confirmAction, esc }) {
-  const st = { perms: new Set(), data: null, view: 'overview', editing: null, test: null, form: null };
+  const st = { perms: new Set(), data: null, view: 'overview', editing: null, test: null, form: null, runFilter: 'all', srvFilter: 'attention' };
   const can = (p) => st.perms.has(p);
   const body = () => root.querySelector('#admin-body');
   const TABS = [['backups', 'Backups', 'backups.read']];
@@ -24,7 +35,7 @@ export function createBackups({ root, api, toast, fail, confirmAction, esc }) {
     p.keepDaily && `${p.keepDaily} daily`, p.keepWeekly && `${p.keepWeekly} weekly`, p.keepMonthly && `${p.keepMonthly} monthly`].filter(Boolean).join(', ')}`;
 
   function render() {
-    const views = [['overview', 'Overview'], ['policies', 'Policies'], ...(can('rbac.write') ? [['connect', 'Backup servers']] : [])];
+    const views = [['overview', 'Overview'], ['runs', 'Runs'], ['servers', 'Servers'], ['policies', 'Policies'], ...(can('rbac.write') ? [['connect', 'Backup servers']] : [])];
     body().innerHTML = `
       <div class="backups-admin">
         <div class="segmented" role="radiogroup" aria-label="Backups" style="margin-bottom:16px">
@@ -34,6 +45,8 @@ export function createBackups({ root, api, toast, fail, confirmAction, esc }) {
       </div>`;
     const el = body().querySelector('#bk-view');
     if (st.view === 'overview') el.innerHTML = overview();
+    if (st.view === 'runs') el.innerHTML = runsView();
+    if (st.view === 'servers') el.innerHTML = serversView();
     if (st.view === 'policies') el.innerHTML = policies();
     if (st.view === 'connect') el.innerHTML = connect();
   }
@@ -47,16 +60,29 @@ export function createBackups({ root, api, toast, fail, confirmAction, esc }) {
     const used = live.reduce((a, x) => a + (x.status.used ?? 0), 0);
     const total = live.reduce((a, x) => a + (x.status.total ?? 0), 0);
     const verify = live.map((x) => x.status.lastVerify).filter(Boolean);
+    const c = d.coverage;
+    const attention = c.servers.filter((x) => ['failing', 'stale'].includes(x.status));
     return `
       ${!d.servers.length ? `<div class="notice warn"><p>No backup server is connected yet.${can('rbac.write') ? ' Connect one under <button class="linklike" data-bk-view="connect">Backup servers</button>.' : ' An owner connects one.'}</p></div>` : ''}
       ${d.servers.length && !s.enabled ? '<div class="notice warn"><p>Backups are switched off: nothing runs and customers don\'t see backups. Switch them on below.</p></div>' : ''}
       <div class="kpi-row">
         <div class="kpi"><span class="muted small">Backup servers</span><strong>${live.length} / ${d.servers.length}</strong><span class="small muted">reachable</span></div>
         <div class="kpi"><span class="muted small">Datastore used</span><strong>${tb(used)}</strong><span class="small muted">of ${tb(total)}</span></div>
-        <div class="kpi"><span class="muted small">Policies</span><strong>${d.policies.length}</strong><span class="small muted">${d.policies.reduce((a, p) => a + p.servers, 0)} servers covered</span></div>
+        <div class="kpi"><span class="muted small">Protected servers</span><strong>${c.counts.protected} / ${c.servers.length}</strong><span class="small muted">${c.counts['no-policy']} without a policy · ${c.counts.excluded} excluded</span></div>
+        <div class="kpi"><span class="muted small">Last 24 hours</span><strong>${c.last24h.ok} ok</strong><span class="small muted">${c.last24h.failed} failed · ${c.last24h.running} running · ${size(c.last24h.bytes)}</span></div>
         <div class="kpi"><span class="muted small">Last verify</span><strong>${verify.length ? (verify.every((v) => v.ok) ? 'OK' : 'Failed') : '·'}</strong><span class="small muted">${verify[0]?.at ? esc(when(verify[0].at)) : 'no verify job seen'}</span></div>
         <div class="kpi"><span class="muted small">Customer keys</span><strong>${d.keys}</strong><span class="small muted">${s.encrypt ? 'encryption on' : 'encryption off'}</span></div>
       </div>
+      ${attention.length ? `
+        <h2 class="h2">Needs attention</h2>
+        <div class="table-wrap"><table class="table" id="bk-attention">
+          <thead><tr><th>Server</th><th>Customer</th><th>Status</th><th>Last good backup</th><th>Last error</th></tr></thead>
+          <tbody>${attention.slice(0, 8).map((x) => `<tr><td><strong>${esc(x.label || `server ${x.vmid}`)}</strong> <span class="mono small muted">${x.vmid}</span></td>
+            <td class="small">${esc(x.email ?? '')}</td><td>${tag(STATUS, x.status)}</td><td class="small">${x.lastOk ? esc(when(x.lastOk)) : '·'}</td>
+            <td class="small">${esc(x.lastError ?? '')}</td></tr>`).join('')}</tbody></table></div>
+        ${attention.length > 8 ? `<p class="small muted">${attention.length - 8} more under <button class="linklike" data-bk-view="servers">Servers</button>.</p>` : ''}` : ''}
+      ${c.orphans.length ? `<div class="notice" style="margin-top:16px"><p>Backups of ${c.orphans.length} server${c.orphans.length === 1 ? '' : 's'} that are no longer the customer's
+        ${d.settings.keepAfterDeleteDays ? `are removed ${d.settings.keepAfterDeleteDays} days after the panel noticed (first: ${esc(when(c.orphans[0].firstSeen))})` : 'are kept (removal is off)'}.</p></div>` : ''}
       ${d.servers.length ? `
         <h2 class="h2">Datastores</h2>
         <div class="pbs-cards">${d.servers.map((x) => {
@@ -82,7 +108,7 @@ export function createBackups({ root, api, toast, fail, confirmAction, esc }) {
         <div class="settings-head">
           <h2 class="twofa-title">Settings <span class="pill ${s.enabled ? 'pill-running' : ''}">${s.enabled ? 'On' : 'Off'}</span></h2>
           <p class="muted">Jobs start inside the backup window (panel time zone), a few per node at a time. Every customer has their own
-            namespace on the backup server${s.encrypt ? ' and their own encryption key' : ''}. Backups of a deleted server are kept for the days below, then removed.</p>
+            namespace on the backup server${s.encrypt ? ' and their own encryption key' : ''}. Backups of a deleted server are kept for the days below, then removed (0: kept).</p>
         </div>
         <form id="bk-settings" class="email-form" novalidate>
           <div class="grid-3">
@@ -91,7 +117,7 @@ export function createBackups({ root, api, toast, fail, confirmAction, esc }) {
             <label>Parallel jobs per node <input name="parallelPerNode" type="number" min="1" max="16" value="${s.parallelPerNode}" ${w ? '' : 'disabled'}></label>
             <label>Bandwidth per job (MB/s, 0 = none) <input name="bwlimitMBs" type="number" min="0" max="10000" value="${s.bwlimitMBs}" ${w ? '' : 'disabled'}></label>
             <label>Manual backups per server per day <input name="manualPerDay" type="number" min="0" max="24" value="${s.manualPerDay}" ${w ? '' : 'disabled'}></label>
-            <label>Keep backups of deleted servers (days) <input name="keepAfterDeleteDays" type="number" min="0" max="3650" value="${s.keepAfterDeleteDays}" ${w ? '' : 'disabled'}></label>
+            <label>Keep backups of deleted servers (days, 0 = keep) <input name="keepAfterDeleteDays" type="number" min="0" max="3650" value="${s.keepAfterDeleteDays}" ${w ? '' : 'disabled'}></label>
             <label>Default policy <span class="hint">servers without a plan policy</span>
               <select name="defaultPolicyId" ${w ? '' : 'disabled'}><option value="">None (no backups)</option>
                 ${d.policies.map((p) => `<option value="${p.id}" ${s.defaultPolicyId === p.id ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}</select></label>
@@ -103,6 +129,59 @@ export function createBackups({ root, api, toast, fail, confirmAction, esc }) {
             <button class="btn primary">Save settings</button></div>` : ''}
         </form>
       </section>`;
+  }
+
+  // ---- Runs -------------------------------------------------------------------------------------
+  function runsView() {
+    const list = st.data.runs.filter((r) => st.runFilter === 'all' || r.state === st.runFilter);
+    const n = (k) => st.data.runs.filter((r) => r.state === k).length;
+    return `
+      <div class="segmented" role="radiogroup" aria-label="Show" style="margin-bottom:12px">
+        ${[['all', `All ${st.data.runs.length}`], ['running', `Running ${n('running')}`], ['failed', `Failed ${n('failed')}`], ['ok', `OK ${n('ok')}`]]
+          .map(([v, l]) => `<button type="button" role="radio" aria-checked="${st.runFilter === v}" data-bk-runs="${v}">${l}</button>`).join('')}
+      </div>
+      <div class="table-wrap"><table class="table" id="bk-runs">
+        <thead><tr><th>Server</th><th>Customer</th><th>Kind</th><th>State</th><th>Started</th><th>Took</th><th>Size</th><th>Detail</th></tr></thead>
+        <tbody>${list.map((r) => `<tr data-run="${r.id}">
+          <td><strong>${esc(r.label || `server ${r.vmid}`)}</strong> <span class="mono small muted">${r.vmid}</span></td>
+          <td class="small">${esc(r.email ?? '')}</td>
+          <td class="small">${r.kind === 'manual' ? 'Manual' : 'Scheduled'}</td>
+          <td>${tag(RUN, r.state)}</td>
+          <td class="small">${esc(when(r.startedAt))}</td>
+          <td class="small">${took(r.startedAt, r.finishedAt)}</td>
+          <td class="small mono">${r.state === 'ok' ? size(r.size) : ''}</td>
+          <td class="small ${r.state === 'failed' ? 'form-error' : 'muted'}">${esc(r.state === 'failed' ? r.error ?? '' : r.state === 'ok' ? r.error ?? '' : r.node ?? '')}</td>
+        </tr>`).join('') || '<tr><td colspan="8" class="muted">No backup has run yet.</td></tr>'}</tbody></table></div>
+      <p class="small muted">The latest 50 runs. Failed backups can also be retried from Jobs.</p>`;
+  }
+
+  // ---- Servers ------------------------------------------------------------------------------------
+  function serversView() {
+    const d = st.data;
+    const w = can('backups.write');
+    const all = d.coverage.servers;
+    const filters = [['attention', 'Needs attention', (x) => !['protected', 'excluded'].includes(x.status)], ['all', 'All', () => true],
+      ['protected', 'Protected', (x) => x.status === 'protected'], ['excluded', 'Excluded', (x) => x.status === 'excluded']];
+    const f = filters.find(([k]) => k === st.srvFilter) ?? filters[0];
+    const list = all.filter(f[2]);
+    return `
+      <div class="segmented" role="radiogroup" aria-label="Show" style="margin-bottom:12px">
+        ${filters.map(([k, l, fn]) => `<button type="button" role="radio" aria-checked="${st.srvFilter === k}" data-bk-srv="${k}">${l} ${all.filter(fn).length}</button>`).join('')}
+      </div>
+      <div class="table-wrap"><table class="table" id="bk-servers">
+        <thead><tr><th>Server</th><th>Customer</th><th>Policy</th><th>Status</th><th>Last good backup</th><th><span class="sr-only">Actions</span></th></tr></thead>
+        <tbody>${list.map((x) => `<tr data-bk-vm="${x.vmid}">
+          <td><strong>${esc(x.label || `server ${x.vmid}`)}</strong> <span class="mono small muted">${x.vmid}</span></td>
+          <td class="small">${esc(x.email ?? '')}</td>
+          <td><select data-bk-override aria-label="Backup policy of server ${x.vmid}" ${w && !x.excluded ? '' : 'disabled'}>
+            <option value="">${x.override ? 'Plan or default' : `Plan or default${x.policy ? `: ${esc(x.policy)}` : ': none'}`}</option>
+            ${d.policies.map((p) => `<option value="${p.id}" ${x.override === p.id ? 'selected' : ''}>${esc(p.name)}${p.addonPrice != null ? ' (add-on)' : ''}</option>`).join('')}</select></td>
+          <td>${tag(STATUS, x.status)}${x.lastError ? `<br><span class="small form-error">${esc(x.lastError)}</span>` : ''}</td>
+          <td class="small">${x.lastOk ? esc(when(x.lastOk)) : '·'}</td>
+          <td><div class="row end">${w ? `${!x.excluded && d.settings.enabled ? '<button class="btn" data-bk-now>Back up now</button>' : ''}
+            <button class="btn ghost" data-bk-exclude>${x.excluded ? 'Include' : 'Exclude'}</button>` : ''}</div></td>
+        </tr>`).join('') || '<tr><td colspan="6" class="muted">Nothing here.</td></tr>'}</tbody></table></div>
+      <p class="small muted">A server's own policy replaces its plan's (an add-on policy is billed with the server). Excluded servers are never backed up.</p>`;
   }
 
   // ---- Policies ---------------------------------------------------------------------------
@@ -204,6 +283,20 @@ export function createBackups({ root, api, toast, fail, confirmAction, esc }) {
     const t = e.target.closest('button');
     if (!t || t.dataset.adminTab) return false;
     if (t.dataset.bkView) { st.view = t.dataset.bkView; st.editing = null; render(); return true; }
+    if (t.dataset.bkRuns) { st.runFilter = t.dataset.bkRuns; render(); return true; }
+    if (t.dataset.bkSrv) { st.srvFilter = t.dataset.bkSrv; render(); return true; }
+    const vm = t.closest('[data-bk-vm]');
+    if (vm && t.hasAttribute('data-bk-now')) {
+      t.disabled = true;
+      await go(() => api(`/api/admin/backups/run/${vm.dataset.bkVm}`, { method: 'POST' }), 'Backup started');
+      return true;
+    }
+    if (vm && t.hasAttribute('data-bk-exclude')) {
+      const x = st.data.coverage.servers.find((s) => s.vmid === Number(vm.dataset.bkVm));
+      if (!x.excluded && !(await confirmAction(`Exclude ${x.label || `server ${x.vmid}`} from backups? No new backups are made; existing ones are kept as the policy says.`, 'Exclude'))) return true;
+      await go(() => api(`/api/admin/backups/vms/${x.vmid}`, { method: 'PUT', body: { excluded: !x.excluded } }), x.excluded ? 'Included in backups' : 'Excluded from backups');
+      return true;
+    }
     if (t.hasAttribute('data-bk-new')) { st.editing = 'new'; render(); return true; }
     if (t.hasAttribute('data-bk-cancel')) { st.editing = null; render(); return true; }
     const pol = t.closest('[data-policy]');
@@ -242,6 +335,11 @@ export function createBackups({ root, api, toast, fail, confirmAction, esc }) {
   async function onChange(e) {
     if (e.target.matches('#bk-policy [name=frequency]')) {
       root.querySelector('[data-bk-weekday]').hidden = e.target.value !== 'weekly';
+      return;
+    }
+    if (e.target.matches('[data-bk-override]')) {
+      const vmid = Number(e.target.closest('[data-bk-vm]').dataset.bkVm);
+      await go(() => api(`/api/admin/backups/vms/${vmid}`, { method: 'PUT', body: { policyId: e.target.value ? Number(e.target.value) : null } }), 'Server policy saved');
       return;
     }
     if (e.target.matches('[data-plan-policy]')) {

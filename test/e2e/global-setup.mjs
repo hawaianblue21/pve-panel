@@ -8,7 +8,7 @@ export default async function globalSetup() {
   const gw = await startMockGateways();
   const second = await startMockPve({ second: true });   // a second Proxmox cluster to connect
   const pbs = await startMockPbs();                      // a backup server to connect
-  const stack = await startStack({ env: { BILLING_TEST_ENDPOINTS: JSON.stringify(gw.endpoints), ROLLOUT_INTERVAL_SECONDS: '2', LOGIN_RATE_LIMIT: '200' } });
+  const stack = await startStack({ env: { BILLING_TEST_ENDPOINTS: JSON.stringify(gw.endpoints), ROLLOUT_INTERVAL_SECONDS: '2', BACKUP_TICK_SECONDS: '2', LOGIN_RATE_LIMIT: '200' } });
   await stack.offerTemplates();
   const lena = await stack.customerWith('lena@example.com', { limits: {} });
   const admin = await stack.adminSession();

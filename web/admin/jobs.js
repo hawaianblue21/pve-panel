@@ -6,7 +6,7 @@ const FLAG = { ok: ['Up to date', 'ok'], never: ['Never updated', 'warn'], stale
 const ITEM = { pending: ['Waiting', ''], started: ['Running', ''], done: ['Done', 'ok'], failed: ['Failed', 'bad'], skipped: ['Skipped', 'warn'] };
 const RO = { running: ['Running', ''], paused: ['Paused', 'warn'], done: ['Done', 'ok'], cancelled: ['Cancelled', ''] };
 const RINGS = [['10,30,60', '3 rings: 10 %, 30 %, 60 %'], ['25,75', '2 rings: 25 %, 75 %'], ['100', 'All at once']];
-const RETRY = { delete: ['Retry deletion', 'servers.delete'], updates: ['Retry updates', 'updates.write'], snapshot: ['Retry snapshot', 'servers.manage'] };
+const RETRY = { delete: ['Retry deletion', 'servers.delete'], updates: ['Retry updates', 'updates.write'], snapshot: ['Retry snapshot', 'servers.manage'], backup: ['Retry backup', 'backups.write'] };
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const tag = (map, k) => `<span class="tag ${map[k]?.[1] ?? ''}">${map[k]?.[0] ?? k}</span>`;
 const when = (d) => {

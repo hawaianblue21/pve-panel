@@ -815,3 +815,38 @@ db.exec(`
 addColumn('plans', 'backup_policy_id', 'INTEGER REFERENCES backup_policies(id) ON DELETE SET NULL');
 addColumn('vms', 'backup_policy_id', 'INTEGER REFERENCES backup_policies(id) ON DELETE SET NULL');
 addColumn('vms', 'backup_excluded', 'INTEGER NOT NULL DEFAULT 0');
+
+// Backup runs (backupjobs.js): one row per vzdump, scheduled (once per window,
+// window_key = the date the window started) or manual. Orphans: backups on a
+// customer storage whose server is no longer theirs, removed after the grace period.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS backup_runs (
+    id          INTEGER PRIMARY KEY,
+    vmid        INTEGER NOT NULL,
+    user_id     INTEGER NOT NULL,
+    cluster_id  INTEGER NOT NULL DEFAULT 0,
+    node        TEXT,
+    storage     TEXT,
+    policy_id   INTEGER,
+    kind        TEXT NOT NULL,                 -- scheduled | manual
+    window_key  TEXT,                          -- scheduled: YYYY-MM-DD the window started
+    state       TEXT NOT NULL,                 -- running | ok | failed
+    upid        TEXT,
+    volid       TEXT,
+    size        INTEGER,
+    error       TEXT,
+    started_by  INTEGER,                       -- account id for manual runs
+    started_at  TEXT NOT NULL,
+    finished_at TEXT
+  );
+  CREATE INDEX IF NOT EXISTS backup_runs_vm ON backup_runs (vmid, started_at);
+  CREATE INDEX IF NOT EXISTS backup_runs_state ON backup_runs (state);
+  CREATE TABLE IF NOT EXISTS backup_orphans (
+    storage    TEXT NOT NULL,
+    cluster_id INTEGER NOT NULL,
+    vmid       INTEGER NOT NULL,
+    user_id    INTEGER NOT NULL,
+    first_seen TEXT NOT NULL,
+    PRIMARY KEY (storage, vmid)
+  );
+`);
