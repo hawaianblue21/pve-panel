@@ -1,0 +1,326 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Admin backups</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500&amp;family=Space+Grotesk:wght@500;600;700&amp;display=swap">
+<style>
+body{margin:0;background:#0A101C;}
+a{color:#8EC2FF;}a:hover{color:#C5E0FF;}
+</style>
+</helmet>
+<div style="min-height: 100vh; background: #0A101C; color: #E6EBF2; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 14px; line-height: 1.5; display: flex; flex-wrap: wrap; align-items: stretch;">
+
+<div style="flex: 1 1 240px; background: #0D1424; border-right: 1px solid #1C2638;">
+<dc-import name="Sidebar" portal="admin" active="backups" hint-size="100%,1240px"></dc-import>
+</div>
+
+<main style="flex: 999 1 560px; min-width: 0; box-sizing: border-box; padding: 28px 32px 48px; display: flex; flex-direction: column; gap: 20px;">
+
+<div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px;">
+<div style="display: flex; flex-direction: column; gap: 2px;">
+<h1 style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 28px; font-weight: 600;">Backups</h1>
+<span style="color: #93A0B4;">Proxmox Backup Server for every customer server: policies per plan, jobs, verification and restores.</span>
+</div>
+<div style="display: flex; flex-wrap: wrap; gap: 10px;">
+<button type="button" onClick="{{toConnect}}" style="min-height: 44px; padding: 0 14px; border: 1px solid #2A3750; border-radius: 10px; background: #101828; color: #E6EBF2; font: inherit; font-weight: 500;">+ Connect a PBS</button>
+<button type="button" style="min-height: 44px; padding: 0 16px; border: 0; border-radius: 10px; background: {{accent}}; color: #06101F; font: inherit; font-weight: 600;">Run due jobs now</button>
+</div>
+</div>
+
+<!-- section tabs -->
+<div role="tablist" aria-label="Backup sections" style="display: flex; flex-wrap: wrap; gap: 4px; border-bottom: 1px solid #1F2A3F;">
+<sc-for list="{{tabs}}" as="t" hint-placeholder-count="4">
+<button type="button" role="tab" aria-selected="{{t.on}}" onClick="{{t.pick}}" style="min-height: 44px; padding: 0 14px; border: 0; border-bottom: 2px solid {{t.line}}; background: transparent; color: {{t.color}}; font: inherit; font-weight: 500; cursor: pointer;">{{t.label}}</button>
+</sc-for>
+</div>
+
+<!-- ============ OVERVIEW ============ -->
+<sc-if value="{{isOverview}}" hint-placeholder-val="{{true}}">
+<div style="display: flex; flex-direction: column; gap: 20px;">
+
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px;">
+<sc-for list="{{kpis}}" as="k" hint-placeholder-count="6">
+<div style="display: flex; flex-direction: column; gap: 6px; padding: 16px; background: #101828; border: 1px solid #1F2A3F; border-radius: 12px;">
+<span style="font-size: 13px; color: #93A0B4;">{{k.label}}</span>
+<span style="font-family: 'Space Grotesk', sans-serif; font-size: 26px; font-weight: 600; letter-spacing: -0.01em;">{{k.value}}</span>
+<span style="font-size: 12px; color: {{k.subColor}};">{{k.sub}}</span>
+</div>
+</sc-for>
+</div>
+
+<div style="display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-start;">
+
+<!-- runs of the last 24 h -->
+<section aria-labelledby="runs-h" style="flex: 3 1 620px; min-width: 0; background: #101828; border: 1px solid #1F2A3F; border-radius: 14px; overflow: hidden;">
+<div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; padding: 16px 18px; border-bottom: 1px solid #1C2638;">
+<h2 id="runs-h" style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 18px; font-weight: 600;">Backup runs, last 24 h</h2>
+<div style="display: flex; gap: 6px; font-size: 12px; font-family: 'JetBrains Mono', monospace;">
+<sc-for list="{{runFilters}}" as="f" hint-placeholder-count="4">
+<button type="button" onClick="{{f.pick}}" aria-pressed="{{f.on}}" style="min-height: 32px; padding: 0 10px; border-radius: 999px; border: 1px solid {{f.border}}; background: {{f.bg}}; color: {{f.color}}; font: inherit; cursor: pointer;">{{f.label}}</button>
+</sc-for>
+</div>
+</div>
+<div style="overflow-x: auto;"><div style="min-width: 760px; font-size: 13px;">
+<div style="display: grid; grid-template-columns: 1.5fr 1.3fr 0.8fr 0.8fr 0.9fr 1.6fr 0.9fr; gap: 10px; padding: 10px 18px; color: #8492A8; font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 0.04em;">
+<span>SERVER</span><span>CUSTOMER</span><span>STARTED</span><span>TOOK</span><span>SIZE</span><span>RESULT</span><span style="text-align: right;">ACTION</span>
+</div>
+<sc-for list="{{runs}}" as="r" hint-placeholder-count="7">
+<div style="display: grid; grid-template-columns: 1.5fr 1.3fr 0.8fr 0.8fr 0.9fr 1.6fr 0.9fr; gap: 10px; align-items: center; padding: 11px 18px; border-top: 1px solid #1C2638;">
+<span style="display: flex; flex-direction: column; line-height: 1.3;"><span style="font-weight: 500;">{{r.name}}</span><span style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #8492A8;">{{r.vmid}} · {{r.node}}</span></span>
+<span style="color: #C3CCDA;">{{r.customer}}</span>
+<span style="font-family: 'JetBrains Mono', monospace; color: #B8C2D1;">{{r.at}}</span>
+<span style="font-family: 'JetBrains Mono', monospace; color: #B8C2D1;">{{r.took}}</span>
+<span style="font-family: 'JetBrains Mono', monospace; color: #B8C2D1;">{{r.size}}</span>
+<span style="display: flex; flex-direction: column;"><span style="color: {{r.color}};">● {{r.result}}</span><span style="font-size: 12px; color: #93A0B4;">{{r.note}}</span></span>
+<span style="display: flex; justify-content: flex-end;"><sc-if value="{{r.failed}}" hint-placeholder-val="{{false}}"><button type="button" style="min-height: 32px; padding: 0 10px; border: 1px solid #2A3750; border-radius: 8px; background: transparent; color: #8EC2FF; font: inherit; font-size: 12px;">Retry</button></sc-if></span>
+</div>
+</sc-for>
+</div></div>
+</section>
+
+<!-- right column -->
+<div style="flex: 2 1 340px; min-width: 0; display: flex; flex-direction: column; gap: 20px;">
+
+<section aria-labelledby="ds-h" style="background: #101828; border: 1px solid #1F2A3F; border-radius: 14px; padding: 16px 18px; display: flex; flex-direction: column; gap: 14px;">
+<h2 id="ds-h" style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 18px; font-weight: 600;">Datastores</h2>
+<sc-for list="{{datastores}}" as="d" hint-placeholder-count="2">
+<div style="display: flex; flex-direction: column; gap: 8px; padding-top: 12px; border-top: 1px solid #1C2638;">
+<span style="display: flex; justify-content: space-between; gap: 10px;"><span style="display: flex; flex-direction: column;"><span style="font-weight: 600;">{{d.name}}</span><span style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #8492A8;">{{d.where}}</span></span><span style="align-self: flex-start; padding: 2px 8px; border-radius: 6px; font-size: 12px; background: {{d.stateBg}}; color: {{d.stateFg}};">{{d.state}}</span></span>
+<span style="display: flex; justify-content: space-between; font-size: 12px;"><span style="color: #93A0B4;">Used</span><span style="font-family: 'JetBrains Mono', monospace;">{{d.used}}</span></span>
+<span style="height: 6px; border-radius: 3px; background: #1C2638; overflow: hidden;"><span style="display: block; height: 6px; width: {{d.pct}}; background: {{d.barColor}};"></span></span>
+<span style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; font-size: 12px;">
+<span style="display: flex; flex-direction: column;"><span style="color: #93A0B4;">Dedup</span><span style="font-family: 'JetBrains Mono', monospace;">{{d.dedup}}</span></span>
+<span style="display: flex; flex-direction: column;"><span style="color: #93A0B4;">Verify</span><span style="font-family: 'JetBrains Mono', monospace;">{{d.verify}}</span></span>
+<span style="display: flex; flex-direction: column;"><span style="color: #93A0B4;">GC / prune</span><span style="font-family: 'JetBrains Mono', monospace;">{{d.gc}}</span></span>
+</span>
+</div>
+</sc-for>
+</section>
+
+<section aria-labelledby="un-h" style="background: #101828; border: 1px solid #5A4618; border-radius: 14px; padding: 16px 18px; display: flex; flex-direction: column; gap: 10px;">
+<div style="display: flex; justify-content: space-between; align-items: center;"><h2 id="un-h" style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 18px; font-weight: 600;">Not protected</h2><span style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #F5B94C;">5 servers</span></div>
+<span style="font-size: 13px; color: #93A0B4;">No successful backup in 48 h, or their plan has no backups.</span>
+<sc-for list="{{unprotected}}" as="u" hint-placeholder-count="4">
+<div style="display: flex; justify-content: space-between; gap: 10px; padding-top: 8px; border-top: 1px solid #1C2638; font-size: 13px;">
+<span style="display: flex; flex-direction: column;"><span style="font-weight: 500;">{{u.name}}</span><span style="font-size: 12px; color: #93A0B4;">{{u.why}}</span></span>
+<button type="button" style="align-self: center; min-height: 32px; padding: 0 10px; border: 1px solid #2A3750; border-radius: 8px; background: transparent; color: #E6EBF2; font: inherit; font-size: 12px;">{{u.action}}</button>
+</div>
+</sc-for>
+</section>
+</div>
+</div>
+</div>
+</sc-if>
+
+<!-- ============ POLICIES ============ -->
+<sc-if value="{{isPolicies}}" hint-placeholder-val="{{false}}">
+<div style="display: flex; flex-direction: column; gap: 16px;">
+<p style="margin: 0; color: #93A0B4; max-width: 90ch;">A policy says when servers are backed up and how long backups are kept. Every plan points to one policy; a customer can buy longer retention per server. Jobs run inside the backup window, spread across it so the PBS and the nodes never get all servers at once.</p>
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px;">
+<sc-for list="{{policies}}" as="p" hint-placeholder-count="3">
+<article style="display: flex; flex-direction: column; gap: 12px; padding: 18px; background: #101828; border: 1px solid {{p.border}}; border-radius: 14px;">
+<div style="display: flex; justify-content: space-between; gap: 10px; align-items: flex-start;">
+<span style="display: flex; flex-direction: column;"><span style="font-family: 'Space Grotesk', sans-serif; font-size: 18px; font-weight: 600;">{{p.name}}</span><span style="font-size: 13px; color: #93A0B4;">{{p.plans}}</span></span>
+<span style="padding: 3px 10px; border-radius: 999px; font-size: 12px; background: #17284A; color: #8EC2FF;">{{p.servers}} servers</span>
+</div>
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; font-size: 12px;">
+<sc-for list="{{p.facts}}" as="f" hint-placeholder-count="4">
+<span style="display: flex; flex-direction: column; padding: 8px 10px; border-radius: 8px; background: #0C1322;"><span style="color: #93A0B4;">{{f.k}}</span><span style="font-family: 'JetBrains Mono', monospace; font-size: 13px;">{{f.v}}</span></span>
+</sc-for>
+</div>
+<span style="font-size: 12px; color: #93A0B4;">{{p.note}}</span>
+<div style="display: flex; gap: 8px;"><button type="button" style="min-height: 36px; padding: 0 12px; border: 1px solid #2A3750; border-radius: 8px; background: transparent; color: #E6EBF2; font: inherit; font-size: 13px;">Edit</button><button type="button" style="min-height: 36px; padding: 0 12px; border: 1px solid #2A3750; border-radius: 8px; background: transparent; color: #B8C2D1; font: inherit; font-size: 13px;">Run now</button></div>
+</article>
+</sc-for>
+</div>
+
+<section aria-labelledby="win-h" style="background: #101828; border: 1px solid #1F2A3F; border-radius: 14px; padding: 16px 18px; display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px;">
+<h2 id="win-h" style="grid-column: 1 / -1; margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 18px; font-weight: 600;">Defaults for all policies</h2>
+<sc-for list="{{defaults}}" as="f" hint-placeholder-count="4">
+<label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: #C3CCDA;">{{f.k}}<input type="text" value="{{f.v}}" onChange="{{noop}}" style="min-height: 42px; padding: 0 12px; border: 1px solid #2A3750; border-radius: 10px; background: #0C1322; color: #E6EBF2; font-family: 'JetBrains Mono', monospace; font-size: 13px;"></label>
+</sc-for>
+<label style="grid-column: 1 / -1; display: flex; align-items: flex-start; gap: 10px; font-size: 13px;"><input type="checkbox" checked="{{yes}}" onChange="{{noop}}" style="width: 18px; height: 18px; margin-top: 2px; accent-color: #4C9AFF;"><span style="display: flex; flex-direction: column;"><span>Encrypt backups with a key per customer</span><span style="font-size: 12px; color: #93A0B4;">Keys are sealed in the panel and exported to the owner's key store; without them no one can read a backup, including the PBS administrator.</span></span></label>
+<div style="grid-column: 1 / -1;"><button type="button" style="min-height: 42px; padding: 0 16px; border: 0; border-radius: 10px; background: #4C9AFF; color: #06101F; font: inherit; font-weight: 600;">Save defaults</button></div>
+</section>
+</div>
+</sc-if>
+
+<!-- ============ RESTORES ============ -->
+<sc-if value="{{isRestores}}" hint-placeholder-val="{{false}}">
+<section aria-label="Restores" style="background: #101828; border: 1px solid #1F2A3F; border-radius: 14px; overflow: hidden;">
+<div style="overflow-x: auto;"><div style="min-width: 760px; font-size: 13px;">
+<div style="display: grid; grid-template-columns: 1.4fr 1.2fr 1.4fr 1.3fr 1fr 1.2fr; gap: 10px; padding: 10px 18px; color: #8492A8; font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 0.04em;">
+<span>SERVER</span><span>BY</span><span>FROM BACKUP</span><span>KIND</span><span>WHEN</span><span>RESULT</span>
+</div>
+<sc-for list="{{restores}}" as="r" hint-placeholder-count="5">
+<div style="display: grid; grid-template-columns: 1.4fr 1.2fr 1.4fr 1.3fr 1fr 1.2fr; gap: 10px; align-items: center; padding: 11px 18px; border-top: 1px solid #1C2638;">
+<span style="font-weight: 500;">{{r.server}}</span><span style="color: #C3CCDA;">{{r.by}}</span><span style="font-family: 'JetBrains Mono', monospace; color: #B8C2D1;">{{r.from}}</span><span>{{r.kind}}</span><span style="font-family: 'JetBrains Mono', monospace; color: #B8C2D1;">{{r.when}}</span><span style="color: {{r.color}};">● {{r.result}}</span>
+</div>
+</sc-for>
+</div></div>
+</section>
+</sc-if>
+
+<!-- ============ CONNECT (wizard) ============ -->
+<sc-if value="{{isConnect}}" hint-placeholder-val="{{false}}">
+<section aria-labelledby="wz-h" style="background: #101828; border: 1px solid #2B4A80; border-radius: 16px; overflow: hidden;">
+<div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px; padding: 16px 20px; border-bottom: 1px solid #1C2638;">
+<h2 id="wz-h" style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 18px; font-weight: 600;">Connect a Proxmox Backup Server</h2>
+<ol style="display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none;">
+<sc-for list="{{steps}}" as="s" hint-placeholder-count="3">
+<li><button type="button" onClick="{{s.pick}}" aria-current="{{s.current}}" style="min-height: 36px; padding: 0 12px; border-radius: 999px; border: 1px solid {{s.border}}; background: {{s.bg}}; color: #E6EBF2; font: inherit; font-size: 13px; cursor: pointer;"><span style="font-family: 'JetBrains Mono', monospace; color: {{s.numColor}};">{{s.n}}</span> {{s.label}}</button></li>
+</sc-for>
+</ol>
+</div>
+
+<sc-if value="{{step1}}" hint-placeholder-val="{{true}}">
+<div style="padding: 20px; display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px;">
+<sc-for list="{{connectFields}}" as="f" hint-placeholder-count="4">
+<label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: #C3CCDA;">{{f.k}}<input type="text" value="{{f.v}}" onChange="{{noop}}" style="min-height: 44px; padding: 0 12px; border: 1px solid #2A3750; border-radius: 10px; background: #0C1322; color: #E6EBF2; font-family: 'JetBrains Mono', monospace;"></label>
+</sc-for>
+<div style="grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 12px; align-items: center; padding: 12px 14px; border-radius: 10px; background: #0C1322; border: 1px solid #1F2A3F; font-size: 13px;">
+<span style="color: #93A0B4;">Certificate fingerprint</span><span style="font-family: 'JetBrains Mono', monospace; font-size: 12px;">5E:31:9A:…:C4:07</span><label style="display: flex; gap: 8px; align-items: center;"><input type="checkbox" checked="{{yes}}" onChange="{{noop}}" style="width: 16px; height: 16px; accent-color: #4C9AFF;">Matches <span style="font-family: 'JetBrains Mono', monospace;">proxmox-backup-manager cert info</span></label>
+</div>
+<div style="grid-column: 1 / -1; display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+<button type="button" onClick="{{toStep2}}" style="min-height: 44px; padding: 0 16px; border: 0; border-radius: 10px; background: #4C9AFF; color: #06101F; font: inherit; font-weight: 600;">Test connection</button>
+<span style="font-size: 12px; color: #93A0B4;">The token needs DatastoreBackup and DatastoreReader on the datastore. The secret is sealed in the panel.</span>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{step2}}" hint-placeholder-val="{{false}}">
+<div style="padding: 20px; display: flex; flex-direction: column; gap: 14px;">
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px;">
+<sc-for list="{{found}}" as="f" hint-placeholder-count="4">
+<span style="display: flex; flex-direction: column; padding: 12px; border-radius: 10px; background: #0C1322; border: 1px solid #1F2A3F;"><span style="font-size: 12px; color: #93A0B4;">{{f.label}}</span><span style="font-family: 'Space Grotesk', sans-serif; font-size: 22px; font-weight: 600;">{{f.value}}</span></span>
+</sc-for>
+</div>
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px;">
+<label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: #C3CCDA;">Datastore<select style="min-height: 44px; padding: 0 12px; border: 1px solid #2A3750; border-radius: 10px; background: #0C1322; color: #E6EBF2; font: inherit;"><option>ds-customer (96 TB, 43% used)</option><option>ds-archive (240 TB, 12% used)</option></select></label>
+<label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: #C3CCDA;">Namespaces<select style="min-height: 44px; padding: 0 12px; border: 1px solid #2A3750; border-radius: 10px; background: #0C1322; color: #E6EBF2; font: inherit;"><option>One per customer: panel/c{customerId}</option><option>One for the panel: panel</option></select></label>
+<label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: #C3CCDA;">Serves datacenters<select style="min-height: 44px; padding: 0 12px; border: 1px solid #2A3750; border-radius: 10px; background: #0C1322; color: #E6EBF2; font: inherit;"><option>Jakarta DC1, Jakarta DC2</option><option>All datacenters</option></select></label>
+</div>
+<div style="display: flex; gap: 10px; flex-wrap: wrap;"><button type="button" onClick="{{toStep3}}" style="min-height: 44px; padding: 0 16px; border: 0; border-radius: 10px; background: #4C9AFF; color: #06101F; font: inherit; font-weight: 600;">Continue</button><span style="font-size: 12px; color: #93A0B4; align-self: center;">Existing backups in the datastore are listed and matched to servers by VMID; nothing is changed.</span></div>
+</div>
+</sc-if>
+
+<sc-if value="{{step3}}" hint-placeholder-val="{{false}}">
+<div style="padding: 20px; display: flex; flex-direction: column; gap: 14px;">
+<p style="margin: 0; color: #C3CCDA;">The panel adds the PBS as a storage on each Proxmox cluster, so nodes back up straight to it.</p>
+<div style="border: 1px solid #1F2A3F; border-radius: 12px; overflow: hidden;">
+<sc-for list="{{registrations}}" as="r" hint-placeholder-count="3">
+<div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px; padding: 10px 14px; border-top: 1px solid #1C2638; font-size: 13px;">
+<span style="display: flex; flex-direction: column;"><span style="font-weight: 500;">{{r.cluster}}</span><span style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #8492A8;">{{r.storage}}</span></span>
+<span style="color: {{r.color}};">● {{r.state}}</span>
+</div>
+</sc-for>
+</div>
+<div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+<button type="button" onClick="{{finish}}" style="min-height: 44px; padding: 0 16px; border: 0; border-radius: 10px; background: #3DD68C; color: #06150D; font: inherit; font-weight: 600;">Add storage and finish</button>
+<span style="font-size: 12px; color: #93A0B4;">Backups start with the next window of each policy. Customers see the Backups tab once their plan includes backups.</span>
+</div>
+</div>
+</sc-if>
+</section>
+</sc-if>
+
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"accent":{"editor":"color","default":"#4C9AFF","options":["#4C9AFF","#3DD68C","#F5B94C","#B79CFF"]},"$preview":{"width":1440,"height":1500}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { tab: 'Overview', runs: 'all', step: 1 }; }
+  renderVals() {
+    const ok = '#3DD68C', warn = '#F5B94C', bad = '#FF8A8A', muted = '#93A0B4';
+    const tab = this.state.tab;
+    const tabs = ['Overview', 'Policies', 'Restores', 'Connect'].map((n) => ({
+      label: n === 'Connect' ? 'Connect PBS' : n, on: n === tab, line: n === tab ? '#4C9AFF' : 'transparent', color: n === tab ? '#FFFFFF' : '#B8C2D1',
+      pick: () => this.setState({ tab: n })
+    }));
+    const R = [
+      ['web-prod-01', 1012, 'pve-jkt1-01', 'PT Arunika Digital', '02:04', '6 min', '18,2 GB', 'OK', '2,1 GB new · verified', ok, false],
+      ['ad-dc-01', 1013, 'pve-jkt1-02', 'PT Arunika Digital', '02:11', '9 min', '31,7 GB', 'OK', '1,4 GB new', ok, false],
+      ['shop-db-01', 1091, 'pve-jkt2-02', 'Toko Sinar Jaya', '02:20', '14 min', '96,3 GB', 'OK', 'consistent: fsfreeze via guest agent', ok, false],
+      ['erp-app', 1155, 'pve-sby-01', 'CV Maju Bersama', '02:30', 'n/a', 'n/a', 'Failed', 'node unreachable since 00:41', bad, true],
+      ['old-crm', 1009, 'pve-jkt1-04', 'CV Maju Bersama', '02:31', '3 min', '12,0 GB', 'Warning', 'no guest agent: crash-consistent', warn, false],
+      ['lab-k8s-03', 3002, 'pve-jkt1-03', 'Universitas Bina', '02:40', '22 min', '44,8 GB', 'Failed', 'datastore busy (GC); retried 1×', bad, true],
+      ['shop-api-01', 1090, 'pve-jkt2-01', 'Toko Sinar Jaya', '02:52', '4 min', '9,6 GB', 'OK', '0,3 GB new', ok, false]
+    ];
+    const f = this.state.runs;
+    const runs = R.filter((r) => f === 'all' || (f === 'failed' && r[7] === 'Failed') || (f === 'warn' && r[7] === 'Warning') || (f === 'ok' && r[7] === 'OK'))
+      .map((r) => ({ name: r[0], vmid: r[1], node: r[2], customer: r[3], at: r[4], took: r[5], size: r[6], result: r[7], note: r[8], color: r[9], failed: r[10] }));
+    const runFilters = [['all', 'All 142'], ['failed', 'Failed 2'], ['warn', 'Warning 1'], ['ok', 'OK 139']].map(([k, l]) => ({
+      label: l, on: k === f, border: k === f ? '#4C9AFF' : '#2A3750', bg: k === f ? '#17284A' : 'transparent', color: k === f ? '#FFFFFF' : '#B8C2D1',
+      pick: () => this.setState({ runs: k })
+    }));
+    const step = this.state.step;
+    const steps = ['Connect', 'Datastore', 'Add to clusters'].map((l, i) => ({
+      n: i + 1, label: l, current: step === i + 1 ? 'step' : 'false', border: step === i + 1 ? '#4C9AFF' : '#2A3750', bg: step === i + 1 ? '#17284A' : 'transparent',
+      numColor: step > i + 1 ? ok : '#8EC2FF', pick: () => this.setState({ step: i + 1 })
+    }));
+    const facts = (a) => a.map(([k, v]) => ({ k, v }));
+    return {
+      accent: this.props.accent ?? "#4C9AFF", noop: () => {}, yes: true,
+      tabs, isOverview: tab === 'Overview', isPolicies: tab === 'Policies', isRestores: tab === 'Restores', isConnect: tab === 'Connect',
+      toConnect: () => this.setState({ tab: 'Connect', step: 1 }),
+      kpis: [
+        { label: 'Protected servers', value: '138 / 143', sub: '5 without a backup in 48 h', subColor: warn },
+        { label: 'Runs, last 24 h', value: '142', sub: '139 OK · 1 warning · 2 failed', subColor: bad },
+        { label: 'Datastore used', value: '41,2 TB', sub: 'of 96 TB · 43%', subColor: muted },
+        { label: 'Dedup factor', value: '3,4×', sub: 'logical 140 TB', subColor: ok },
+        { label: 'Last verify', value: 'OK', sub: 'today 04:00 · 0 corrupt chunks', subColor: ok },
+        { label: 'Restores, 7 days', value: '9', sub: '3 file-level · 4 new server · 2 in place', subColor: muted }
+      ],
+      runs, runFilters,
+      datastores: [
+        { name: 'pbs-jkt / ds-customer', where: 'https://10.10.0.40:8007 · Jakarta DC1, DC2', state: 'Online', stateBg: '#123326', stateFg: '#7EE6B0', used: '41,2 / 96 TB', pct: '43%', barColor: '#4C9AFF', dedup: '3,4×', verify: 'today 04:00', gc: 'Sun 05:00' },
+        { name: 'pbs-sby / ds-edge', where: 'https://10.30.0.12:8007 · Surabaya edge', state: 'Degraded', stateBg: '#3A2E10', stateFg: '#F5C46B', used: '7,9 / 9,6 TB', pct: '82%', barColor: '#F5B94C', dedup: '2,1×', verify: '3 days ago', gc: 'overdue' }
+      ],
+      unprotected: [
+        { name: 'erp-app · CV Maju Bersama', why: 'Last backup 3 days ago (node unreachable)', action: 'Open server' },
+        { name: 'lab-k8s-03 · Universitas Bina', why: 'Failed twice: datastore busy', action: 'Retry' },
+        { name: 'dev-sandbox · lena@example.com', why: 'Plan Starter has no backups', action: 'Offer add-on' },
+        { name: 'mail-relay · Internal', why: 'Excluded by an administrator', action: 'Include' }
+      ],
+      policies: [
+        { name: 'Daily 7', plans: 'Plans: Standard, Business', servers: 96, border: '#1F2A3F', facts: facts([['Schedule', 'daily · window 01:00–05:00'], ['Keep', '7 daily'], ['Mode', 'snapshot (live)'], ['Verify', 'new backups, weekly']]), note: 'Default for paid plans. Customers can take 2 extra backups a day.' },
+        { name: 'Daily 14 + weekly 8', plans: 'Plan: Business Plus · add-on "Long retention"', servers: 31, border: '#2B4A80', facts: facts([['Schedule', 'daily · window 01:00–05:00'], ['Keep', '14 daily, 8 weekly'], ['Mode', 'snapshot (live)'], ['Price add-on', '[YOUR PRICE] / month']]), note: 'Sold per server as an add-on; billed on the renewal invoice.' },
+        { name: 'Weekly 4', plans: 'Plan: Starter (optional)', servers: 11, border: '#1F2A3F', facts: facts([['Schedule', 'Sunday · window 01:00–05:00'], ['Keep', '4 weekly'], ['Mode', 'snapshot (live)'], ['Verify', 'monthly']]), note: 'Cheapest option; restore points are up to a week old.' }
+      ],
+      defaults: [
+        { k: 'Backup window (panel time zone)', v: '01:00–05:00' }, { k: 'Parallel jobs per node', v: '2' },
+        { k: 'Bandwidth limit per job', v: '200 MB/s' }, { k: 'Manual backups per server per day', v: '2' }
+      ],
+      restores: [
+        { server: 'web-prod-01', by: 'rina@arunika.id', from: '2026-10-13 02:04', kind: 'Files (wp-config.php)', when: '13 Oct 10:12', result: 'Downloaded', color: ok },
+        { server: 'shop-db-01 → shop-db-restore', by: 'Toko Sinar Jaya', from: '2026-10-12 02:20', kind: 'As a new server', when: '12 Oct 15:40', result: 'Ready', color: ok },
+        { server: 'old-crm', by: 'Operations (admin)', from: '2026-10-11 02:31', kind: 'In place', when: '11 Oct 09:05', result: 'Done', color: ok },
+        { server: 'lab-k8s-03', by: 'Universitas Bina', from: '2026-10-09 02:40', kind: 'As a new server', when: '10 Oct 08:30', result: 'Failed: pool memory limit', color: bad }
+      ],
+      steps, step1: step === 1, step2: step === 2, step3: step === 3,
+      toStep2: () => this.setState({ step: 2 }), toStep3: () => this.setState({ step: 3 }), finish: () => this.setState({ tab: 'Overview', step: 1 }),
+      connectFields: [
+        { k: 'Name', v: 'pbs-jkt' }, { k: 'Address', v: 'https://10.10.0.40:8007' },
+        { k: 'API token ID', v: 'panel@pbs!panel' }, { k: 'Token secret', v: '••••••••••••' }
+      ],
+      found: [
+        { label: 'Version', value: '4.0.14' }, { label: 'Datastores', value: '2' },
+        { label: 'Existing backups', value: '1 284' }, { label: 'Matched to servers', value: '131' }
+      ],
+      registrations: [
+        { cluster: 'Main (Jakarta DC1)', storage: 'storage "pbs-jkt" · namespace panel', state: 'Will be added', color: '#8EC2FF' },
+        { cluster: 'Jakarta DC2', storage: 'storage "pbs-jkt" · namespace panel', state: 'Will be added', color: '#8EC2FF' },
+        { cluster: 'Surabaya edge', storage: 'served by pbs-sby', state: 'Skipped', color: muted }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

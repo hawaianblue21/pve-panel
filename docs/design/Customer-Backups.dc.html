@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Server backups</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500&amp;family=Space+Grotesk:wght@500;600;700&amp;display=swap">
+<style>
+body{margin:0;background:#0A101C;}
+a{color:#8EC2FF;}a:hover{color:#C5E0FF;}
+</style>
+</helmet>
+<div style="min-height: 100vh; background: #0A101C; color: #E6EBF2; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 14px; line-height: 1.5; display: flex; flex-wrap: wrap; align-items: stretch;">
+
+<div style="flex: 1 1 240px; background: #0D1424; border-right: 1px solid #1C2638;">
+<dc-import name="Sidebar" portal="customer" active="backups" hint-size="100%,1240px"></dc-import>
+</div>
+
+<main style="flex: 999 1 560px; min-width: 0; box-sizing: border-box; padding: 28px 32px 48px; display: flex; flex-direction: column; gap: 20px;">
+
+<a href="Customer-Server.dc.html" style="font-size: 13px; text-decoration: none;">‹ web-prod-01</a>
+
+<div style="display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 16px;">
+<div style="display: flex; flex-direction: column; gap: 6px;">
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px;">
+<h1 style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 28px; font-weight: 600;">web-prod-01</h1>
+<span style="padding: 3px 10px; border-radius: 999px; background: #123326; color: #7EE6B0; font-size: 13px; font-weight: 500;">● Running</span>
+<span style="padding: 3px 10px; border-radius: 999px; background: #17284A; color: #8EC2FF; font-size: 13px; font-weight: 500;">Protected · last backup 02:04</span>
+</div>
+<span style="color: #93A0B4; font-family: 'JetBrains Mono', monospace; font-size: 13px;">Ubuntu 24.04 · Business plan · Jakarta DC1</span>
+</div>
+<button type="button" onClick="{{backupNow}}" style="min-height: 44px; padding: 0 16px; border: 0; border-radius: 10px; background: #4C9AFF; color: #06101F; font: inherit; font-weight: 600;">Back up now</button>
+</div>
+
+<!-- server tabs -->
+<div role="tablist" aria-label="Server sections" style="display: flex; flex-wrap: wrap; gap: 4px; border-bottom: 1px solid #1F2A3F;">
+<sc-for list="{{tabs}}" as="t" hint-placeholder-count="8">
+<button type="button" role="tab" aria-selected="{{t.on}}" style="min-height: 44px; padding: 0 14px; border: 0; border-bottom: 2px solid {{t.line}}; background: transparent; color: {{t.color}}; font: inherit; font-weight: 500;">{{t.label}}</button>
+</sc-for>
+</div>
+
+<sc-if value="{{queued}}" hint-placeholder-val="{{false}}">
+<div role="status" style="padding: 12px 16px; border-radius: 12px; background: #12213D; border: 1px solid #2B4A80; color: #C5E0FF; font-size: 13px;">Backup started. It runs in the background (about 6 minutes for this server); the server stays online. 1 of 2 manual backups left today.</div>
+</sc-if>
+
+<!-- plan card -->
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px;">
+<sc-for list="{{facts}}" as="k" hint-placeholder-count="4">
+<div style="display: flex; flex-direction: column; gap: 4px; padding: 14px 16px; background: #101828; border: 1px solid #1F2A3F; border-radius: 12px;">
+<span style="font-size: 13px; color: #93A0B4;">{{k.label}}</span>
+<span style="font-family: 'Space Grotesk', sans-serif; font-size: 20px; font-weight: 600;">{{k.value}}</span>
+<span style="font-size: 12px; color: #93A0B4;">{{k.sub}}</span>
+</div>
+</sc-for>
+</div>
+
+<div style="display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-start;">
+
+<!-- list -->
+<section aria-labelledby="bk-h" style="flex: 3 1 600px; min-width: 0; background: #101828; border: 1px solid #1F2A3F; border-radius: 14px; overflow: hidden;">
+<div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px; padding: 14px 18px; border-bottom: 1px solid #1C2638;">
+<h2 id="bk-h" style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 18px; font-weight: 600;">Restore points <span style="font-size: 13px; color: #93A0B4; font-weight: 400;">9 kept · 1 protected</span></h2>
+<span style="font-size: 12px; color: #93A0B4;">Newest first. Protected points are never pruned.</span>
+</div>
+<div style="overflow-x: auto;"><div style="min-width: 640px; font-size: 13px;">
+<div style="display: grid; grid-template-columns: 1.4fr 0.9fr 0.8fr 1.1fr 1.6fr; gap: 10px; padding: 10px 18px; color: #8492A8; font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 0.04em;">
+<span>TAKEN</span><span>KIND</span><span>SIZE</span><span>CHECKS</span><span style="text-align: right;">ACTIONS</span>
+</div>
+<sc-for list="{{points}}" as="p" hint-placeholder-count="7">
+<div style="display: grid; grid-template-columns: 1.4fr 0.9fr 0.8fr 1.1fr 1.6fr; gap: 10px; align-items: center; padding: 11px 18px; border-top: 1px solid #1C2638; background: {{p.bg}};">
+<span style="display: flex; flex-direction: column;"><span style="font-weight: 500;">{{p.when}}</span><span style="font-size: 12px; color: #93A0B4;">{{p.note}}</span></span>
+<span><span style="padding: 2px 8px; border-radius: 6px; font-size: 12px; background: {{p.kindBg}}; color: {{p.kindFg}};">{{p.kind}}</span></span>
+<span style="font-family: 'JetBrains Mono', monospace; color: #B8C2D1;">{{p.size}}</span>
+<span style="color: {{p.checkColor}};">{{p.check}}</span>
+<span style="display: flex; justify-content: flex-end; gap: 6px; flex-wrap: wrap;">
+<button type="button" onClick="{{p.restore}}" style="min-height: 34px; padding: 0 10px; border: 1px solid #2A3750; border-radius: 8px; background: transparent; color: #8EC2FF; font: inherit; font-size: 12px;">Restore…</button>
+<button type="button" aria-pressed="{{p.pinned}}" style="min-height: 34px; padding: 0 10px; border: 1px solid #2A3750; border-radius: 8px; background: transparent; color: #B8C2D1; font: inherit; font-size: 12px;">{{p.pinLabel}}</button>
+</span>
+</div>
+</sc-for>
+</div></div>
+</section>
+
+<!-- restore panel -->
+<aside style="flex: 2 1 360px; min-width: 0; display: flex; flex-direction: column; gap: 16px;">
+<section aria-labelledby="rs-h" style="background: #101828; border: 1px solid #2B4A80; border-radius: 14px; padding: 16px 18px; display: flex; flex-direction: column; gap: 12px;">
+<div style="display: flex; flex-direction: column; gap: 2px;">
+<h2 id="rs-h" style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 18px; font-weight: 600;">Restore</h2>
+<span style="font-size: 13px; color: #93A0B4;">From {{chosen}}</span>
+</div>
+<div role="radiogroup" aria-label="How to restore" style="display: flex; flex-direction: column; gap: 8px;">
+<sc-for list="{{modes}}" as="m" hint-placeholder-count="3">
+<button type="button" role="radio" aria-checked="{{m.on}}" onClick="{{m.pick}}" style="display: flex; flex-direction: column; gap: 2px; padding: 12px 14px; border: 1px solid {{m.border}}; border-radius: 10px; background: {{m.bg}}; color: #E6EBF2; font: inherit; text-align: left; cursor: pointer;"><span style="font-weight: 600;">{{m.label}}</span><span style="font-size: 12px; color: #93A0B4;">{{m.sub}}</span></button>
+</sc-for>
+</div>
+
+<sc-if value="{{isFiles}}" hint-placeholder-val="{{true}}">
+<div style="display: flex; flex-direction: column; gap: 8px;">
+<label style="display: flex; align-items: center; gap: 8px; min-height: 40px; padding: 0 12px; border: 1px solid #2A3750; border-radius: 10px; background: #0C1322;"><span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0);">Path</span><input type="text" value="/var/www/html" onChange="{{noop}}" style="flex: 1; min-width: 0; background: transparent; border: 0; outline: none; color: #E6EBF2; font-family: 'JetBrains Mono', monospace; font-size: 12px;"></label>
+<div style="border: 1px solid #1F2A3F; border-radius: 10px; overflow: hidden;">
+<sc-for list="{{files}}" as="f" hint-placeholder-count="5">
+<label style="display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 8px 12px; border-top: 1px solid #1C2638; font-size: 13px;"><span style="display: flex; gap: 8px; align-items: center;"><input type="checkbox" checked="{{f.on}}" onChange="{{noop}}" style="width: 16px; height: 16px; accent-color: #4C9AFF;"><span style="font-family: 'JetBrains Mono', monospace; font-size: 12px;">{{f.name}}</span></span><span style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #8492A8;">{{f.size}}</span></label>
+</sc-for>
+</div>
+<button type="button" style="min-height: 42px; padding: 0 14px; border: 0; border-radius: 10px; background: #4C9AFF; color: #06101F; font: inherit; font-weight: 600;">Download 2 files (.zip)</button>
+<span style="font-size: 12px; color: #93A0B4;">Read from the backup without touching the server. The link works once, for 15 minutes.</span>
+</div>
+</sc-if>
+
+<sc-if value="{{isNew}}" hint-placeholder-val="{{false}}">
+<div style="display: flex; flex-direction: column; gap: 10px;">
+<label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: #C3CCDA;">Name of the new server<input type="text" value="web-prod-01-restore" onChange="{{noop}}" style="min-height: 42px; padding: 0 12px; border: 1px solid #2A3750; border-radius: 10px; background: #0C1322; color: #E6EBF2; font-family: 'JetBrains Mono', monospace;"></label>
+<label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: #C3CCDA;">Plan<select style="min-height: 42px; padding: 0 12px; border: 1px solid #2A3750; border-radius: 10px; background: #0C1322; color: #E6EBF2; font: inherit;"><option>Business · same size as the original</option><option>Business Plus</option></select></label>
+<label style="display: flex; align-items: flex-start; gap: 10px; font-size: 13px;"><input type="checkbox" checked="{{yes}}" onChange="{{noop}}" style="width: 18px; height: 18px; margin-top: 2px; accent-color: #4C9AFF;"><span style="display: flex; flex-direction: column;"><span>Start without network</span><span style="font-size: 12px; color: #93A0B4;">Avoids an address conflict with the original; connect it when you are ready.</span></span></label>
+<button type="button" style="min-height: 42px; padding: 0 14px; border: 0; border-radius: 10px; background: #4C9AFF; color: #06101F; font: inherit; font-weight: 600;">Restore as a new server</button>
+<span style="font-size: 12px; color: #93A0B4;">Counts against your limits and is billed from today like any new server. The original keeps running.</span>
+</div>
+</sc-if>
+
+<sc-if value="{{isInPlace}}" hint-placeholder-val="{{false}}">
+<div style="display: flex; flex-direction: column; gap: 10px;">
+<div role="alert" style="padding: 12px 14px; border-radius: 10px; background: #2E1414; border: 1px solid #5A2A2A; color: #FFC2C2; font-size: 13px;">Everything on web-prod-01 written after {{chosen}} is lost. The server is shut down for about 6 minutes.</div>
+<label style="display: flex; align-items: flex-start; gap: 10px; font-size: 13px;"><input type="checkbox" checked="{{yes}}" onChange="{{noop}}" style="width: 18px; height: 18px; margin-top: 2px; accent-color: #4C9AFF;"><span style="display: flex; flex-direction: column;"><span>Back up the current state first</span><span style="font-size: 12px; color: #93A0B4;">So you can go back if the older state is not what you need.</span></span></label>
+<label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: #C3CCDA;">Type the server name to confirm<input type="text" value="" placeholder="web-prod-01" onChange="{{noop}}" style="min-height: 42px; padding: 0 12px; border: 1px solid #2A3750; border-radius: 10px; background: #0C1322; color: #E6EBF2; font-family: 'JetBrains Mono', monospace;"></label>
+<button type="button" style="min-height: 42px; padding: 0 14px; border: 1px solid #5A2A2A; border-radius: 10px; background: #101828; color: #FF8A8A; font: inherit; font-weight: 600;">Restore over this server</button>
+</div>
+</sc-if>
+</section>
+
+<section style="padding: 14px 16px; background: #101828; border: 1px solid #1F2A3F; border-radius: 14px; font-size: 13px; color: #93A0B4; display: flex; flex-direction: column; gap: 8px;">
+<span style="font-weight: 600; color: #C3CCDA;">Backups or snapshots?</span>
+<span>Snapshots live on the same storage as the server: quick to roll back, gone if that storage fails. Backups are copied to a separate backup server, kept for days, and can be restored as a new server or file by file.</span>
+<span style="display: flex; justify-content: space-between; align-items: center; gap: 10px; padding-top: 8px; border-top: 1px solid #1C2638;"><span>Keep 14 daily and 8 weekly instead of 7</span><button type="button" style="min-height: 34px; padding: 0 10px; border: 1px solid #2A3750; border-radius: 8px; background: transparent; color: #E6EBF2; font: inherit; font-size: 12px;">Add · [YOUR PRICE]/mo</button></span>
+</section>
+</aside>
+</div>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1500}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { mode: 'files', pick: 0, queued: false }; }
+  renderVals() {
+    const names = ['Overview', 'Console', 'Snapshots', 'Backups', 'Network', 'Resize', 'Reinstall', 'Updates', 'Renewal'];
+    const tabs = names.map((n) => ({ label: n, on: n === 'Backups', line: n === 'Backups' ? '#4C9AFF' : 'transparent', color: n === 'Backups' ? '#FFFFFF' : '#B8C2D1' }));
+    const kinds = { Daily: ['#152645', '#9CC8FF'], Weekly: ['#262046', '#C7B8FF'], Manual: ['#123326', '#7EE6B0'], 'Before restore': ['#3A2E10', '#F5C46B'] };
+    const P = [
+      ['21 Oct 2026, 02:04', 'Daily', '18,2 GB', 'Verified', '#7EE6B0', '2,1 GB changed', false],
+      ['20 Oct 2026, 14:37', 'Manual', '18,0 GB', 'Verified', '#7EE6B0', 'before the PHP 8.4 upgrade', true],
+      ['20 Oct 2026, 02:05', 'Daily', '17,9 GB', 'Verified', '#7EE6B0', '1,8 GB changed', false],
+      ['19 Oct 2026, 02:03', 'Weekly', '17,6 GB', 'Verified', '#7EE6B0', 'kept as the weekly point', false],
+      ['18 Oct 2026, 02:06', 'Daily', '17,5 GB', 'Not verified yet', '#93A0B4', '1,2 GB changed', false],
+      ['17 Oct 2026, 02:04', 'Daily', '17,4 GB', 'Verified', '#7EE6B0', '0,9 GB changed', false],
+      ['16 Oct 2026, 02:05', 'Daily', '17,3 GB', 'Crash-consistent', '#F5C46B', 'guest agent did not answer', false]
+    ];
+    const pick = this.state.pick;
+    const points = P.map((p, i) => ({
+      when: p[0], kind: p[1], kindBg: kinds[p[1]][0], kindFg: kinds[p[1]][1], size: p[2], check: p[3], checkColor: p[4], note: p[5],
+      pinned: p[6], pinLabel: p[6] ? 'Unprotect' : 'Protect', bg: i === pick ? '#121F38' : 'transparent',
+      restore: () => this.setState({ pick: i })
+    }));
+    const mode = this.state.mode;
+    const M = [
+      ['files', 'Files and folders', 'Download single files; the server is not touched.'],
+      ['new', 'As a new server', 'A copy next to the original, e.g. to compare or test.'],
+      ['inplace', 'Over this server', 'Back to this point in time; later changes are lost.']
+    ];
+    const modes = M.map(([k, label, sub]) => ({
+      label, sub, on: k === mode, border: k === mode ? '#4C9AFF' : '#2A3750', bg: k === mode ? '#12213D' : '#0C1322',
+      pick: () => this.setState({ mode: k })
+    }));
+    return {
+      tabs, points, modes, noop: () => {}, yes: true,
+      chosen: P[pick][0], isFiles: mode === 'files', isNew: mode === 'new', isInPlace: mode === 'inplace',
+      queued: this.state.queued, backupNow: () => this.setState({ queued: true }),
+      facts: [
+        { label: 'Schedule', value: 'Daily, 01:00–05:00', sub: 'Business plan · next tonight' },
+        { label: 'Kept', value: '7 daily · 1 weekly', sub: 'plus protected points' },
+        { label: 'Backup storage', value: '18,2 GB', sub: '124 GB logical, deduplicated' },
+        { label: 'Manual backups today', value: '0 of 2', sub: 'reset at midnight' }
+      ],
+      files: [
+        { name: 'wp-config.php', size: '3,1 KB', on: true },
+        { name: '.htaccess', size: '1,2 KB', on: true },
+        { name: 'wp-content/', size: '4,8 GB', on: false },
+        { name: 'wp-admin/', size: '62 MB', on: false },
+        { name: 'index.php', size: '0,4 KB', on: false }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

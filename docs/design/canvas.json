@@ -15,7 +15,7 @@
       "y": 0,
       "w": 1440,
       "h": 1500,
-      "title": "Admin \u00b7 Multi-host dashboard",
+      "title": "Admin · Multi-host dashboard",
       "expand": "fill",
       "is_interactive": true
     },
@@ -24,7 +24,7 @@
       "y": 0,
       "w": 1440,
       "h": 1500,
-      "title": "Admin \u00b7 Guests (all hosts)",
+      "title": "Admin · Guests (all hosts)",
       "expand": "fill",
       "is_interactive": true
     },
@@ -33,7 +33,7 @@
       "y": 0,
       "w": 1440,
       "h": 1500,
-      "title": "Admin \u00b7 Plans",
+      "title": "Admin · Plans",
       "expand": "fill",
       "is_interactive": true
     },
@@ -42,7 +42,7 @@
       "y": 0,
       "w": 1440,
       "h": 1500,
-      "title": "Admin \u00b7 Networking & IPAM",
+      "title": "Admin · Networking & IPAM",
       "expand": "fill",
       "is_interactive": true
     },
@@ -51,7 +51,7 @@
       "y": 0,
       "w": 1440,
       "h": 1500,
-      "title": "Admin \u00b7 Billing overview",
+      "title": "Admin · Billing overview",
       "expand": "fill",
       "is_interactive": true
     },
@@ -60,7 +60,7 @@
       "y": 0,
       "w": 1440,
       "h": 1500,
-      "title": "Admin \u00b7 Invoice detail",
+      "title": "Admin · Invoice detail",
       "expand": "fill",
       "is_interactive": true
     },
@@ -69,7 +69,7 @@
       "y": 1920,
       "w": 1440,
       "h": 1500,
-      "title": "Admin \u00b7 Hosts & onboarding",
+      "title": "Admin · Hosts & onboarding",
       "expand": "fill",
       "is_interactive": true
     },
@@ -78,7 +78,7 @@
       "y": 1920,
       "w": 1440,
       "h": 1500,
-      "title": "Admin \u00b7 Cloud-init & OS templates",
+      "title": "Admin · Cloud-init & OS templates",
       "expand": "fill",
       "is_interactive": true
     },
@@ -87,7 +87,7 @@
       "y": 1920,
       "w": 1440,
       "h": 1500,
-      "title": "Admin \u00b7 Provisioning jobs",
+      "title": "Admin · Provisioning jobs",
       "expand": "fill",
       "is_interactive": true
     },
@@ -96,7 +96,7 @@
       "y": 1920,
       "w": 1440,
       "h": 1500,
-      "title": "Admin \u00b7 In-browser console",
+      "title": "Admin · In-browser console",
       "expand": "fill",
       "is_interactive": true
     },
@@ -105,7 +105,7 @@
       "y": 1920,
       "w": 1440,
       "h": 1500,
-      "title": "Admin \u00b7 Access & roles (RBAC)",
+      "title": "Admin · Access & roles (RBAC)",
       "expand": "fill",
       "is_interactive": true
     },
@@ -114,7 +114,7 @@
       "y": 1920,
       "w": 1440,
       "h": 1500,
-      "title": "Admin \u00b7 Resource allocation pools",
+      "title": "Admin · Resource allocation pools",
       "expand": "fill",
       "is_interactive": true
     },
@@ -123,7 +123,7 @@
       "y": 1920,
       "w": 1440,
       "h": 1500,
-      "title": "Admin \u00b7 Object storage (SeaweedFS)",
+      "title": "Admin · Object storage (SeaweedFS)",
       "expand": "fill",
       "is_interactive": true
     },
@@ -132,7 +132,7 @@
       "y": 1920,
       "w": 1440,
       "h": 1500,
-      "title": "Admin \u00b7 GPU compute",
+      "title": "Admin · GPU compute",
       "expand": "fill",
       "is_interactive": true
     },
@@ -141,7 +141,7 @@
       "y": 3840,
       "w": 1440,
       "h": 1500,
-      "title": "Customer \u00b7 My servers",
+      "title": "Customer · My servers",
       "expand": "fill",
       "is_interactive": true
     },
@@ -150,7 +150,7 @@
       "y": 3840,
       "w": 1440,
       "h": 1500,
-      "title": "Customer \u00b7 Server detail",
+      "title": "Customer · Server detail",
       "expand": "fill",
       "is_interactive": true
     },
@@ -159,7 +159,7 @@
       "y": 3840,
       "w": 1440,
       "h": 1500,
-      "title": "Customer \u00b7 Create server",
+      "title": "Customer · Create server",
       "expand": "fill",
       "is_interactive": true
     },
@@ -168,7 +168,7 @@
       "y": 3840,
       "w": 1440,
       "h": 1500,
-      "title": "Customer \u00b7 Billing & wallet",
+      "title": "Customer · Billing & wallet",
       "expand": "fill",
       "is_interactive": true
     },
@@ -177,7 +177,7 @@
       "y": 3840,
       "w": 1440,
       "h": 1500,
-      "title": "Customer \u00b7 Invoice & pay",
+      "title": "Customer · Invoice & pay",
       "expand": "fill",
       "is_interactive": true
     },
@@ -186,14 +186,14 @@
       "y": 7680,
       "w": 260,
       "h": 1240,
-      "title": "Component \u00b7 Sidebar"
+      "title": "Component · Sidebar"
     },
     "Customer-Block.dc.html": {
       "x": 7600,
       "y": 3840,
       "w": 1440,
       "h": 1500,
-      "title": "Customer \u00b7 Block storage",
+      "title": "Customer · Block storage",
       "expand": "fill",
       "is_interactive": true
     },
@@ -202,7 +202,7 @@
       "y": 3840,
       "w": 1440,
       "h": 1500,
-      "title": "Customer \u00b7 Object storage",
+      "title": "Customer · Object storage",
       "expand": "fill",
       "is_interactive": true
     },
@@ -211,7 +211,7 @@
       "y": 3840,
       "w": 1440,
       "h": 1500,
-      "title": "Customer \u00b7 Network & VPN",
+      "title": "Customer · Network & VPN",
       "expand": "fill",
       "is_interactive": true
     },
@@ -220,7 +220,7 @@
       "y": 3840,
       "w": 1440,
       "h": 1500,
-      "title": "Customer \u00b7 Security & 2FA",
+      "title": "Customer · Security & 2FA",
       "expand": "fill",
       "is_interactive": true
     },
@@ -229,7 +229,7 @@
       "y": 3840,
       "w": 1440,
       "h": 1500,
-      "title": "Customer \u00b7 Support tickets",
+      "title": "Customer · Support tickets",
       "expand": "fill",
       "is_interactive": true
     },
@@ -238,7 +238,7 @@
       "y": 3840,
       "w": 1440,
       "h": 1500,
-      "title": "Customer \u00b7 AI assistant",
+      "title": "Customer · AI assistant",
       "expand": "fill",
       "is_interactive": true
     },
@@ -247,7 +247,7 @@
       "y": 3840,
       "w": 1440,
       "h": 1500,
-      "title": "Customer \u00b7 Knowledge base",
+      "title": "Customer · Knowledge base",
       "expand": "fill",
       "is_interactive": true
     },
@@ -256,7 +256,7 @@
       "y": 5760,
       "w": 1440,
       "h": 1500,
-      "title": "Admin \u00b7 Customers & behaviour",
+      "title": "Admin · Customers & behaviour",
       "expand": "fill",
       "is_interactive": true
     },
@@ -265,7 +265,7 @@
       "y": 5760,
       "w": 1440,
       "h": 1500,
-      "title": "Admin \u00b7 Activity log",
+      "title": "Admin · Activity log",
       "expand": "fill",
       "is_interactive": true
     },
@@ -274,7 +274,7 @@
       "y": 5760,
       "w": 1440,
       "h": 1500,
-      "title": "Admin \u00b7 Ticket desk (Zammad)",
+      "title": "Admin · Ticket desk (Zammad)",
       "expand": "fill",
       "is_interactive": true
     },
@@ -283,7 +283,7 @@
       "y": 5760,
       "w": 1440,
       "h": 1500,
-      "title": "Admin \u00b7 AI assistant",
+      "title": "Admin · AI assistant",
       "expand": "fill",
       "is_interactive": true
     },
@@ -292,7 +292,7 @@
       "y": 5760,
       "w": 1440,
       "h": 1500,
-      "title": "Admin \u00b7 Knowledge base editor",
+      "title": "Admin · Knowledge base editor",
       "expand": "fill",
       "is_interactive": true
     },
@@ -301,7 +301,7 @@
       "y": 5760,
       "w": 1440,
       "h": 1500,
-      "title": "Admin \u00b7 API tokens & integrations",
+      "title": "Admin · API tokens & integrations",
       "expand": "fill",
       "is_interactive": true
     },
@@ -310,7 +310,7 @@
       "y": 5760,
       "w": 1440,
       "h": 1500,
-      "title": "Admin \u00b7 Settings & white label",
+      "title": "Admin · Settings & white label",
       "expand": "fill",
       "is_interactive": true
     },
@@ -319,7 +319,7 @@
       "y": 5760,
       "w": 1440,
       "h": 1500,
-      "title": "Flow \u00b7 Support integration",
+      "title": "Flow · Support integration",
       "expand": "fill"
     },
     "Customer-Updates.dc.html": {
@@ -327,7 +327,7 @@
       "y": 9600,
       "w": 1440,
       "h": 1300,
-      "title": "Customer \u00b7 OS updates (Windows + Linux)",
+      "title": "Customer · OS updates (Windows + Linux)",
       "expand": "fill",
       "is_interactive": true
     },
@@ -336,7 +336,7 @@
       "y": 9600,
       "w": 1440,
       "h": 1400,
-      "title": "Customer \u00b7 Renewals & expiry",
+      "title": "Customer · Renewals & expiry",
       "expand": "fill",
       "is_interactive": true
     },
@@ -345,7 +345,7 @@
       "y": 9600,
       "w": 1440,
       "h": 1250,
-      "title": "Customer \u00b7 Appearance & sign-in methods",
+      "title": "Customer · Appearance & sign-in methods",
       "expand": "fill",
       "is_interactive": true
     },
@@ -354,7 +354,7 @@
       "y": 9600,
       "w": 1440,
       "h": 900,
-      "title": "Customer \u00b7 Sign in with SSO",
+      "title": "Customer · Sign in with SSO",
       "expand": "fill",
       "is_interactive": true
     },
@@ -363,7 +363,7 @@
       "y": 9600,
       "w": 1440,
       "h": 1400,
-      "title": "Admin \u00b7 Patch management",
+      "title": "Admin · Patch management",
       "expand": "fill",
       "is_interactive": true
     },
@@ -372,7 +372,25 @@
       "y": 9600,
       "w": 1440,
       "h": 1300,
-      "title": "Admin \u00b7 Server lifecycle (expiry)",
+      "title": "Admin · Server lifecycle (expiry)",
+      "expand": "fill",
+      "is_interactive": true
+    },
+    "Admin-Backups.dc.html": {
+      "x": 0,
+      "y": 11540,
+      "w": 1440,
+      "h": 1500,
+      "title": "Admin · Backups (Proxmox Backup Server)",
+      "expand": "fill",
+      "is_interactive": true
+    },
+    "Customer-Backups.dc.html": {
+      "x": 1520,
+      "y": 11540,
+      "w": 1440,
+      "h": 1500,
+      "title": "Customer · Server backups & restore",
       "expand": "fill",
       "is_interactive": true
     }
@@ -418,20 +436,22 @@
     "Customer-Preferences.dc.html",
     "Customer-SignIn.dc.html",
     "Admin-Updates.dc.html",
-    "Admin-Lifecycle.dc.html"
+    "Admin-Lifecycle.dc.html",
+    "Admin-Backups.dc.html",
+    "Customer-Backups.dc.html"
   ],
   "notes": {
     "admin": {
       "x": 0,
       "y": -300,
-      "text": "Admin portal \u00b7 Operations & commerce",
+      "text": "Admin portal · Operations & commerce",
       "kind": "title1",
       "maxW": 9040
     },
     "admin2": {
       "x": 0,
       "y": 1620,
-      "text": "Admin portal \u00b7 Infrastructure, access & resources",
+      "text": "Admin portal · Infrastructure, access & resources",
       "kind": "title1",
       "maxW": 12080
     },
@@ -452,7 +472,7 @@
     "admin3": {
       "x": 0,
       "y": 5460,
-      "text": "Admin portal \u00b7 Customers, support & platform",
+      "text": "Admin portal · Customers, support & platform",
       "kind": "title1",
       "maxW": 12080
     },
@@ -462,6 +482,13 @@
       "text": "Updates, renewals, appearance & SSO (customer + admin)",
       "kind": "title1",
       "maxW": 9040
+    },
+    "pbs": {
+      "x": 0,
+      "y": 11240,
+      "text": "Backups · Proxmox Backup Server (implemented, 1.13.0)",
+      "kind": "title1",
+      "maxW": 2960
     }
   },
   "designSystems": []
