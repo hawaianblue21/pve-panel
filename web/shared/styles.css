@@ -1314,3 +1314,7 @@ textarea { min-height: 0; }
 .bulk-bar select { min-width: 200px; }
 .table tr.row-picked td { background: color-mix(in srgb, var(--signal) 7%, var(--surface)); }
 .table tr.group-row td { background: var(--surface-2); padding-top: 9px; padding-bottom: 9px; }
+
+/* Backups (admin) */
+.pbs-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px; }
+.pbs-cards .pool-card { margin: 0; }

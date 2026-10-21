@@ -18,7 +18,7 @@ import {
 const fail = (status, message) => Object.assign(new Error(message), { statusCode: status, expose: true });
 
 /** SHA-256 fingerprint of the certificate a https URL presents (not verified). */
-function fingerprintOf(url) {
+export function fingerprintOf(url) {
   const u = new URL(url);
   if (u.protocol !== 'https:') return Promise.resolve(null);
   return new Promise((resolve) => {
