@@ -13,6 +13,7 @@ import { createIpam } from '/ipam.js';
 import { createHosts } from '/hosts.js';
 import { createJobs } from '/jobs.js';
 import { createPlans } from '/plans.js';
+import { createLifecycle } from '/lifecycle.js';
 
 // Administration area: assign servers, manage customers, read the activity log.
 // Receives the shared helpers from app.js so it behaves like the rest of the panel.
@@ -237,6 +238,8 @@ export function createAdmin({ root, nav = null, api, toast, fail, confirmAction,
   });
   // Plans: sizes with a price (own module)
   const plans = createPlans({ root, api, toast, fail, confirmAction, esc });
+  // Server lifecycle queue (own module)
+  const lifecycle = createLifecycle({ root, api, toast, fail, confirmAction, esc });
   // Which permission a tab needs (the server checks every request as well)
   const TAB_PERMISSION = {
     servers: 'servers.read', users: 'customers.read', templates: 'servers.read', vpn: 'network.read',
@@ -250,6 +253,7 @@ export function createAdmin({ root, nav = null, api, toast, fail, confirmAction,
     : hosts.handles(id) ? hosts.tabs().some(([t]) => t === id)
     : jobs.handles(id) ? jobs.tabs().some(([t]) => t === id)
     : plans.handles(id) ? plans.tabs().some(([t]) => t === id)
+    : lifecycle.handles(id) ? lifecycle.tabs().some(([t]) => t === id)
     : !TAB_PERMISSION[id] || !st.perms || st.perms.has(TAB_PERMISSION[id]));
   const gb = (mb) => `${+(mb / 1024).toFixed(1)} GB`;
 
@@ -276,6 +280,8 @@ export function createAdmin({ root, nav = null, api, toast, fail, confirmAction,
         await jobs.load(st.tab);
       } else if (plans.handles(st.tab)) {
         await plans.load(st.tab);
+      } else if (lifecycle.handles(st.tab)) {
+        await lifecycle.load(st.tab);
       } else if (st.tab === 'servers') {
         [st.vms, st.users] = await Promise.all([api('/api/admin/vms'), api('/api/admin/users')]);
       } else if (st.tab === 'users') {
@@ -310,12 +316,12 @@ export function createAdmin({ root, nav = null, api, toast, fail, confirmAction,
 
   // ---- shell ------------------------------------------------------------
   // The sidebar of the PVE Panel App UI: tabs in groups, each shown when allowed.
-  const MODULES = [hosts, desk, billing, plans, jobs, infra, volumes, ipam];
+  const MODULES = [hosts, desk, billing, plans, jobs, infra, volumes, ipam, lifecycle];
   const GROUPS = [
     ['Infrastructure', [['overview', 'Overview'], ['hosts', 'Hosts & nodes'], ['servers', 'Servers'], ['jobs', 'Jobs'],
       ['templates', 'OS templates'], ['updates', 'Updates'], ['ipam', 'Public IPs'], ['vpn', 'VPN']]],
     ['Resources', [['resources', 'Resource pools'], ['volumes', 'Block storage'], ['storage', 'Object storage'], ['gpu', 'GPU compute']]],
-    ['Customers & billing', [['users', 'Customers'], ['plans', 'Plans'], ['billing', 'Billing']]],
+    ['Customers & billing', [['users', 'Customers'], ['lifecycle', 'Server lifecycle'], ['plans', 'Plans'], ['billing', 'Billing']]],
     ['Support', [['tickets', 'Tickets'], ['kb', 'Knowledge base'], ['ai', 'AI assistant']]],
     ['System', [['access', 'Access & roles'], ['activity', 'Activity log'], ['settings', 'Settings'], ['account', 'Your account'], ['about', 'About']]],
   ];
@@ -351,6 +357,7 @@ export function createAdmin({ root, nav = null, api, toast, fail, confirmAction,
     if (hosts.handles(st.tab)) hosts.render(st.tab);
     if (jobs.handles(st.tab)) jobs.render(st.tab);
     if (plans.handles(st.tab)) plans.render(st.tab);
+    if (lifecycle.handles(st.tab)) lifecycle.render(st.tab);
     if (st.tab === 'servers') renderServers();
     if (st.tab === 'users') renderUsers();
     if (st.tab === 'templates') renderTemplates();
@@ -1802,6 +1809,7 @@ export function createAdmin({ root, nav = null, api, toast, fail, confirmAction,
     if (hosts.handles(st.tab) && !t.dataset.adminTab && await hosts.onClick(e, st.tab)) return;
     if (jobs.handles(st.tab) && !t.dataset.adminTab && await jobs.onClick(e, st.tab)) return;
     if (plans.handles(st.tab) && !t.dataset.adminTab && await plans.onClick(e, st.tab)) return;
+    if (lifecycle.handles(st.tab) && !t.dataset.adminTab && await lifecycle.onClick(e, st.tab)) return;
 
     if (t.hasAttribute('data-ai-test')) {
       t.disabled = true;
@@ -2205,6 +2213,7 @@ export function createAdmin({ root, nav = null, api, toast, fail, confirmAction,
       hosts.setPermissions(me.permissions);
       jobs.setPermissions(me.permissions);
       plans.setPermissions(me.permissions);
+      lifecycle.setPermissions(me.permissions);
     } catch (err) {
       fail(err);
     }

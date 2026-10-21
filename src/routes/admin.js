@@ -11,7 +11,7 @@ import { activity, ACTOR_KEYS, CATEGORY_KEYS } from '../activity.js';
 import * as totp from '../totp.js';
 import { deleteAllPasskeys } from '../passkeys.js';
 import {
-  expirySettings, saveExpirySettings, applyCustomerRule, setServerExpiry, extendServer, expiryInfo, runExpiry,
+  expirySettings, saveExpirySettings, applyCustomerRule, expiryQueue, setServerExpiry, extendServer, expiryInfo, runExpiry,
 } from '../expiry.js';
 import { versionInfo, updateStatus } from '../version.js';
 import {
@@ -545,6 +545,13 @@ export default async function adminRoutes(app) {
     const saved = saveExpirySettings(req.body);
     audit(req, null, 'admin_expiry_settings', req.body);
     return saved;
+  });
+
+  // The lifecycle queue: servers with an end date and their next step
+  app.get('/api/admin/expiry/queue', async () => {
+    let names = new Map();
+    try { names = new Map([...(await clusterGuests()).values()].map((g) => [Number(g.vmid), g.name])); } catch { /* names from the panel only */ }
+    return expiryQueue({ names });
   });
 
   // Run the expiry check now (it also runs every few minutes by itself)

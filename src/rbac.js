@@ -87,6 +87,7 @@ const ROUTES = {
   'DELETE /api/admin/vms/:vmid': 'servers.manage',
   'GET /api/admin/tasks/:upid': 'servers.read',
   'POST /api/admin/expiry/run': 'servers.manage',
+  'GET /api/admin/expiry/queue': 'servers.read',
 
   'GET /api/admin/templates': 'servers.read',
   'PUT /api/admin/templates/:vmid': 'templates.write',

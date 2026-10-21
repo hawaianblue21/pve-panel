@@ -200,7 +200,7 @@ PVE Panel was built with substantial help from an AI assistant (**Claude by Anth
 - **AI assistant** for customers (Claude, or any OpenAI-compatible API incl. local models): settings, usage, and every conversation with what the assistant looked up
 - **Plans**: sizes (vCPU, memory, disk, optional GPU) with a monthly price; retire plans without touching their servers; optionally require a plan instead of custom sizes
 - **Billing**: invoices with filters (unpaid, transfer reported, overdue), revenue and tax this month, confirm bank transfers, cancel invoices, adjust wallets, fixed prices per server; a *Finance* role
-- Give single customers or servers an expiry date: reminders, automatic stop, grace period, deletion
+- Give single customers or servers an expiry date: reminders, automatic stop, grace period, deletion; the **Server lifecycle** tab lists every server with an end date, its stage and next step, with extend, remove date, Check now and pause
 - Role-based access for administrators (owner, operator, resource manager, read-only support, custom roles)
 - Datacenters and resource allocation pools: shared caps on vCPU, memory, disk, public IPs, GPUs and object storage
 - GPU compute: PCI passthrough and NVIDIA vGPU (mdev) on Proxmox resource mappings
