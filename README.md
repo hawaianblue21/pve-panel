@@ -177,7 +177,7 @@ PVE Panel was built with substantial help from an AI assistant (**Claude by Anth
 ### Administrator experience
 
 - Create and manage customer accounts
-- Assign existing Proxmox VMs or containers to users
+- Assign existing Proxmox VMs or containers to users, one by one or **several at once** (Servers: filters by node, status, customer and type, grouping by node, bulk start / shut down / restart / force stop / assign / unassign)
 - Configure provisioning quotas and limits
 - Publish selected templates
 - Start, stop, restart and delete customer-owned servers
