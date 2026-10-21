@@ -186,7 +186,7 @@ PVE Panel was built with substantial help from an AI assistant (**Claude by Anth
 - Review the activity log: filter by who acted (customer, administrator, the panel itself, unknown sign-ins), by kind of action (created, changed, deleted, power, security) or by text; open any event for its full record
 - Monitor WireGuard and Tailscale usage
 - Delete customers together with their owned infrastructure
-- **Overview** dashboard and **Hosts** with maintenance mode (no new servers on a node)
+- **Overview** dashboard (KPIs, nodes, alerts, latest activity) and **Hosts** with maintenance mode (no new servers on a node)
 - Connect **several Proxmox clusters** (connection test, pinned TLS fingerprint, VMID and node conflicts reported)
 - **Updates**: fleet view, **Check now** (pending updates per server), rollouts in rings with a failure limit and an optional **maintenance window**
 - **Public IPs**: IPv4 pools with reservations, cool-down and PowerDNS reverse DNS, optional **IPv6** prefix per pool
@@ -451,17 +451,39 @@ Customer API: `GET/POST /api/vms/:vmid/ips`, `DELETE /api/ips/:id`, `PUT /api/ip
 
 ## 🖼️ Screenshots
 
+Screenshots are taken from a test environment with simulated Proxmox clusters and sample data.
+
+### Customer portal
+
 | Customer dashboard | Server details |
 |---|---|
 | ![Customer dashboard](docs/screenshots/customer-dashboard.png) | ![Server details](docs/screenshots/server-details.png) |
 
-| Admin portal | Provisioning |
+| Snapshots and automatic snapshots | Storage (block volumes) |
 |---|---|
-| ![Admin portal](docs/screenshots/admin-dashboard.png) | ![Provisioning](docs/screenshots/provisioning.png) |
+| ![Snapshots and automatic snapshots](docs/screenshots/customer-snapshots.png) | ![Storage](docs/screenshots/customer-storage.png) |
 
-| Sign-in | Version & updates |
+| Billing (wallet, invoices) | Provisioning |
 |---|---|
-| ![Sign-in](docs/screenshots/sign-in.png) | ![About](docs/screenshots/admin-about.png) |
+| ![Billing](docs/screenshots/customer-billing.png) | ![Provisioning](docs/screenshots/provisioning.png) |
+
+### Administrator portal
+
+| Overview dashboard | Clusters and hosts |
+|---|---|
+| ![Admin overview dashboard](docs/screenshots/admin-dashboard.png) | ![Clusters and hosts](docs/screenshots/admin-clusters-hosts.png) |
+
+| Fleet updates and rollouts | Plans |
+|---|---|
+| ![Fleet updates and rollouts](docs/screenshots/admin-fleet-updates.png) | ![Plans](docs/screenshots/admin-plans.png) |
+
+| Public IPs (IPAM) | Version & updates |
+|---|---|
+| ![Public IPs](docs/screenshots/admin-public-ips.png) | ![About](docs/screenshots/admin-about.png) |
+
+### Sign-in
+
+![Sign-in](docs/screenshots/sign-in.png)
 
 ---
 
@@ -1604,42 +1626,85 @@ Only these file names are served, with a strict sandbox policy. Make sure you're
 ```text
 .
 ├── src/
-│   ├── server.js
+│   ├── activity.js
+│   ├── agent.js
+│   ├── ai-providers.js
+│   ├── ai.js
+│   ├── appearance.js
+│   ├── auth.js
+│   ├── billing.js
+│   ├── bootstrap.js
+│   ├── branding.js
+│   ├── cleanup.js
+│   ├── clock.js
+│   ├── clusters.js
 │   ├── config.js
 │   ├── db.js
-│   ├── pve.js
-│   ├── auth.js
-│   ├── bootstrap.js
-│   ├── provision.js
-│   ├── network.js
-│   ├── windows.js
-│   ├── cleanup.js
-│   ├── tailscale.js
-│   ├── totp.js
-│   ├── passkeys.js
 │   ├── expiry.js
-│   ├── appearance.js
-│   ├── winupdate.js
-│   ├── oidc.js
-│   ├── vpn.js
-│   ├── agent.js
-│   ├── version.js
-│   ├── mail.js
+│   ├── gateways.js
+│   ├── gpu.js
+│   ├── hosts.js
 │   ├── invite.js
+│   ├── ipam.js
+│   ├── kb.js
+│   ├── linuxupdate.js
+│   ├── mail.js
+│   ├── network.js
+│   ├── oidc.js
+│   ├── passkeys.js
+│   ├── plans.js
+│   ├── pools.js
+│   ├── provision.js
+│   ├── pve.js
+│   ├── rbac.js
+│   ├── rollouts.js
+│   ├── seaweedfs.js
 │   ├── secrets.js
+│   ├── server.js
+│   ├── sigv4.js
+│   ├── snapschedule.js
+│   ├── sso.js
+│   ├── support.js
+│   ├── tailscale.js
+│   ├── tokens.js
+│   ├── totp.js
+│   ├── version.js
+│   ├── volumes.js
+│   ├── vpn.js
+│   ├── windows.js
+│   ├── winupdate.js
+│   ├── zammad.js
+│   ├── guest/            # scripts run inside Linux guests (setup, status, updates)
 │   └── routes/
-│       ├── vms.js
+│       ├── admin-billing.js
+│       ├── admin-clusters.js
+│       ├── admin-hosts.js
+│       ├── admin-infra.js
+│       ├── admin-ipam.js
+│       ├── admin-jobs.js
+│       ├── admin-plans.js
+│       ├── admin-support.js
+│       ├── admin-volumes.js
+│       ├── admin.js
+│       ├── assistant.js
+│       ├── billing.js
 │       ├── console.js
-│       ├── vpn.js
-│       └── admin.js
+│       ├── ips.js
+│       ├── storage.js
+│       ├── support.js
+│       ├── tokens.js
+│       ├── vms.js
+│       ├── volumes.js
+│       └── vpn.js
 │
 ├── web/
-│   ├── customer/
-│   ├── admin/
+│   ├── customer/         # customer portal (servers, storage, billing, support, assistant)
+│   ├── admin/            # admin portal (overview, hosts, jobs, plans, IPAM, volumes, desk, billing)
 │   └── shared/
 │
 ├── docs/
-│   ├── screenshots/
+│   ├── screenshots/      # images used in this README
+│   ├── design/           # UI/UX design reference
 │   ├── windows/
 │   │   └── unattend.xml
 │   └── vpn/
@@ -1700,6 +1765,15 @@ Only these file names are served, with a strict sandbox policy. Make sure you're
 | `GET/POST/PATCH/DELETE` | `/api/account/passkeys/...` | Manage passkeys |
 | `GET/DELETE` | `/api/account/identities[/:provider]` | Linked sign-in providers: list / unlink |
 | `GET/PUT` | `/api/account/appearance` | Own color scheme and light/dark mode |
+| `GET/PUT` | `/api/vms/:vmid/snapshot-schedule` | Automatic snapshots: `frequency`, `hour`, `weekday`, `keep` |
+| `GET/POST` | `/api/volumes` | Block volumes: list / create |
+| `PATCH/DELETE` | `/api/volumes/:id` | Rename / delete a volume |
+| `POST` | `/api/volumes/:id/attach`, `/detach`, `/resize` | Attach (also to another server), detach, enlarge |
+| `GET` | `/api/storage` | Object storage: buckets and usage |
+| `POST/PATCH/DELETE` | `/api/storage/buckets[/:name]`, `/api/storage/keys` | Buckets (quota, read-only) and one-time access keys |
+| `GET/POST/DELETE` | `/api/vms/:vmid/ips`, `/api/ips/:id` | Public IPv4 addresses: list / assign / release |
+| `PUT` | `/api/ips/:id/ptr`, `/api/ips/:id/ipv6` | Reverse DNS / IPv6 /64 on or off |
+| `GET/POST/DELETE` | `/api/tokens[/:id]` | API tokens |
 | `GET/POST` | `/api/support/tickets` | Own tickets / open a ticket |
 | `GET` | `/api/support/tickets/:number` | A ticket with its messages (no internal notes) |
 | `POST` | `/api/support/tickets/:number/messages`, `/api/support/tickets/:number/close` | Reply / close |
