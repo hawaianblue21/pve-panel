@@ -43,6 +43,8 @@ const DEFAULTS = {
   discounts: { 3: 5, 6: 10, 12: 15 },
   topupMin: 50_000,
   autoRenewDays: 3,
+  // dunning.js: renewal invoices issued before the end date, reminders, wallet charge, suspension
+  dunning: { enabled: true, issueDaysBefore: 7, reminderDays: [7, 1], autoCharge: true, suspendAfterDays: 3 },
   bank: { enabled: false, instructions: '' },
   xendit: { enabled: false, secretKey: null, callbackToken: null },
   midtrans: { enabled: false, serverKey: null, sandbox: true },
@@ -56,8 +58,10 @@ function stored() {
     company: { ...DEFAULTS.company, ...(s.company ?? {}) }, rates: { ...DEFAULTS.rates, ...(s.rates ?? {}) },
     discounts: { ...DEFAULTS.discounts, ...(s.discounts ?? {}) }, bank: { ...DEFAULTS.bank, ...(s.bank ?? {}) },
     xendit: { ...DEFAULTS.xendit, ...(s.xendit ?? {}) }, midtrans: { ...DEFAULTS.midtrans, ...(s.midtrans ?? {}) },
+    dunning: { ...DEFAULTS.dunning, ...(s.dunning ?? {}) },
   };
 }
+export const billingStored = () => stored();
 const reveal = (v) => { try { return v ? open(PURPOSE, v) : ''; } catch { return ''; } };
 const xenditOn = (s) => s.xendit.enabled && reveal(s.xendit.secretKey) && reveal(s.xendit.callbackToken);
 const midtransOn = (s) => s.midtrans.enabled && reveal(s.midtrans.serverKey);
@@ -103,6 +107,18 @@ export function saveBillingSettings(input) {
   if (input.discounts) for (const m of [3, 6, 12]) if (input.discounts[m] !== undefined) s.discounts[m] = int(input.discounts[m], 0, 50, `Discount for ${m} months`);
   if (input.topupMin !== undefined) s.topupMin = int(input.topupMin, 10_000, 100_000_000, 'Smallest top-up');
   if (input.autoRenewDays !== undefined) s.autoRenewDays = int(input.autoRenewDays, 1, 30, 'Auto-renew days before');
+  if (input.dunning) {
+    const d = input.dunning;
+    if (typeof d.enabled === 'boolean') s.dunning.enabled = d.enabled;
+    if (typeof d.autoCharge === 'boolean') s.dunning.autoCharge = d.autoCharge;
+    if (d.issueDaysBefore !== undefined) s.dunning.issueDaysBefore = int(d.issueDaysBefore, 1, 30, 'Invoice days before the end date');
+    if (d.suspendAfterDays !== undefined) s.dunning.suspendAfterDays = int(d.suspendAfterDays, 0, 14, 'Days after the due date before the server is stopped');
+    if (d.reminderDays !== undefined) {
+      if (!Array.isArray(d.reminderDays) || d.reminderDays.length > 5) throw fail(400, 'Reminders: up to 5 days before the due date');
+      s.dunning.reminderDays = [...new Set(d.reminderDays.map((x) => int(x, 1, 30, 'Reminder days before the due date')))].sort((a, b) => b - a);
+    }
+    if (s.dunning.reminderDays.some((x) => x > s.dunning.issueDaysBefore)) throw fail(400, 'Reminders can\'t come before the invoice is issued');
+  }
   if (input.bank) {
     if (typeof input.bank.enabled === 'boolean') s.bank.enabled = input.bank.enabled;
     if (typeof input.bank.instructions === 'string') s.bank.instructions = input.bank.instructions.slice(0, 2000);
@@ -225,16 +241,16 @@ function billTo(userId) {
   return { email: u?.email ?? '', name: p.name ?? '', address: p.address ?? '', taxId: p.taxId ?? '' };
 }
 
-function insertInvoice({ userId, purpose, vmid = null, months = null, lines, subtotal, total, tax, s, auto = false, note = null }) {
+function insertInvoice({ userId, purpose, vmid = null, months = null, lines, subtotal, total, tax, s, auto = false, note = null, dueAt = null }) {
   const id = Number(db.prepare(`INSERT INTO invoices (number, user_id, purpose, vmid, months, lines, subtotal, tax_name, tax_rate, tax, total, due_at, auto, note, bill_to)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
     nextNumber(s.invoicePrefix), userId, purpose, vmid, months, JSON.stringify(lines), subtotal, s.taxName, s.taxRate, tax, total,
-    new Date(Date.now() + s.dueDays * DAY).toISOString(), auto ? 1 : 0, note, JSON.stringify(billTo(userId)),
+    dueAt ?? new Date(Date.now() + s.dueDays * DAY).toISOString(), auto ? 1 : 0, note, JSON.stringify(billTo(userId)),
   ).lastInsertRowid);
   return db.prepare('SELECT * FROM invoices WHERE id = ?').get(id);
 }
 
-function pub(inv, { admin = false } = {}) {
+export function pub(inv, { admin = false } = {}) {
   const s = stored();
   const overdue = inv.status === 'unpaid' && Date.parse(inv.due_at) < Date.now();
   return {
@@ -243,7 +259,9 @@ function pub(inv, { admin = false } = {}) {
     currency: inv.currency, dueAt: inv.due_at, paidAt: inv.paid_at, paidVia: inv.paid_via, createdAt: inv.created_at, auto: !!inv.auto,
     customerRef: inv.customer_ref, billTo: inv.bill_to ? JSON.parse(inv.bill_to) : null,
     seller: { name: s.company.name, address: s.company.address, taxId: s.company.taxId },
+    refundVia: inv.refund_via ?? null, refundedAt: inv.refunded_at ?? null,
     ...(admin ? { userId: inv.user_id, email: inv.email, note: inv.note, fulfilledAt: inv.fulfilled_at,
+      dunning: inv.dunning ? JSON.parse(inv.dunning) : null, refundRef: inv.refund_ref ?? null,
       payments: db.prepare('SELECT method, reference, amount, created_at AS createdAt FROM payments WHERE invoice_id = ? ORDER BY id').all(inv.id) } : {}),
   };
 }
@@ -264,7 +282,10 @@ export async function createRenewal(req, vmid, months, { auto = false } = {}) {
   const open = db.prepare("SELECT * FROM invoices WHERE user_id = ? AND vmid = ? AND purpose = 'renewal' AND status = 'unpaid'").get(userId, vmid);
   if (open && open.months === months && open.subtotal === q.subtotal && open.tax_rate === q.taxRate) return pub(open);
   if (open) db.prepare("UPDATE invoices SET status = 'void', note = ? WHERE id = ?").run(open.months === months ? 'Replaced: the price changed' : 'Replaced by a renewal for another period', open.id);
-  const inv = insertInvoice({ userId, purpose: 'renewal', vmid, months, lines: q.lines, subtotal: q.subtotal, tax: q.tax, total: q.total, s, auto });
+  // a running server's renewal is due on its end date (at least a day from now); a stopped one's within dueDays
+  const end = Date.parse(vm.expires_at);
+  const dueAt = !vm.expired_at && end > Date.now() ? new Date(Math.max(end, Date.now() + DAY)).toISOString() : null;
+  const inv = insertInvoice({ userId, purpose: 'renewal', vmid, months, lines: q.lines, subtotal: q.subtotal, tax: q.tax, total: q.total, s, auto, dueAt });
   audit(req, vmid, 'invoice_created', { number: inv.number, purpose: 'renewal', months, total: inv.total, auto });
   return pub(inv);
 }
@@ -512,7 +533,8 @@ export function refundInvoice(invoiceId, reason, actor = null) {
   try {
     inv = db.prepare('SELECT * FROM invoices WHERE id = ?').get(invoiceId);
     if (!inv || inv.status !== 'paid') { db.exec('ROLLBACK'); return false; }
-    db.prepare("UPDATE invoices SET status = 'refunded', note = trim(coalesce(note, '') || ' · refunded: ' || ?) WHERE id = ?").run(String(reason).slice(0, 200), inv.id);
+    db.prepare("UPDATE invoices SET status = 'refunded', refund_via = 'wallet', refunded_at = ?, note = trim(coalesce(note, '') || ' · refunded: ' || ?) WHERE id = ?")
+      .run(new Date().toISOString(), String(reason).slice(0, 200), inv.id);
     walletEntry(inv.user_id, inv.total, `Refund ${inv.number}: ${String(reason).slice(0, 120)}`, { invoiceId: inv.id });
     db.exec('COMMIT');
   } catch (err) { db.exec('ROLLBACK'); throw err; }
@@ -597,12 +619,12 @@ export function startAutoRenew(log) {
 export async function customerOverview(userId) {
   const s = stored();
   if (!s.enabled) return { enabled: false };
-  const vms = db.prepare('SELECT vmid, label, expires_at, expired_at, auto_renew FROM vms WHERE user_id = ? AND expires_at IS NOT NULL ORDER BY expires_at').all(userId);
+  const vms = db.prepare('SELECT vmid, label, expires_at, expired_at, auto_renew, renew_cancelled FROM vms WHERE user_id = ? AND expires_at IS NOT NULL ORDER BY expires_at').all(userId);
   const servers = [];
   for (const v of vms) {
     let monthly = null;
     try { monthly = (await priceOf(v.vmid, s)).monthly + volumesOfServer(v.vmid).reduce((a, x) => a + x.monthly, 0) + ipsOfServer(v.vmid).reduce((a, x) => a + x.monthly, 0) + (addonOf(v.vmid)?.monthly ?? 0); } catch { /* size unknown right now */ }
-    servers.push({ vmid: v.vmid, name: v.label || `server ${v.vmid}`, expiresAt: v.expires_at, expired: !!v.expired_at, autoRenew: !!v.auto_renew, monthly });
+    servers.push({ vmid: v.vmid, name: v.label || `server ${v.vmid}`, expiresAt: v.expires_at, expired: !!v.expired_at, autoRenew: !!v.auto_renew, renewCancelled: !!v.renew_cancelled, monthly });
   }
   const invoices = db.prepare('SELECT * FROM invoices WHERE user_id = ? AND status <> \'void\' ORDER BY id DESC LIMIT 50').all(userId).map((i) => pub(i));
   const wallet = db.prepare('SELECT amount, balance_after AS balance, reason, created_at AS createdAt FROM wallet_entries WHERE user_id = ? ORDER BY id DESC LIMIT 20').all(userId);
@@ -626,7 +648,8 @@ export function setAutoRenew(req, vmid, enabled) {
   const vm = ownServer(req.account.id, vmid);
   if (!vm) throw fail(404, 'Server not found');
   if (!vm.expires_at) throw fail(400, 'This server has no end date');
-  db.prepare('UPDATE vms SET auto_renew = ? WHERE vmid = ?').run(enabled ? 1 : 0, vmid);
+  // renewing automatically means renewing: it undoes "don't renew"
+  db.prepare('UPDATE vms SET auto_renew = ?, renew_cancelled = CASE WHEN ? THEN 0 ELSE renew_cancelled END WHERE vmid = ?').run(enabled ? 1 : 0, enabled ? 1 : 0, vmid);
   audit(req, vmid, 'auto_renew_changed', { enabled });
   return { vmid, autoRenew: enabled };
 }
@@ -689,6 +712,29 @@ export function adminVoid(req, number, reason) {
   if (r.length < 3) throw fail(400, 'Give a reason');
   db.prepare("UPDATE invoices SET status = 'void', note = ? WHERE id = ?").run(r.slice(0, 500), inv.id);
   audit(req, inv.vmid, 'admin_invoice_void', { number: inv.number, reason: r });
+  return adminInvoice(number);
+}
+
+/**
+ * Admin: gives a paid invoice back. "wallet" credits the customer's wallet; "external" records a refund
+ * made outside the panel (Xendit or Midtrans dashboard, bank transfer) with its reference. The server's
+ * end date is not changed: shorten it under Server lifecycle if the service should end too.
+ */
+export function adminRefund(req, number, { via, reference = '', reason }) {
+  const inv = getInvoice(null, number);
+  if (inv.status !== 'paid') throw fail(409, 'Only paid invoices can be refunded');
+  if (inv.purpose === 'topup' && via === 'wallet') throw fail(400, 'A top-up is refunded outside the panel (and taken off the wallet by an adjustment)');
+  const r = String(reason ?? '').trim();
+  if (r.length < 3) throw fail(400, 'Give a reason');
+  if (via === 'wallet') {
+    refundInvoice(inv.id, r, req);
+  } else {
+    const ref = String(reference ?? '').trim();
+    if (ref.length < 3) throw fail(400, 'Enter the reference of the refund (gateway refund ID or bank reference)');
+    db.prepare("UPDATE invoices SET status = 'refunded', refund_via = 'external', refund_ref = ?, refunded_at = ?, note = trim(coalesce(note, '') || ' · refunded: ' || ?) WHERE id = ?")
+      .run(ref.slice(0, 120), new Date().toISOString(), r.slice(0, 200), inv.id);
+    audit(req, inv.vmid, 'invoice_refunded', { number: inv.number, total: inv.total, reason: r, via: 'external', reference: ref.slice(0, 120) });
+  }
   return adminInvoice(number);
 }
 

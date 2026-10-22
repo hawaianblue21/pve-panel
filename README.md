@@ -167,7 +167,7 @@ PVE Panel was built with substantial help from an AI assistant (**Claude by Anth
 - **Storage**: block volumes (create, attach, detach, move between servers, enlarge) and S3 object storage buckets with access keys, optionally **read-only**
 - Ask the **AI assistant**: answers from the help center and their own servers and tickets, hands over to a ticket
 - **Plans**: create servers from plans (size and monthly price), pay the first period from the wallet, move up to a larger plan for the difference
-- **Billing**: wallet with top-ups, renew servers for 1, 3, 6 or 12 months (with discounts), auto-renew from the wallet, printable invoices with PPN; pay by wallet, **Xendit**, **Midtrans** or bank transfer
+- **Billing**: wallet with top-ups, renew servers for 1, 3, 6 or 12 months (with discounts), an invoice before the end date (paid from the wallet on its due date when the balance covers it), auto-renew or *don't renew*, printable invoices with PPN; pay by wallet, **Xendit**, **Midtrans** or bank transfer
 - Delete self-created servers
 - View provisioning progress and actionable failure messages
 - Manage personal VPN devices
@@ -1321,7 +1321,27 @@ Customer ── renew 1/3/6/12 months or top up ──► Invoice (PPN) ──�
    bank transfer ─► customer reports reference ─► admin confirms ───► paid
 Paid renewal ──► end date + 30 days per month · paid top-up ──► wallet balance
 Auto-renew ──► N days before the end: one month from the wallet (email if the balance is short)
+Dunning ──► D−7 invoice (due on the end date) + reminders D−7, D−1 ──► D+0 wallet charge or overdue notice
+        ──► D+3 server stopped ──► grace period and deletion (Server lifecycle)
 ```
+
+**Dunning** (Settings → Billing → Dunning, on by default with billing):
+
+| Step | Default | What happens |
+|---|---|---|
+| Invoice | 7 days before the end date | A renewal invoice for one month, due on the end date, emailed with a pay link (not for free servers or servers the customer chose not to renew) |
+| Reminders | 7 and 1 days before the due date | Email with the pay link; the server page shows the invoice |
+| Due date | | Paid from the wallet when the balance covers it (`autoCharge`); otherwise one overdue email with the stop date |
+| Stop | 3 days after the due date (0 to 14) | Server lifecycle stops the server (data kept); grace period and deletion follow as before |
+
+- A payment during those 3 days extends from the old end date, so no paid day is lost.
+- The lifecycle's own expiry reminders are skipped for servers with an open renewal (one set of emails, with the pay link).
+- Administrators see the pipeline on the Billing tab (invoiced, due tomorrow, overdue, stopped, paused) and per
+  invoice its timeline, and can **pause** dunning (no emails, no charge, not stopped) or **send a reminder** now.
+- Customers choose per server what happens at the end date: *Invoice me* (default), *Pay from the wallet early*
+  (auto-renew) or *Don't renew* (the open renewal is cancelled; the server ends on its end date).
+- **Refunds**: a paid invoice goes back to the wallet, or is recorded as refunded outside the panel (Xendit or
+  Midtrans dashboard, bank) with its reference. The end date is not changed by a refund.
 
 - **Prices** come from a rate card (per vCPU, GB RAM, GB disk, with a minimum; rounded up to Rp 1.000) or a fixed
   price per server; discounts for 3, 6 and 12 months; tax name and rate (default PPN 11 %) are settings.
@@ -1858,7 +1878,7 @@ Only these file names are served, with a strict sandbox policy. Make sure you're
 | `GET` | `/api/billing/invoices/:number` | An own invoice |
 | `POST` | `/api/billing/renewals`, `/api/billing/topups` | Invoice to renew a server (`vmid`, `months`) / to top up the wallet |
 | `POST` | `/api/billing/invoices/:number/pay` | Pay: `wallet`, `xendit`, `midtrans` (returns the payment page) or `bank` |
-| `PUT` | `/api/billing/servers/:vmid/auto-renew`, `/api/billing/profile` | Auto-renew on/off / billing details |
+| `PUT` | `/api/billing/servers/:vmid/auto-renew`, `/api/billing/servers/:vmid/renew`, `/api/billing/profile` | Auto-renew on/off / don't renew (`cancelled`) / billing details |
 | `POST` | `/api/billing/webhooks/xendit`, `/api/billing/webhooks/midtrans` | Gateway → panel (authenticated, then confirmed with the gateway's API) |
 | `GET` | `/api/auth/sso/:provider/start[?link=1]`, `/api/auth/sso/:provider/callback` | Sign in with (or link) Google, Microsoft, GitHub |
 | `POST` | `/api/auth/passkey/options`, `/api/auth/passkey/verify` | Sign in with a passkey |

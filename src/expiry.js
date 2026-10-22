@@ -11,6 +11,7 @@
 import { db, audit } from './db.js';
 import { clusterGuests, guestPath, pve, waitTask } from './pve.js';
 import { destroyServer } from './cleanup.js';
+import { runDunning, holdOf, openRenewal } from './dunning.js';
 import {
   emailConfigured, sendMail, expiryReminderMessage, expiredMessage,
   finalWarningMessage, expiryDeletedMessage, expirySummaryMessage,
@@ -101,10 +102,12 @@ export function setServerExpiry(vmid, expiresAt) {
   resetStages(vmid, expiresAt ? new Date(expiresAt).toISOString() : null, true);
 }
 
-/** Extend by days from the later of now and the current expiry; reactivates an expired server. */
+/** Extend by days from the current expiry (from now once it was stopped); reactivates an expired server. */
 export function extendServer(vmid, days) {
-  const row = db.prepare('SELECT expires_at, expiry_manual FROM vms WHERE vmid = ?').get(vmid);
-  const from = Math.max(Date.now(), row?.expires_at ? Date.parse(row.expires_at) : 0);
+  const row = db.prepare('SELECT expires_at, expiry_manual, expired_at FROM vms WHERE vmid = ?').get(vmid);
+  const exp = row?.expires_at ? Date.parse(row.expires_at) : 0;
+  // still running past the end date (unpaid, before suspension): the new period follows the old one
+  const from = row?.expires_at && !row.expired_at && exp > Date.now() - 14 * DAY ? exp : Math.max(Date.now(), exp);
   const at = new Date(from + days * DAY).toISOString();
   resetStages(vmid, at, true);
   return at;
@@ -124,6 +127,8 @@ export function expiryInfo(row, settings = expirySettings()) {
     deleteAt: expired && row.created_by_customer ? deleteAt : null,
     canExtend: !!user?.expiry_self_extend && !row.self_extended,
     extendDays: settings.selfExtendDays,
+    invoice: openRenewal(row),
+    renewCancelled: !!row.renew_cancelled,
   };
 }
 
@@ -147,7 +152,12 @@ export function expiryQueue({ now = Date.now(), names = new Map() } = {}) {
     if (!r.expired_at) {
       stage = exp - now <= 7 * DAY ? 'soon' : 'later';
       const reminders = s.reminderDays.filter((d) => !sent.includes(`r${d}`) && exp - d * DAY > now).sort((a, b) => b - a);
-      if (r.auto_renew) { next = 'Auto-renew from the wallet before the end date'; nextAt = r.expires_at; }
+      const inv = openRenewal(r);
+      if (inv) {
+        next = inv.stopAt ? `Invoice ${inv.number} ${inv.overdue ? 'overdue' : 'open'}; stopped if unpaid` : `Invoice ${inv.number} open; dunning paused (not stopped)`;
+        nextAt = inv.stopAt;
+      } else if (r.renew_cancelled) { next = 'Not renewed (customer); stopped at the end date'; nextAt = r.expires_at; }
+      else if (r.auto_renew) { next = 'Auto-renew from the wallet before the end date'; nextAt = r.expires_at; }
       else if (reminders.length) { next = `Reminder ${reminders[0]} day${reminders[0] === 1 ? '' : 's'} before`; nextAt = new Date(exp - reminders[0] * DAY).toISOString(); }
       else { next = 'Stopped at the end date'; nextAt = r.expires_at; }
     } else if (!r.created_by_customer) {
@@ -210,6 +220,8 @@ export function runExpiry(options = {}) {
 }
 
 async function runOnce({ log, now = Date.now() } = {}) {
+  // renewal invoices first, so the lifecycle sees what dunning issued, charged or paused
+  await runDunning({ log, now }).catch((err) => log?.warn(`Dunning: ${err.message}`));
   const settings = expirySettings();
   const summary = { stopped: [], deleted: [], reminded: [], awaitingAdmin: [], paused: [], blocked: [], upcoming: [], errors: [] };
   try {
@@ -228,7 +240,9 @@ async function runOnce({ log, now = Date.now() } = {}) {
       const info = expiryInfo(row, settings);
       try {
         if (!row.expired_at) {
-          if (now >= exp) {
+          // an unpaid renewal being chased (dunning.js) keeps the server running a few days longer
+          const hold = holdOf(row);
+          if (now >= exp + hold) {
             // Expired: stop it (data stays), customer can no longer start it
             const guest = guests.get(row.vmid);
             if (guest && guest.status !== 'stopped') {
@@ -242,6 +256,10 @@ async function runOnce({ log, now = Date.now() } = {}) {
             summary.stopped.push(name);
             continue;
           }
+          // in the hold: nothing more to send (dunning sent the overdue notice)
+          if (now >= exp) continue;
+          // An open renewal invoice: dunning sends the reminders (with the pay link) instead
+          if (hold > 0 || openRenewal(row)) continue;
           // Reminders: thresholds reached now; skip those that were already
           // past when the date was set (e.g. a 3-day server gets no 7-day mail)
           const setAt = Date.parse(row.expiry_set_at || row.expires_at);

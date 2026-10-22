@@ -1,6 +1,7 @@
-// Admin portal: billing. Invoices with filters and KPIs, one invoice (confirm a
-// bank transfer, cancel, wallet adjustment, fixed server price), and the owner's
-// Settings card (tax, seller, rates, discounts, bank, Xendit, Midtrans).
+// Admin portal: billing. Invoices with filters and KPIs, the dunning pipeline, one invoice
+// (confirm a bank transfer, cancel, dunning timeline with pause / reminder, refund, wallet
+// adjustment, fixed server price), and the owner's Settings card (tax, seller, rates,
+// discounts, dunning, bank, Xendit, Midtrans).
 // Same shape as desk.js: tabs(), handles(), load(), render(), onClick(), onChange(), onSubmit().
 
 const rp = (n) => { const v = Math.round(Number(n) || 0); return `${v < 0 ? '−' : ''}Rp ${Math.abs(v).toLocaleString('id-ID')}`; };
@@ -9,6 +10,11 @@ const day = (d) => (d ? toDate(d).toLocaleDateString(undefined, { day: 'numeric'
 const when = (d) => (d ? toDate(d).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }) : '');
 const FILTERS = [['', 'All'], ['unpaid', 'Unpaid'], ['reported', 'Transfer reported'], ['overdue', 'Overdue'], ['paid', 'Paid'], ['refunded', 'Refunded'], ['void', 'Cancelled']];
 const VIA = { wallet: 'Wallet', xendit: 'Xendit', midtrans: 'Midtrans', bank: 'Bank / by hand' };
+const STEP = {
+  issued: 'Invoice issued', due: 'Due date', manual: 'Reminder sent by hand', paused: 'Dunning paused', resumed: 'Dunning resumed',
+};
+const stepText = (e) => (/^r\d+$/.test(e.k) ? `Reminder ${e.k.slice(1)} day${e.k === 'r1' ? '' : 's'} before` : e.k === 'due'
+  ? (e.charged ? 'Due date: paid from the wallet' : `Due date: overdue notice${e.stopAt ? `, stops ${day(e.stopAt)} if unpaid` : ''}`) : STEP[e.k] ?? e.k);
 
 export function createBilling({ root, api, toast, fail, confirmAction, esc }) {
   const st = { perms: new Set(), filter: { status: '', q: '' }, data: null, invoice: null };
@@ -48,6 +54,7 @@ export function createBilling({ root, api, toast, fail, confirmAction, esc }) {
           <div class="kpi"><span class="muted small">Transfers to confirm</span><strong>${k.reported}</strong></div>
           <div class="kpi"><span class="muted small">Customer wallets</span><strong>${rp(k.wallets)}</strong><span class="small muted">money held for customers</span></div>
         </div>
+        ${pipeline(d.dunning)}
         <form id="billing-filter" class="row desk-controls" role="search">
           <div class="segmented" role="radiogroup" aria-label="Status">
             ${FILTERS.map(([v, l]) => `<button type="button" role="radio" aria-checked="${st.filter.status === v}" data-billing-status="${v}">${l}</button>`).join('')}
@@ -68,6 +75,32 @@ export function createBilling({ root, api, toast, fail, confirmAction, esc }) {
                 <td class="muted">${esc(VIA[i.paidVia] ?? '')}</td></tr>`).join('')}
             </tbody></table></div>` : '<p class="muted">No invoices match.</p>'}
       </div>`;
+  }
+
+  // ---- dunning pipeline ----------------------------------------------------------------
+  function pipeline(dn) {
+    if (!dn || !st.data.settings.enabled) return '';
+    const s = dn.settings;
+    if (!s.enabled) return '<p class="small muted">Dunning is off: renewal invoices are only made when customers renew (Settings → Billing).</p>';
+    const steps = [
+      ['invoiced', `D−${s.issueDaysBefore}`, 'Invoiced', `Email with pay link${s.reminderDays.length ? `, reminders ${s.reminderDays.map((x) => `D−${x}`).join(', ')}` : ''}`],
+      ['final', 'D−1', 'Due tomorrow', 'Last reminder sent'],
+      ['overdue', 'D+0', 'Overdue', s.autoCharge ? 'Wallet charged when it covers the invoice; otherwise an overdue notice' : 'Overdue notice'],
+      ['suspended', `D+${s.suspendAfterDays}`, 'Stopped', 'Server stopped, data kept; Server lifecycle continues'],
+      ['paused', '', 'Paused', 'No emails, no charge, not stopped'],
+    ];
+    return `
+      <section class="dunning" aria-labelledby="dun-h">
+        <div class="row" style="justify-content:space-between"><h2 class="h2" id="dun-h" style="margin:0">Dunning</h2>
+          <span class="small muted">${dn.upcoming} server${dn.upcoming === 1 ? '' : 's'} reach their end date within ${s.issueDaysBefore} days · ${dn.cancelled} not renewed by choice
+          ${can('billing.write') ? ' · <button class="linklike" data-dunning-run>Run now</button>' : ''}</span></div>
+        <ol class="dunning-steps">${steps.map(([key, when, title, sub]) => {
+          const x = dn.stages[key];
+          return `<li class="${x.count ? `has ${key === 'overdue' || key === 'suspended' ? 'warn' : ''}` : ''}">
+            <span class="mono small muted">${when}</span><strong>${title}</strong><span class="small muted">${esc(sub)}</span>
+            <span class="dunning-count"><strong>${x.count}</strong> <span class="small muted">${x.count ? rp(x.total) : ''}</span></span></li>`;
+        }).join('')}</ol>
+      </section>`;
   }
 
   // ---- one invoice ------------------------------------------------------------------
@@ -95,6 +128,19 @@ export function createBilling({ root, api, toast, fail, confirmAction, esc }) {
           ${i.note ? `<p class="muted small">Note: ${esc(i.note)}</p>` : ''}
         </div>
 
+        ${i.refundedAt ? `<div class="notice"><p>Refunded ${esc(when(i.refundedAt))} ${i.refundVia === 'wallet' ? 'to the wallet' : `outside the panel (reference <span class="mono">${esc(i.refundRef ?? '')}</span>)`}.</p></div>` : ''}
+
+        ${i.purpose === 'renewal' && (i.dunning || i.status === 'unpaid') ? `
+          <section class="security-card settings-card" style="margin-top:16px" aria-labelledby="dun-tl">
+            <div class="row" style="justify-content:space-between"><h3 class="h3" id="dun-tl" style="margin:0">Dunning ${i.dunning?.paused ? '<span class="tag warn">paused</span>' : ''}</h3>
+              ${w && i.status === 'unpaid' ? `<div class="row"><button class="btn" data-dunning-reminder>Send reminder</button>
+                <button class="btn" data-dunning-pause="${i.dunning?.paused ? 'false' : 'true'}">${i.dunning?.paused ? 'Resume dunning' : 'Pause dunning'}</button></div>` : ''}</div>
+            ${i.dunning?.events?.length ? `<ol class="timeline">${i.dunning.events.map((e) => `<li><strong>${esc(stepText(e))}</strong>
+              <span class="small muted">${esc(when(e.at))}${e.by ? ` · ${esc(e.by)}` : ''}${e.email === false ? ' · email not sent' : ''}</span></li>`).join('')}</ol>`
+              : '<p class="muted small">Made by the customer; reminders follow the schedule from now on.</p>'}
+            ${i.dunning?.paused ? `<p class="small muted">Paused by ${esc(i.dunning.pausedBy ?? 'an administrator')} ${esc(when(i.dunning.pausedAt))}: no emails, no wallet charge, the server is not stopped for this invoice.</p>` : ''}
+          </section>` : ''}
+
         ${i.payments.length || i.checkouts.length ? `
           <h3 class="h3" style="margin-top:20px">Payments and payment pages</h3>
           <div class="table-wrap"><table class="table">
@@ -120,6 +166,19 @@ export function createBilling({ root, api, toast, fail, confirmAction, esc }) {
               <div class="row"><button class="btn danger">Cancel invoice</button></div>
             </form>
           </div>` : ''}
+
+        ${w && i.status === 'paid' ? `
+          <form id="billing-refund" class="security-card settings-card" style="margin-top:16px">
+            <h3 class="h3">Refund</h3>
+            <p class="muted small">To the wallet, or record a refund made outside the panel (Xendit or Midtrans dashboard, bank transfer).
+              The server's end date stays; shorten it under Server lifecycle if the service should end too.</p>
+            <div class="grid-3">
+              <label>How <select name="via">${i.purpose === 'topup' ? '' : '<option value="wallet">To the wallet</option>'}<option value="external">Refunded outside the panel</option></select></label>
+              <label>Reference <span class="hint">outside the panel</span><input name="reference" maxlength="120" placeholder="Refund ID or bank reference"></label>
+              <label>Reason <input name="reason" required minlength="3" maxlength="200"></label>
+            </div>
+            <div class="row"><button class="btn danger">Refund ${rp(i.total)}</button></div>
+          </form>` : ''}
 
         ${w ? `
           <div class="grid-2" style="margin-top:16px">
@@ -181,6 +240,17 @@ export function createBilling({ root, api, toast, fail, confirmAction, esc }) {
           </div>
           <p class="hint">Prices are rounded up to the next Rp 1.000. A fixed price per server is set on an invoice of that server (Billing tab).</p>
 
+          <h3 class="h3">Dunning</h3>
+          <label class="inline-check"><input type="checkbox" name="dunningEnabled" ${s.dunning.enabled ? 'checked' : ''}> Issue renewal invoices and chase them</label>
+          <div class="grid-3">
+            <label>Invoice, days before the end date <input name="dunningIssue" type="number" min="1" max="30" value="${esc(s.dunning.issueDaysBefore)}"></label>
+            <label>Reminders, days before the due date <input name="dunningReminders" value="${esc(s.dunning.reminderDays.join(', '))}" placeholder="7, 1"></label>
+            <label>Stop the server, days after the due date <input name="dunningSuspend" type="number" min="0" max="14" value="${esc(s.dunning.suspendAfterDays)}"></label>
+          </div>
+          <label class="inline-check"><input type="checkbox" name="dunningAutoCharge" ${s.dunning.autoCharge ? 'checked' : ''}> On the due date, pay from the wallet when the balance covers it</label>
+          <p class="hint">The invoice is due on the server's end date. Grace period and deletion after the stop follow Server lifecycle.
+            Customers can choose not to renew a server; it then simply ends.</p>
+
           <h3 class="h3">Bank transfer</h3>
           <label class="inline-check"><input type="checkbox" name="bankEnabled" ${s.bank.enabled ? 'checked' : ''}> Offer bank transfer (you confirm each payment)</label>
           <label>Instructions for the customer <textarea name="bankInstructions" rows="3" maxlength="2000" placeholder="Bank, account number, account name">${esc(s.bank.instructions)}</textarea></label>
@@ -224,6 +294,10 @@ export function createBilling({ root, api, toast, fail, confirmAction, esc }) {
       bank: { enabled: el.bankEnabled.checked, instructions: el.bankInstructions.value },
       xendit: { enabled: el.xenditEnabled.checked },
       midtrans: { enabled: el.midtransEnabled.checked, sandbox: el.midtransSandbox.checked },
+      dunning: {
+        enabled: el.dunningEnabled.checked, autoCharge: el.dunningAutoCharge.checked, issueDaysBefore: n('dunningIssue'), suspendAfterDays: n('dunningSuspend'),
+        reminderDays: el.dunningReminders.value.split(/[ ,]+/).filter(Boolean).map(Number),
+      },
     };
     if (el.xenditSecretKey.value) b.xendit.secretKey = el.xenditSecretKey.value;
     if (el.xenditCallbackToken.value) b.xendit.callbackToken = el.xenditCallbackToken.value;
@@ -252,6 +326,33 @@ export function createBilling({ root, api, toast, fail, confirmAction, esc }) {
       st.invoice = null;
       try { await loadList(); } catch (err) { fail(err); }
       render();
+      return true;
+    }
+    if (t.hasAttribute('data-dunning-run')) {
+      try {
+        const r = await api('/api/admin/billing/dunning/run', { method: 'POST' });
+        toast(`Dunning: ${r.issued} issued, ${r.reminded} reminded, ${r.charged} paid from wallets, ${r.overdue} overdue`);
+        await loadList(); render();
+      } catch (err) { fail(err); }
+      return true;
+    }
+    if (t.dataset.dunningPause && st.invoice) {
+      const paused = t.dataset.dunningPause === 'true';
+      if (paused && !(await confirmAction(`Pause dunning for ${st.invoice.number}? No emails, no wallet charge, and the server is not stopped for it until you resume.`, 'Pause'))) return true;
+      try {
+        await api(`/api/admin/billing/invoices/${st.invoice.number}/dunning`, { method: 'POST', body: { paused } });
+        toast(paused ? 'Dunning paused' : 'Dunning resumed');
+        await openInvoice(st.invoice.number);
+      } catch (err) { fail(err); }
+      return true;
+    }
+    if (t.hasAttribute('data-dunning-reminder') && st.invoice) {
+      t.disabled = true;
+      try {
+        await api(`/api/admin/billing/invoices/${st.invoice.number}/reminder`, { method: 'POST' });
+        toast(`Reminder sent to ${st.invoice.email}`);
+        await openInvoice(st.invoice.number);
+      } catch (err) { fail(err); t.disabled = false; }
       return true;
     }
     if (t.hasAttribute('data-auto-renew-run')) {
@@ -283,6 +384,12 @@ export function createBilling({ root, api, toast, fail, confirmAction, esc }) {
         if (!(await confirmAction(`Cancel ${n}? The customer can no longer pay it.`, 'Cancel invoice'))) return;
         st.invoice = await api(`/api/admin/billing/invoices/${n}/void`, { method: 'POST', body: { reason: el.reason.value } });
         toast(`${n} cancelled`); renderInvoice();
+      }
+      if (f.id === 'billing-refund') {
+        const via = el.via.value;
+        if (!(await confirmAction(`Refund ${rp(st.invoice.total)} of ${n} ${via === 'wallet' ? 'to the wallet' : '(recorded as refunded outside the panel)'}?`, 'Refund'))) return;
+        st.invoice = await api(`/api/admin/billing/invoices/${n}/refund`, { method: 'POST', body: { via, reference: el.reference.value || undefined, reason: el.reason.value } });
+        toast(`${n} refunded`); await openInvoice(n);
       }
       if (f.id === 'billing-wallet') {
         const amount = Number(el.amount.value);

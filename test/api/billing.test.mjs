@@ -148,7 +148,8 @@ test('paid twice through two gateways: the second payment becomes wallet balance
 test('bank transfer: the customer reports it, an administrator confirms; an expired server runs again', async () => {
   // a date in the past can't be set through the API; write it like the expiry tests do
   const dbh = new DatabaseSync(path.join(stack.dir, 'panel.db'));
-  dbh.prepare('UPDATE vms SET expires_at = ? WHERE vmid = 101').run(new Date(Date.now() - DAY).toISOString());
+  // past the 3 days an open renewal keeps it running (dunning)
+  dbh.prepare('UPDATE vms SET expires_at = ? WHERE vmid = 101').run(new Date(Date.now() - 4 * DAY).toISOString());
   dbh.close();
   const run = (await admin.post('/api/admin/expiry/run')).json;
   assert.equal((await expiryOf(rina, 101)).expired, true, JSON.stringify(run));

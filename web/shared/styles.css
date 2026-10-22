@@ -485,6 +485,14 @@ label { display: grid; gap: 6px; font-weight: 600; font-size: 14px; }
 .snap-list li + li { border-top: 1px solid var(--line); }
 .snap-list .grow { flex: 1; min-width: 180px; }
 .snap-form { display: grid; grid-template-columns: 1fr 2fr auto; gap: 12px; align-items: end; }
+.dunning { display: grid; gap: 12px; margin: 8px 0 24px; }
+.dunning-steps { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; }
+.dunning-steps li { display: grid; gap: 4px; align-content: start; padding: 14px 16px; border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--surface); }
+.dunning-steps li.has { border-color: var(--accent); }
+.dunning-steps li.has.warn { border-color: var(--warn, #F5B94C); }
+.dunning-count { margin-top: 6px; }
+.timeline { list-style: none; margin: 8px 0 0; padding: 0 0 0 14px; border-left: 2px solid var(--line); display: grid; gap: 10px; }
+.timeline li { display: grid; gap: 2px; }
 .bk-status { display: grid; gap: 12px; margin-bottom: 20px; max-width: none; }
 .bk-facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 16px; }
 .bk-facts > div { display: grid; gap: 4px; align-content: start; }

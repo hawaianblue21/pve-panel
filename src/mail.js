@@ -327,6 +327,43 @@ export function autoRenewFailedMessage(inv, balance) {
   };
 }
 
+/** Dunning: a renewal invoice is waiting (issued, or a reminder before the due date). */
+export function invoiceDueMessage(inv, { server, days, balance, autoCharge }) {
+  const panel = emailSettings().panelUrl;
+  const link = panel ? `${panel.replace(/\/+$/, '')}/#billing/${inv.number}` : '';
+  const title = days <= 1 ? `Last reminder: ${inv.number} is due tomorrow` : `Invoice ${inv.number} for ${server}: due ${fmtDate(inv.dueAt)}`;
+  const covered = autoCharge && balance >= inv.total;
+  const lines = [
+    `The renewal of your server “${server}” for the next period is ${rupiah(inv.total)}, due on ${fmtDate(inv.dueAt)}.`,
+    covered
+      ? `Your wallet has ${rupiah(balance)}: we will pay it from there on the due date, nothing to do.`
+      : autoCharge
+        ? `Pay it or top up your wallet to ${rupiah(inv.total)} before then; on the due date we pay it from the wallet if the balance covers it.`
+        : 'Please pay it before the due date, so the server keeps running.',
+  ];
+  return {
+    subject: title,
+    text: [...lines, '', link ? `Pay: ${link}` : ''].join('\n'),
+    html: layout({ title, paragraphs: lines.map(esc), button: link ? { href: link, label: covered ? 'View the invoice' : 'Pay now' } : null }),
+  };
+}
+
+/** Dunning: the due date passed without payment; the server stops on stopAt. */
+export function invoiceOverdueMessage(inv, { server, stopAt }) {
+  const panel = emailSettings().panelUrl;
+  const link = panel ? `${panel.replace(/\/+$/, '')}/#billing/${inv.number}` : '';
+  const title = `Overdue: ${inv.number} for ${server}`;
+  const lines = [
+    `Invoice ${inv.number} (${rupiah(inv.total)}) for your server “${server}” was due on ${fmtDate(inv.dueAt)} and is not paid yet.`,
+    stopAt ? `The server keeps running until ${fmtDate(stopAt)}; if the invoice is still open then, it is stopped (its data is kept for a while).` : 'Please pay it as soon as possible.',
+  ];
+  return {
+    subject: title,
+    text: [...lines, '', link ? `Pay: ${link}` : ''].join('\n'),
+    html: layout({ title, paragraphs: lines.map(esc), button: link ? { href: link, label: 'Pay now' } : null }),
+  };
+}
+
 /** A provider rollout is installing updates on the customer's server. */
 export function rolloutNoticeMessage(server, { scope, snapshot, autoRestart }) {
   const panel = emailSettings().panelUrl;

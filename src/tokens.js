@@ -49,7 +49,7 @@ const CUSTOMER_ROUTES = {
   'POST /api/vpn/devices': 'network', 'DELETE /api/vpn/devices/:id': 'network',
 
   'POST /api/billing/renewals': 'billing', 'POST /api/billing/topups': 'billing', 'POST /api/billing/invoices/:number/pay': 'billing',
-  'PUT /api/billing/servers/:vmid/auto-renew': 'billing', 'PUT /api/billing/profile': 'billing',
+  'PUT /api/billing/servers/:vmid/auto-renew': 'billing', 'PUT /api/billing/servers/:vmid/renew': 'billing', 'PUT /api/billing/profile': 'billing',
 
   'POST /api/support/tickets': 'support', 'POST /api/support/tickets/:number/messages': 'support', 'POST /api/support/tickets/:number/close': 'support',
 };
