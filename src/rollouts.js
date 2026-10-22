@@ -359,7 +359,7 @@ export async function jobs({ filter = 'all' } = {}) {
   for (const t of db.prepare("SELECT * FROM template_imports WHERE created_at >= ? ORDER BY id DESC LIMIT 100").all(new Date(Date.now() - 7 * 86_400_000).toISOString())) {
     out.push({
       id: `import-${t.id}`, kind: 'template', action: `Import template (${t.format})`, target: t.name, vmid: t.vmid, by: users.get(t.created_by) ?? null,
-      state: t.state === 'ready' ? 'done' : t.state === 'failed' ? 'failed' : 'running', detail: t.state === 'failed' ? t.error : t.step, at: t.created_at,
+      state: t.state === 'ready' ? 'done' : t.state === 'failed' ? 'failed' : 'running', detail: t.state === 'failed' ? t.error : t.state === 'installing' ? 'Waiting for the installation (OS templates)' : t.step, at: t.created_at,
       ...(t.state === 'failed' ? { retry: 'template' } : {}),
     });
   }

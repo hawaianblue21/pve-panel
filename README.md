@@ -180,7 +180,7 @@ PVE Panel was built with substantial help from an AI assistant (**Claude by Anth
 - Create and manage customer accounts
 - Assign existing Proxmox VMs or containers to users, one by one or **several at once** (Servers: filters by node, status, customer and type, grouping by node, bulk start / shut down / restart / force stop / assign / unassign)
 - Configure provisioning quotas and limits
-- Publish selected templates, and **import images as templates** (cloud images and OVA appliances from a URL, checksum, test boot, one copy per cluster)
+- Publish selected templates, and **import images as templates** (cloud images, OVA appliances and ISO installers from a URL, checksum, test boot, one copy per cluster)
 - Start, stop, restart and delete customer-owned servers
 - Review provisioning jobs and failures, and **retry** failed deletions, update runs, automatic snapshots and backups
 - **Backups**: connect Proxmox Backup Servers, policies per plan (add-ons per server), backup window, runs, coverage of every server, restores
@@ -242,6 +242,7 @@ Under **OS templates → Import image** owners (or a role with *templates.write*
 |---|---|---|
 | `.qcow2` / `.img` cloud image | URL | Proxmox downloads it into an import storage (`download-url`, SHA-256 checked when given); a VM is created with the disk imported (`import-from`), VirtIO SCSI, a cloud-init drive and the guest agent on |
 | `.ova` appliance | URL | as above; CPU, memory, OS type and disks come from the OVF (`import-metadata`), disks go on VirtIO SCSI and the network card becomes VirtIO |
+| `.iso` installer (Windows, BSD) | URL | the ISO goes into an ISO storage; a VM with an empty disk boots from it (Windows: UEFI, TPM 2.0, q35 and the VirtIO driver ISO `virtio-win.iso` as a second CD, downloaded once per storage). You install in the Proxmox console (link in the list), then press **Installed**: the CD drives are removed and the build continues |
 
 Then the VM becomes a **template** (VMIDs from 9000), the downloaded file is removed, and with **Test boot** a linked
 clone boots once: the panel waits for the guest agent, reads the OS name and the cloud-init result, and destroys the
@@ -254,10 +255,15 @@ clone. The template itself never boots, so no machine-id or SSH host key ends up
 - Imports run in the background (two at a time, `TEMPLATE_IMPORTS_PARALLEL`), appear in **Jobs** and can be retried
   there; a test boot waits up to `TEMPLATE_TEST_BOOT_SECONDS` (default 300) for the guest agent. Images without the
   guest agent are marked *no guest agent*.
-- ISO installers (Windows, BSD) and VMDK uploads from the browser follow in the next steps.
+- **Windows from ISO**: during setup load the storage driver from the VirtIO CD (`vioscsi`), install the guest agent
+  from it (`guest-agent\qemu-ga-x86_64.msi`), then run `sysprep /generalize /oobe /shutdown` (optionally with an
+  unattend file). Choose *Guest agent (Windows)* as the setup when you offer the template.
+- An ISO import waits in the state *Install* (also across restarts) until **Installed** or **Cancel** (removes the VM).
+- VMDK uploads from the browser follow in the next step.
 
 API: `GET /api/admin/templates/import-options`, `GET/POST /api/admin/templates/imports`,
-`POST /api/admin/templates/imports/:id/retry`, `DELETE /api/admin/templates/imports/:id`.
+`POST /api/admin/templates/imports/:id/retry`, `DELETE /api/admin/templates/imports/:id`; ISO installs:
+`POST /api/admin/templates/imports/:id/start | installed | cancel`.
 
 ---
 

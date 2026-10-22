@@ -98,6 +98,9 @@ const ROUTES = {
   'GET /api/admin/templates/import-options': 'templates.write',
   'POST /api/admin/templates/imports': 'templates.write',
   'POST /api/admin/templates/imports/:id/retry': 'templates.write',
+  'POST /api/admin/templates/imports/:id/start': 'templates.write',
+  'POST /api/admin/templates/imports/:id/installed': 'templates.write',
+  'POST /api/admin/templates/imports/:id/cancel': 'templates.write',
   'DELETE /api/admin/templates/imports/:id': 'templates.write',
 
   'GET /api/admin/vpn': 'network.read',

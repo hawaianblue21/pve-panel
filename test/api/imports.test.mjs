@@ -28,7 +28,7 @@ after(async () => { await stack?.stop(); await second?.close(); });
 
 test('options: nodes per cluster with disk, import and ISO storages', async () => {
   const o = (await admin.get('/api/admin/templates/import-options')).json;
-  assert.deepEqual(o.formats, ['qcow2', 'ova']);
+  assert.deepEqual(o.formats, ['qcow2', 'ova', 'iso']);
   const main = o.clusters.find((c) => c.id === 0);
   const pve1 = main.nodes.find((n) => n.node === 'pve1');
   assert.deepEqual(pve1.images, ['VMStorage', 'local-lvm']);
@@ -42,7 +42,7 @@ test('input is checked; read-only roles can only look', async () => {
   assert.equal(await bad({ url: 'ftp://example.com/x.img' }), 400);
   assert.equal(await bad({ url: 'https://user:pw@example.com/x.img' }), 400);
   assert.equal(await bad({ checksum: 'abc' }), 400);
-  assert.equal(await bad({ format: 'iso' }), 400);
+  assert.equal(await bad({ format: 'vhd' }), 400);
   assert.equal(await bad({ targets: [] }), 400);
   assert.equal(await bad({ targets: [target({ clusterId: 42 })] }), 400);
   assert.equal(await bad({ targets: [target(), target()] }), 400, 'one target per cluster');
@@ -69,7 +69,7 @@ test('a cloud image becomes a draft template; a linked clone boots once and is r
   assert.equal(dl.checksum, SHA);
   assert.equal(dl['checksum-algorithm'], 'sha256');
   assert.match(dl.filename, /^pvepanel-\d+-ubuntu-2404\.qcow2$/);
-  const made = stack.mock.created.find((c) => Number(c.vmid) === i.vmid);
+  const made = stack.mock.created.findLast((c) => Number(c.vmid) === i.vmid);
   assert.equal(made.scsi0, `VMStorage:0,import-from=local:import/${dl.filename},discard=on`);
   assert.equal(made.ide2, 'VMStorage:cloudinit');
   assert.equal(made.agent, 'enabled=1');
@@ -97,7 +97,7 @@ test('an appliance (OVA): settings from the OVF, disks on VirtIO SCSI; a missing
   assert.equal(r.status, 202, r.text);
   const i = await finished(r.json.imports[0].id);
   assert.equal(i.state, 'ready', i.error);
-  const made = stack.mock.created.find((c) => Number(c.vmid) === i.vmid);
+  const made = stack.mock.created.findLast((c) => Number(c.vmid) === i.vmid);
   assert.equal(made.cores, '2');
   assert.equal(made.memory, '4096');
   assert.match(made.scsi0, /^VMStorage:0,import-from=local:import\/pvepanel-\d+-erp-noagent\.ova\/erp-appliance-disk1\.vmdk$/);
@@ -138,4 +138,64 @@ test('one copy per cluster', async () => {
   assert.equal(y.cluster, 'Jakarta DC2');
   assert.equal(second.vms.get(y.vmid).template, 1, 'built on the second cluster');
   assert.equal(y.test.os, 'Debian GNU/Linux 12 (bookworm)');
+});
+
+test('ISO (Windows): VirtIO drivers, UEFI and TPM; the administrator installs, then the template is built', async () => {
+  const r = await admin.post('/api/admin/templates/imports', body({ name: 'win2025', format: 'iso', setup: 'windows', url: 'https://downloads.example.com/win2025-eval.iso', checksum: null, diskGb: 60, memoryMb: 4096 }));
+  assert.equal(r.status, 202, r.text);
+  const id = r.json.imports[0].id;
+  const i = await waitFor(async () => { const x = (await imports()).find((y) => y.id === id); return ['installing', 'failed'].includes(x?.state) ? x : null; }, { timeout: 30_000, what: 'the VM to install' });
+  assert.equal(i.state, 'installing', i.error);
+  assert.match(i.consoleUrl, new RegExp(`#v1:0:=qemu%2F${i.vmid}:4`));
+  const made = stack.mock.created.findLast((c) => Number(c.vmid) === i.vmid);
+  assert.equal(made.scsi0, 'VMStorage:60,discard=on');
+  assert.match(made.ide2, /^local:iso\/pvepanel-\d+-win2025\.iso,media=cdrom$/);
+  assert.equal(made.ide0, 'local:iso/virtio-win.iso,media=cdrom');
+  assert.deepEqual([made.bios, made.machine, made.ostype], ['ovmf', 'q35', 'win11']);
+  assert.match(made.efidisk0, /efitype=4m/);
+  assert.match(made.tpmstate0, /version=v2\.0/);
+  assert.equal(made.boot, 'order=scsi0;ide2');
+  assert.equal(stack.mock.downloads.filter((d) => d.filename === 'virtio-win.iso').length, 1);
+  const job = (await admin.get('/api/admin/jobs')).json.jobs.find((j) => j.id === `import-${id}`);
+  assert.equal(job.state, 'running');
+  assert.match(job.detail, /Waiting for the installation/);
+
+  assert.equal((await admin.post(`/api/admin/templates/imports/${id}/start`)).status, 200);
+  await waitFor(() => (stack.mock.vms.get(i.vmid).status === 'running' ? true : null), { what: 'the VM to run' });
+  const early = await admin.post(`/api/admin/templates/imports/${id}/installed`);
+  assert.equal(early.status, 409);
+  assert.match(early.json.error, /Sysprep/);
+  stack.mock.vms.get(i.vmid).status = 'stopped';                    // sysprep /shutdown
+  assert.equal((await admin.post(`/api/admin/templates/imports/${id}/installed`)).status, 202);
+  const done = await finished(id);
+  assert.equal(done.state, 'ready', done.error);
+  const cfg = stack.mock.vms.get(i.vmid).cfg;
+  assert.equal(cfg.ide2, 'none,media=cdrom');
+  assert.equal(cfg.ide0, undefined, 'the driver CD is removed');
+  assert.equal(cfg.boot, 'order=scsi0');
+  assert.equal(stack.mock.vms.get(i.vmid).template, 1);
+  assert.equal(done.test.agent, true);
+  assert.equal(done.test.cloudInit, null);
+
+  // a second Windows ISO uses the driver ISO that is there already
+  const again = await admin.post('/api/admin/templates/imports', body({ name: 'win2022', format: 'iso', setup: 'windows', url: 'https://downloads.example.com/win2022.iso', checksum: null }));
+  await waitFor(async () => ((await imports()).find((y) => y.id === again.json.imports[0].id)?.state === 'installing' ? true : null), { what: 'second install' });
+  assert.equal(stack.mock.downloads.filter((d) => d.filename === 'virtio-win.iso').length, 1);
+  assert.equal((await admin.post(`/api/admin/templates/imports/${again.json.imports[0].id}/cancel`)).json.error, 'Cancelled');
+});
+
+test('ISO (BSD): no drivers, no UEFI; cancelling removes the VM', async () => {
+  const r = await admin.post('/api/admin/templates/imports', body({ name: 'freebsd-14', format: 'iso', setup: 'cloudinit', url: 'https://download.example.org/FreeBSD-14.2-RELEASE-amd64-disc1.iso', checksum: null }));
+  const id = r.json.imports[0].id;
+  const i = await waitFor(async () => { const x = (await imports()).find((y) => y.id === id); return x?.state === 'installing' ? x : null; }, { what: 'the VM to install' });
+  const made = stack.mock.created.findLast((c) => Number(c.vmid) === i.vmid);
+  assert.equal(made.ostype, 'other');
+  assert.equal(made.ide0, undefined);
+  assert.equal(made.bios, undefined);
+  assert.equal(made.scsi0, 'VMStorage:40,discard=on');
+  assert.equal((await admin.del(`/api/admin/templates/imports/${id}`)).status, 409, 'cancel first');
+  const c = await admin.post(`/api/admin/templates/imports/${id}/cancel`);
+  assert.equal(c.json.state, 'failed');
+  await waitFor(() => (stack.mock.vms.has(i.vmid) ? null : true), { what: 'the VM to be removed' });
+  assert.equal((await admin.post(`/api/admin/templates/imports/${id}/installed`)).status, 409);
 });
