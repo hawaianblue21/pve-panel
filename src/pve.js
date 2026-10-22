@@ -1,5 +1,5 @@
 import fs from 'node:fs';
-import { Agent, buildConnector, fetch } from 'undici';
+import { Agent, buildConnector, fetch, FormData } from 'undici';
 import { config } from './config.js';
 import { db } from './db.js';
 import { open } from './secrets.js';
@@ -93,6 +93,27 @@ export async function rawDownload(cluster, path, params) {
     throw new PveError(res.status, (json?.message || res.statusText || 'Download failed').trim());
   }
   return res;
+}
+
+/**
+ * Uploads a file to a storage (POST …/storage/<id>/upload, multipart): the form fields and
+ * the file as "filename" under the given name. Returns the task id.
+ */
+export async function rawUpload(cluster, path, fields, filePath, name) {
+  const form = new FormData();
+  for (const [k, v] of Object.entries(fields)) form.append(k, String(v));
+  form.append('filename', await fs.openAsBlob(filePath), name);     // streamed from disk
+  let res;
+  try {
+    res = await fetch(new URL(`${cluster.url}/api2/json${path}`), { method: 'POST', headers: { Authorization: cluster.auth }, body: form, dispatcher: cluster.dispatcher });
+  } catch (err) {
+    throw new PveError(503, `The upload to Proxmox failed: ${err.cause?.code || err.message}`);
+  }
+  const text = await res.text();
+  let json = null;
+  try { json = JSON.parse(text); } catch { /* not JSON */ }
+  if (!res.ok) throw new PveError(res.status, (json?.message || res.statusText || 'Upload failed').trim());
+  return json?.data;
 }
 
 export async function rawRequest(cluster, method, path, params) {

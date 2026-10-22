@@ -901,3 +901,18 @@ db.exec(`
   );
   CREATE INDEX IF NOT EXISTS template_imports_state ON template_imports (state);
 `);
+
+// Disk images uploaded from the browser for a template import (uploads.js): the file is
+// kept on the panel's disk until Proxmox has it.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS template_uploads (
+    id           TEXT PRIMARY KEY,
+    filename     TEXT NOT NULL,
+    size         INTEGER NOT NULL,
+    received     INTEGER NOT NULL DEFAULT 0,
+    sha256       TEXT,
+    created_by   INTEGER,
+    created_at   TEXT NOT NULL,
+    completed_at TEXT
+  );
+`);

@@ -5,6 +5,7 @@ import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { startStack, waitFor } from '../support/stack.mjs';
 import { startMockPve } from '../support/mock-pve.mjs';
+import crypto from 'node:crypto';
 
 let stack;
 let admin;
@@ -18,7 +19,7 @@ const finished = (id) => waitFor(async () => { const i = (await imports()).find(
 
 before(async () => {
   second = await startMockPve({ second: true });
-  stack = await startStack({ env: { TEMPLATE_TEST_BOOT_SECONDS: '10' } });
+  stack = await startStack({ env: { TEMPLATE_TEST_BOOT_SECONDS: '10', TEMPLATE_UPLOAD_MAX_GB: '1' } });
   admin = await stack.adminSession();
   const c = await admin.post('/api/admin/clusters', { key: 'dc2', name: 'Jakarta DC2', url: second.url, tokenId: 'panel@pve!panel', tokenSecret: 'x', verifyTls: true });
   assert.equal(c.status, 201, c.text);
@@ -28,7 +29,7 @@ after(async () => { await stack?.stop(); await second?.close(); });
 
 test('options: nodes per cluster with disk, import and ISO storages', async () => {
   const o = (await admin.get('/api/admin/templates/import-options')).json;
-  assert.deepEqual(o.formats, ['qcow2', 'ova', 'iso']);
+  assert.deepEqual(o.formats, ['qcow2', 'ova', 'iso', 'vmdk']);
   const main = o.clusters.find((c) => c.id === 0);
   const pve1 = main.nodes.find((n) => n.node === 'pve1');
   assert.deepEqual(pve1.images, ['VMStorage', 'local-lvm']);
@@ -198,4 +199,66 @@ test('ISO (BSD): no drivers, no UEFI; cancelling removes the VM', async () => {
   assert.equal(c.json.state, 'failed');
   await waitFor(() => (stack.mock.vms.has(i.vmid) ? null : true), { what: 'the VM to be removed' });
   assert.equal((await admin.post(`/api/admin/templates/imports/${id}/installed`)).status, 409);
+});
+
+const putChunk = (id, offset, buf) => fetch(`${stack.adminUrl}/api/admin/templates/uploads/${id}?offset=${offset}`, {
+  method: 'PUT', body: buf, headers: { 'content-type': 'application/octet-stream', cookie: [...admin.cookies].map(([k, v]) => `${k}=${v}`).join('; ') },
+}).then(async (r) => ({ status: r.status, json: await r.json() }));
+
+async function upload(filename, buf, chunk = 1 << 20) {
+  const u = await admin.post('/api/admin/templates/uploads', { filename, size: buf.length });
+  assert.equal(u.status, 201, u.text);
+  let last;
+  for (let off = 0; off < buf.length; off += chunk) {
+    last = await putChunk(u.json.id, off, buf.subarray(off, off + chunk));
+    assert.equal(last.status, 200, JSON.stringify(last.json));
+  }
+  return last.json;
+}
+
+test('VMDK upload from the browser: chunks, resume at the right offset, SHA-256, sent to Proxmox and removed', async () => {
+  assert.equal((await admin.post('/api/admin/templates/uploads', { filename: 'disk.exe', size: 10 })).status, 400);
+  assert.equal((await admin.post('/api/admin/templates/uploads', { filename: 'big.vmdk', size: 2 * 2 ** 30 })).status, 413);
+  const buf = Buffer.concat([Buffer.from('KDMV'), crypto.randomBytes(3 * 2 ** 20 - 4)]);
+  const u = (await admin.post('/api/admin/templates/uploads', { filename: 'erp disk1.vmdk', size: buf.length })).json;
+  assert.equal(u.filename, 'erp_disk1.vmdk');
+  assert.equal((await putChunk(u.id, 0, buf.subarray(0, 2 ** 20))).json.received, 2 ** 20);
+  const wrong = await putChunk(u.id, 0, buf.subarray(0, 2 ** 20));
+  assert.equal(wrong.status, 409);
+  assert.equal(wrong.json.received, 2 ** 20, 'the browser learns where to continue');
+  assert.equal((await admin.get(`/api/admin/templates/uploads/${u.id}`)).json.received, 2 ** 20);
+  await putChunk(u.id, 2 ** 20, buf.subarray(2 ** 20, 2 * 2 ** 20));
+  const done = await putChunk(u.id, 2 * 2 ** 20, buf.subarray(2 * 2 ** 20));
+  assert.equal(done.json.complete, true);
+  const sha = crypto.createHash('sha256').update(buf).digest('hex');
+  assert.equal(done.json.sha256, sha);
+
+  assert.equal((await admin.post('/api/admin/templates/imports', body({ name: 'erp-vmdk', format: 'vmdk', url: undefined, uploadId: u.id, checksum: 'c'.repeat(64) }))).status, 400, 'checksum differs');
+  const r = await admin.post('/api/admin/templates/imports', body({ name: 'erp-vmdk', format: 'vmdk', url: undefined, uploadId: u.id, checksum: sha }));
+  assert.equal(r.status, 202, r.text);
+  const i = await finished(r.json.imports[0].id);
+  assert.equal(i.state, 'ready', i.error);
+  const sent = stack.mock.uploads.at(-1);
+  assert.match(sent.filename, /^pvepanel-\d+-erp-vmdk\.vmdk$/);
+  assert.equal(sent.size, buf.length);
+  assert.equal(sent.content, 'import');
+  const made = stack.mock.created.findLast((c) => Number(c.vmid) === i.vmid);
+  assert.equal(made.scsi0, `VMStorage:0,import-from=local:import/${sent.filename},discard=on`);
+  assert.equal((await admin.get(`/api/admin/templates/uploads/${u.id}`)).status, 404, 'the panel\'s copy is removed');
+});
+
+test('a Windows disk without VirtIO drivers goes on SATA with an Intel card; qcow2 is recognised by its header', async () => {
+  const buf = Buffer.concat([Buffer.from('QFI\xfb', 'latin1'), crypto.randomBytes(2 ** 20)]);
+  const up = await upload('win-golden.img', buf);
+  const r = await admin.post('/api/admin/templates/imports', body({ name: 'win-golden', format: 'vmdk', url: undefined, checksum: null, uploadId: up.id, setup: 'windows', cloudinit: false }));
+  assert.equal(r.status, 202, r.text);
+  const i = await finished(r.json.imports[0].id);
+  assert.equal(i.state, 'ready', i.error);
+  assert.match(stack.mock.uploads.at(-1).filename, /\.qcow2$/);
+  const made = stack.mock.created.findLast((c) => Number(c.vmid) === i.vmid);
+  assert.match(made.sata0, /^VMStorage:0,import-from=local:import\/pvepanel-\d+-win-golden\.qcow2$/);
+  assert.equal(made.scsi0, undefined);
+  assert.match(made.net0, /^e1000e,/);
+  assert.equal(made.boot, 'order=sata0');
+  assert.equal((await admin.post('/api/admin/templates/imports', body({ name: 'again', format: 'vmdk', url: undefined, checksum: null, uploadId: up.id }))).status, 400, 'used up');
 });

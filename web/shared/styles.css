@@ -503,6 +503,8 @@ label { display: grid; gap: 6px; font-weight: 600; font-size: 14px; }
 .bk-browser { display: grid; gap: 10px; }
 .bk-browser .crumbs { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 0; }
 .bk-files td:first-child { width: 60%; }
+.imp-upload { display: grid; gap: 6px; }
+.imp-upload progress { width: 100%; height: 10px; accent-color: var(--accent, #4C9AFF); }
 
 /* =========================================================================
    Create server

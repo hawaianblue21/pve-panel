@@ -101,6 +101,10 @@ const ROUTES = {
   'POST /api/admin/templates/imports/:id/start': 'templates.write',
   'POST /api/admin/templates/imports/:id/installed': 'templates.write',
   'POST /api/admin/templates/imports/:id/cancel': 'templates.write',
+  'POST /api/admin/templates/uploads': 'templates.write',
+  'GET /api/admin/templates/uploads/:id': 'templates.write',
+  'PUT /api/admin/templates/uploads/:id': 'templates.write',
+  'DELETE /api/admin/templates/uploads/:id': 'templates.write',
   'DELETE /api/admin/templates/imports/:id': 'templates.write',
 
   'GET /api/admin/vpn': 'network.read',

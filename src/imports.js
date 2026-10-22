@@ -11,6 +11,10 @@
 //                 from it; the administrator installs in the Proxmox console (Windows:
 //                 VirtIO drivers, guest agent, Sysprep /generalize /oobe /shutdown), then
 //                 "Installed": the CD drives are removed and the build continues.
+//   vmdk upload   a disk image uploaded from the browser (uploads.js: .vmdk, .qcow2, .raw)
+//                 is sent to the import storage and imported like a cloud image; the
+//                 panel's copy is removed once Proxmox has it. Windows disks go on SATA
+//                 with an e1000e card (no VirtIO drivers in a VMware guest yet).
 //   Template      the VM is converted to a template (state Draft: not offered yet).
 //   Test boot     optional: a linked clone of the template boots once, the panel waits for
 //                 the guest agent, reads the OS name and the cloud-init result, then the
@@ -24,14 +28,16 @@
 import crypto from 'node:crypto';
 import { db, audit } from './db.js';
 import { config } from './config.js';
-import { pve, allClusters, clusterById, serial, invalidateGuestCache, sleep } from './pve.js';
+import fs from 'node:fs';
+import { pve, allClusters, clusterById, serial, invalidateGuestCache, sleep, rawUpload } from './pve.js';
+import { completedUpload, removeUpload, cleanUploads } from './uploads.js';
 import { agentExec } from './agent.js';
 
 const fail = (status, message) => Object.assign(new Error(message), { statusCode: status, expose: true });
 const PARALLEL = Math.max(1, Number(process.env.TEMPLATE_IMPORTS_PARALLEL || 2));
 const TEST_BOOT_MS = Math.max(10, Number(process.env.TEMPLATE_TEST_BOOT_SECONDS || 300)) * 1000;
 const DOWNLOAD_MS = 4 * 3600_000;
-const FORMATS = ['qcow2', 'ova', 'iso'];
+const FORMATS = ['qcow2', 'ova', 'iso', 'vmdk'];
 export const VIRTIO_URL = 'https://fedorapeople.org/groups/virt/virtio-win/direct-downloads/stable-virtio/virtio-win.iso';
 const STEP = { queued: 'Waiting', downloading: 'Downloading', creating: 'Creating the VM', installing: 'Waiting for the installation', testing: 'Test boot', ready: 'Ready', failed: 'Failed' };
 const nowIso = () => new Date().toISOString();
@@ -62,12 +68,20 @@ function checkInput(input) {
   const name = slug(input.name);
   if (!/^[a-z][a-z0-9-]{1,39}$/.test(name)) throw fail(400, 'Name: letters, digits and dashes, starting with a letter');
   if (!FORMATS.includes(input.format)) throw fail(400, `Format: ${FORMATS.join(' or ')}`);
-  const url = String(input.url ?? '').trim();
-  let u;
-  try { u = new URL(url); } catch { throw fail(400, 'Source: a full http(s) address of the image'); }
-  if (!['http:', 'https:'].includes(u.protocol) || u.username || u.password) throw fail(400, 'Source: a full http(s) address of the image');
   const checksum = input.checksum ? String(input.checksum).trim().toLowerCase() : null;
   if (checksum && !/^[0-9a-f]{64}$/.test(checksum)) throw fail(400, 'Checksum: SHA-256, 64 hex characters (or leave it empty)');
+  let url;
+  if (input.format === 'vmdk') {
+    const up = completedUpload(input.uploadId);
+    if (!up) throw fail(400, 'Upload the disk image first (the upload is not complete)');
+    if (checksum && checksum !== up.sha256) throw fail(400, `The uploaded file has SHA-256 ${up.sha256}, not the checksum given`);
+    url = `upload:${up.id}`;
+  } else {
+    url = String(input.url ?? '').trim();
+    let u;
+    try { u = new URL(url); } catch { throw fail(400, 'Source: a full http(s) address of the image'); }
+    if (!['http:', 'https:'].includes(u.protocol) || u.username || u.password) throw fail(400, 'Source: a full http(s) address of the image');
+  }
   const setup = input.setup === 'windows' ? 'windows' : 'cloudinit';
   const cores = Number(input.cores ?? 2);
   const memoryMb = Number(input.memoryMb ?? 2048);
@@ -134,7 +148,7 @@ export function removeImport(req, id) {
 
 const rowOf = (id) => db.prepare('SELECT * FROM template_imports WHERE id = ?').get(id);
 export const pubImport = (r) => ({
-  id: r.id, batch: r.batch, name: r.name, label: r.label, format: r.format, source: r.source, checksum: !!r.checksum,
+  id: r.id, batch: r.batch, name: r.name, label: r.label, format: r.format, source: r.source, checksum: !!r.checksum || r.format === 'vmdk',
   clusterId: r.cluster_id, cluster: clusterById(r.cluster_id)?.name ?? String(r.cluster_id), node: r.node, storage: r.storage, importStorage: r.import_storage,
   setup: r.setup, options: JSON.parse(r.options || '{}'), vmid: r.vmid, state: r.state, step: r.step, error: r.error,
   test: r.test ? JSON.parse(r.test) : null, createdAt: r.created_at, finishedAt: r.finished_at,
@@ -205,13 +219,25 @@ async function runImport(id) {
     set(id, { state: 'downloading', step: 'Downloading the image' });
     const iso = r.format === 'iso';
     const content = iso ? 'iso' : 'import';
-    const filename = `pvepanel-${id}-${r.name}.${{ ova: 'ova', iso: 'iso' }[r.format] ?? 'qcow2'}`;
     const istore = `/nodes/${node}/storage/${encodeURIComponent(r.import_storage)}`;
-    const upid = await api.post(`${istore}/download-url`, {
-      content, filename, url: r.source, 'verify-certificates': 1,
-      ...(r.checksum ? { checksum: r.checksum, 'checksum-algorithm': 'sha256' } : {}),
-    });
-    await waitOn(api, upid, DOWNLOAD_MS);
+    let filename;
+    if (r.format === 'vmdk') {
+      // the file uploaded to the panel goes to Proxmox
+      const up = completedUpload(r.source.slice(7));
+      if (!up) throw new Error('The uploaded file is gone; upload it again');
+      filename = `pvepanel-${id}-${r.name}.${await diskFormatOf(up)}`;
+      set(id, { step: 'Sending the file to Proxmox' });
+      await waitOn(api, await rawUpload(api.cluster, `${istore}/upload`, { content: 'import' }, up.path, filename), DOWNLOAD_MS);
+      const others = db.prepare("SELECT COUNT(*) AS n FROM template_imports WHERE source = ? AND id != ? AND state IN ('queued', 'downloading')").get(r.source, id).n;
+      if (!others) await removeUpload(up.id).catch(() => {});
+    } else {
+      filename = `pvepanel-${id}-${r.name}.${{ ova: 'ova', iso: 'iso' }[r.format] ?? 'qcow2'}`;
+      const upid = await api.post(`${istore}/download-url`, {
+        content, filename, url: r.source, 'verify-certificates': 1,
+        ...(r.checksum ? { checksum: r.checksum, 'checksum-algorithm': 'sha256' } : {}),
+      });
+      await waitOn(api, upid, DOWNLOAD_MS);
+    }
     fileVolid = `${r.import_storage}:${content}/${filename}`;
     set(id, { file_volid: fileVolid });
     let virtioVolid = null;
@@ -242,8 +268,14 @@ async function runImport(id) {
       } else {
         params.ostype = 'other';
       }
-    } else if (r.format === 'qcow2') {
-      params.scsi0 = `${r.storage}:0,import-from=${fileVolid},discard=on`;
+    } else if (r.format === 'qcow2' || r.format === 'vmdk') {
+      if (r.setup === 'windows') {
+        // no VirtIO drivers in the guest yet: SATA disk and an Intel card boot as they are
+        params.sata0 = `${r.storage}:0,import-from=${fileVolid}`;
+        params.net0 = `e1000e,bridge=${o.bridge}`;
+      } else {
+        params.scsi0 = `${r.storage}:0,import-from=${fileVolid},discard=on`;
+      }
     } else {
       const meta = await api.get(`/nodes/${node}/storage/${encodeURIComponent(r.import_storage)}/import-metadata`, { volume: fileVolid });
       const ca = meta?.['create-args'] ?? {};
@@ -253,7 +285,7 @@ async function runImport(id) {
       disks.forEach((k, i) => { params[`scsi${i}`] = `${r.storage}:0,import-from=${meta.disks[k]}`; });
       if (params.bios === 'ovmf') params.efidisk0 = `${r.storage}:1,efitype=4m`;
     }
-    params.boot = iso ? 'order=scsi0;ide2' : 'order=scsi0';
+    params.boot = iso ? 'order=scsi0;ide2' : params.sata0 ? 'order=sata0' : 'order=scsi0';
     if (o.cloudinit && !iso) params.ide2 = `${r.storage}:cloudinit`;
     await waitOn(api, await api.post(`/nodes/${node}/qemu`, params), 2 * 3600_000);
     if (iso) {
@@ -346,6 +378,17 @@ export async function cancelInstall(req, id) {
   return pubImport(rowOf(id));
 }
 
+/** qcow2 (by its magic bytes), vmdk or raw: the extension Proxmox imports it by. */
+async function diskFormatOf(up) {
+  if (/\.vmdk$/i.test(up.filename)) return 'vmdk';
+  const fh = await fs.promises.open(up.path, 'r');
+  try {
+    const b = Buffer.alloc(4);
+    await fh.read(b, 0, 4, 0);
+    return b.toString('latin1') === 'QFI\xfb' ? 'qcow2' : 'raw';
+  } finally { await fh.close(); }
+}
+
 async function destroy(api, node, vmid) {
   const path = `/nodes/${encodeURIComponent(node)}/qemu/${vmid}`;
   try {
@@ -404,5 +447,5 @@ export function startImportWorker(logger) {
   const cut = db.prepare("UPDATE template_imports SET state = 'failed', step = 'Failed', error = 'Interrupted (the panel restarted); retry it', finished_at = ? WHERE state IN ('downloading', 'creating', 'testing')").run(nowIso()).changes;
   if (cut) log?.warn(`${cut} template import(s) were interrupted by a restart`);
   kick();
-  setInterval(kick, 30_000).unref();
+  setInterval(() => { kick(); cleanUploads().catch(() => {}); }, 30_000).unref();
 }
