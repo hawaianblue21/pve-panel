@@ -6,6 +6,11 @@
 //   ova           an appliance from a URL: CPU, memory, OS type and disks are read from
 //                 the OVF (import-metadata); disks are imported on VirtIO SCSI, the network
 //                 card becomes VirtIO.
+//   iso           installer media (Windows, BSD): the ISO (and for Windows the VirtIO driver
+//                 ISO) is downloaded into an ISO storage, a VM with an empty disk boots
+//                 from it; the administrator installs in the Proxmox console (Windows:
+//                 VirtIO drivers, guest agent, Sysprep /generalize /oobe /shutdown), then
+//                 "Installed": the CD drives are removed and the build continues.
 //   Template      the VM is converted to a template (state Draft: not offered yet).
 //   Test boot     optional: a linked clone of the template boots once, the panel waits for
 //                 the guest agent, reads the OS name and the cloud-init result, then the
@@ -26,8 +31,9 @@ const fail = (status, message) => Object.assign(new Error(message), { statusCode
 const PARALLEL = Math.max(1, Number(process.env.TEMPLATE_IMPORTS_PARALLEL || 2));
 const TEST_BOOT_MS = Math.max(10, Number(process.env.TEMPLATE_TEST_BOOT_SECONDS || 300)) * 1000;
 const DOWNLOAD_MS = 4 * 3600_000;
-const FORMATS = ['qcow2', 'ova'];
-const STEP = { queued: 'Waiting', downloading: 'Downloading', creating: 'Creating the VM', testing: 'Test boot', ready: 'Ready', failed: 'Failed' };
+const FORMATS = ['qcow2', 'ova', 'iso'];
+export const VIRTIO_URL = 'https://fedorapeople.org/groups/virt/virtio-win/direct-downloads/stable-virtio/virtio-win.iso';
+const STEP = { queued: 'Waiting', downloading: 'Downloading', creating: 'Creating the VM', installing: 'Waiting for the installation', testing: 'Test boot', ready: 'Ready', failed: 'Failed' };
 const nowIso = () => new Date().toISOString();
 const slug = (s) => String(s).toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'image';
 
@@ -79,10 +85,15 @@ function checkInput(input) {
     for (const k of ['node', 'storage', 'importStorage']) if (!/^[A-Za-z0-9][\w.-]{0,62}$/.test(t[k])) throw fail(400, 'Choose node, disk storage and import storage');
   }
   const label = String(input.label ?? '').trim().slice(0, 80) || null;
-  return {
-    name, label, format: input.format, url, checksum, setup, targets,
-    options: { cloudinit: input.cloudinit !== false, testBoot: input.testBoot !== false, cores, memoryMb, bridge },
-  };
+  const options = { cloudinit: input.cloudinit !== false, testBoot: input.testBoot !== false, cores, memoryMb, bridge };
+  if (input.format === 'iso') {
+    const diskGb = Number(input.diskGb ?? 40);
+    if (!Number.isInteger(diskGb) || diskGb < 4 || diskGb > 4096) throw fail(400, 'Disk: 4 to 4096 GB');
+    options.diskGb = diskGb;
+    options.virtio = setup === 'windows' && input.virtio !== false;
+    options.cloudinit = setup === 'windows' ? false : input.cloudinit === true;
+  }
+  return { name, label, format: input.format, url, checksum, setup, targets, options };
 }
 
 export function startImport(req, input) {
@@ -127,6 +138,7 @@ export const pubImport = (r) => ({
   clusterId: r.cluster_id, cluster: clusterById(r.cluster_id)?.name ?? String(r.cluster_id), node: r.node, storage: r.storage, importStorage: r.import_storage,
   setup: r.setup, options: JSON.parse(r.options || '{}'), vmid: r.vmid, state: r.state, step: r.step, error: r.error,
   test: r.test ? JSON.parse(r.test) : null, createdAt: r.created_at, finishedAt: r.finished_at,
+  consoleUrl: r.state === 'installing' && r.vmid && clusterById(r.cluster_id)?.url ? `${String(clusterById(r.cluster_id).url).replace(/\/+$/, '')}/#v1:0:=qemu%2F${r.vmid}:4:::::::` : null,
 });
 export const listImports = (limit = 100) => db.prepare('SELECT * FROM template_imports ORDER BY id DESC LIMIT ?').all(limit).map(pubImport);
 /** The latest finished import of a template VMID (for the templates table). */
@@ -187,19 +199,31 @@ async function runImport(id) {
   const o = JSON.parse(r.options || '{}');
   const node = encodeURIComponent(r.node);
   let vmid = null;
-  let templated = false;
   let fileVolid = null;
   try {
     // 1. download into the import storage (Proxmox checks the checksum)
     set(id, { state: 'downloading', step: 'Downloading the image' });
-    const filename = `pvepanel-${id}-${r.name}.${r.format === 'ova' ? 'ova' : 'qcow2'}`;
-    const upid = await api.post(`/nodes/${node}/storage/${encodeURIComponent(r.import_storage)}/download-url`, {
-      content: 'import', filename, url: r.source, 'verify-certificates': 1,
+    const iso = r.format === 'iso';
+    const content = iso ? 'iso' : 'import';
+    const filename = `pvepanel-${id}-${r.name}.${{ ova: 'ova', iso: 'iso' }[r.format] ?? 'qcow2'}`;
+    const istore = `/nodes/${node}/storage/${encodeURIComponent(r.import_storage)}`;
+    const upid = await api.post(`${istore}/download-url`, {
+      content, filename, url: r.source, 'verify-certificates': 1,
       ...(r.checksum ? { checksum: r.checksum, 'checksum-algorithm': 'sha256' } : {}),
     });
     await waitOn(api, upid, DOWNLOAD_MS);
-    fileVolid = `${r.import_storage}:import/${filename}`;
+    fileVolid = `${r.import_storage}:${content}/${filename}`;
     set(id, { file_volid: fileVolid });
+    let virtioVolid = null;
+    if (iso && o.virtio) {
+      // the VirtIO driver ISO, once per storage
+      virtioVolid = `${r.import_storage}:iso/virtio-win.iso`;
+      const have = await api.get(`${istore}/content`, { content: 'iso' }).catch(() => []);
+      if (!have.some((f) => f.volid === virtioVolid)) {
+        set(id, { step: 'Downloading the VirtIO drivers' });
+        await waitOn(api, await api.post(`${istore}/download-url`, { content: 'iso', filename: 'virtio-win.iso', url: VIRTIO_URL, 'verify-certificates': 1 }), DOWNLOAD_MS);
+      }
+    }
 
     // 2. the VM, its disk(s) imported from the file
     set(id, { state: 'creating', step: 'Creating the VM' });
@@ -209,7 +233,16 @@ async function runImport(id) {
       vmid, name: r.name, cores: o.cores, memory: o.memoryMb, ostype: r.setup === 'windows' ? 'win11' : 'l26',
       scsihw: 'virtio-scsi-single', agent: 'enabled=1', net0: `virtio,bridge=${o.bridge}`, pool: config.pve.pool || undefined,
     };
-    if (r.format === 'qcow2') {
+    if (iso) {
+      params.scsi0 = `${r.storage}:${o.diskGb},discard=on`;
+      params.ide2 = `${fileVolid},media=cdrom`;
+      if (virtioVolid) params.ide0 = `${virtioVolid},media=cdrom`;
+      if (r.setup === 'windows') {
+        Object.assign(params, { machine: 'q35', bios: 'ovmf', efidisk0: `${r.storage}:1,efitype=4m,pre-enrolled-keys=1`, tpmstate0: `${r.storage}:1,version=v2.0` });
+      } else {
+        params.ostype = 'other';
+      }
+    } else if (r.format === 'qcow2') {
       params.scsi0 = `${r.storage}:0,import-from=${fileVolid},discard=on`;
     } else {
       const meta = await api.get(`/nodes/${node}/storage/${encodeURIComponent(r.import_storage)}/import-metadata`, { volume: fileVolid });
@@ -220,38 +253,97 @@ async function runImport(id) {
       disks.forEach((k, i) => { params[`scsi${i}`] = `${r.storage}:0,import-from=${meta.disks[k]}`; });
       if (params.bios === 'ovmf') params.efidisk0 = `${r.storage}:1,efitype=4m`;
     }
-    params.boot = 'order=scsi0';
-    if (o.cloudinit) params.ide2 = `${r.storage}:cloudinit`;
+    params.boot = iso ? 'order=scsi0;ide2' : 'order=scsi0';
+    if (o.cloudinit && !iso) params.ide2 = `${r.storage}:cloudinit`;
     await waitOn(api, await api.post(`/nodes/${node}/qemu`, params), 2 * 3600_000);
-    await api.del(`/nodes/${node}/storage/${encodeURIComponent(r.import_storage)}/content/${encodeURIComponent(fileVolid)}`).catch(() => {});
+    if (iso) {
+      // the administrator installs now; "Installed" continues (finishInstall)
+      set(id, { state: 'installing', step: 'Start the VM, install in the Proxmox console, then shut it down' });
+      audit({ account: r.created_by ? { id: r.created_by } : null, ip: 'import' }, vmid, 'admin_template_install_ready', { id, name: r.name });
+      return;
+    }
+    await api.del(`${istore}/content/${encodeURIComponent(fileVolid)}`).catch(() => {});
     fileVolid = null;
     set(id, { file_volid: null });
-
-    // 3. template
-    set(id, { step: 'Converting to a template' });
-    await waitOn(api, await api.post(`/nodes/${node}/qemu/${vmid}/template`), 30 * 60_000);
-    templated = true;
-    invalidateGuestCache();
-
-    // 4. test boot on a linked clone
-    let test = null;
-    if (o.testBoot) {
-      set(id, { state: 'testing', step: 'Test boot: starting a clone' });
-      test = await testBoot(api, r, vmid, o, (step) => set(id, { step }));
-    }
-    r = rowOf(id);
-    set(id, {
-      state: 'ready', step: STEP.ready, test: test ? JSON.stringify(test) : null, finished_at: nowIso(),
-      label: r.label ?? (test?.os || null),
-    });
-    audit({ account: r.created_by ? { id: r.created_by } : null, ip: 'import' }, vmid, 'admin_template_imported', { id, name: r.name, test });
+    await finishBuild(id, api, vmid);
   } catch (err) {
-    const message = String(err.message ?? err).slice(0, 400);
-    if (vmid && !templated) await destroy(api, r.node, vmid);
-    if (fileVolid) await api.del(`/nodes/${node}/storage/${encodeURIComponent(r.import_storage)}/content/${encodeURIComponent(fileVolid)}`).catch(() => {});
-    set(id, { state: 'failed', step: STEP.failed, error: message, finished_at: nowIso(), ...(templated ? {} : { vmid: null }) });
-    audit({ account: r.created_by ? { id: r.created_by } : null, ip: 'import' }, null, 'admin_template_import_failed', { id, name: r.name, error: message });
+    await failImport(id, api, r, vmid, fileVolid, err);
   }
+}
+
+/** Template, test boot, ready: the end of every import. */
+async function finishBuild(id, api, vmid) {
+  const r = rowOf(id);
+  const o = JSON.parse(r.options || '{}');
+  const node = encodeURIComponent(r.node);
+  // 3. template
+  set(id, { state: 'creating', step: 'Converting to a template' });
+  await waitOn(api, await api.post(`/nodes/${node}/qemu/${vmid}/template`), 30 * 60_000);
+  invalidateGuestCache();
+
+  // 4. test boot on a linked clone
+  let test = null;
+  if (o.testBoot) {
+    set(id, { state: 'testing', step: 'Test boot: starting a clone' });
+    test = await testBoot(api, r, vmid, o, (step) => set(id, { step }));
+  }
+  set(id, {
+    state: 'ready', step: STEP.ready, test: test ? JSON.stringify(test) : null, finished_at: nowIso(),
+    label: r.label ?? (test?.os || null),
+  });
+  audit({ account: r.created_by ? { id: r.created_by } : null, ip: 'import' }, vmid, 'admin_template_imported', { id, name: r.name, test });
+}
+
+async function failImport(id, api, r, vmid, fileVolid, err) {
+  const message = String(err.message ?? err).slice(0, 400);
+  const templated = vmid ? await api.get(`/nodes/${encodeURIComponent(r.node)}/qemu/${vmid}/config`).then((c) => Number(c.template) === 1).catch(() => false) : false;
+  if (vmid && !templated) await destroy(api, r.node, vmid);
+  if (fileVolid && r.format !== 'iso') await api.del(`/nodes/${encodeURIComponent(r.node)}/storage/${encodeURIComponent(r.import_storage)}/content/${encodeURIComponent(fileVolid)}`).catch(() => {});
+  set(id, { state: 'failed', step: STEP.failed, error: message, finished_at: nowIso(), ...(templated ? {} : { vmid: null }) });
+  audit({ account: r.created_by ? { id: r.created_by } : null, ip: 'import' }, null, 'admin_template_import_failed', { id, name: r.name, error: message });
+}
+
+// ---- ISO installs: start, installed, cancel --------------------------------------------------------
+
+function installing(id) {
+  const r = rowOf(id);
+  if (!r) throw fail(404, 'Import not found');
+  if (r.state !== 'installing') throw fail(409, 'This import is not waiting for an installation');
+  return { r, api: pve.on(r.cluster_id), path: `/nodes/${encodeURIComponent(r.node)}/qemu/${r.vmid}` };
+}
+
+export async function startInstallVm(req, id) {
+  const { r, api, path } = installing(id);
+  const st = await api.get(`${path}/status/current`);
+  if (st.status !== 'running') await waitOn(api, await api.post(`${path}/status/start`), 5 * 60_000);
+  audit(req, r.vmid, 'admin_template_install_started', { id, name: r.name });
+  return pubImport(rowOf(id));
+}
+
+/** The installation is done and the VM shut down: remove the CD drives and build the template. */
+export async function finishInstall(req, id) {
+  const { r, api, path } = installing(id);
+  const st = await api.get(`${path}/status/current`);
+  if (st.status !== 'stopped') throw fail(409, r.setup === 'windows' ? 'Shut the VM down first (Sysprep /generalize /oobe /shutdown)' : 'Shut the VM down first');
+  const cfg = await api.get(`${path}/config`);
+  const drop = Object.keys(cfg).filter((k) => /^(ide|sata)\d+$/.test(k) && /media=cdrom/.test(String(cfg[k])) && k !== 'ide2');
+  await api.put(`${path}/config`, { ide2: 'none,media=cdrom', boot: 'order=scsi0', ...(drop.length ? { delete: drop.join(',') } : {}) });
+  set(id, { state: 'creating', step: 'Converting to a template' });
+  audit(req, r.vmid, 'admin_template_installed', { id, name: r.name });
+  running.add(id);
+  // a failure here keeps the installed VM (and its VMID) for a look; retry builds a new one
+  finishBuild(id, api, r.vmid).catch((err) => {
+    set(id, { state: 'failed', step: STEP.failed, error: String(err.message ?? err).slice(0, 400), finished_at: nowIso() });
+  }).finally(() => running.delete(id));
+  return pubImport(rowOf(id));
+}
+
+export async function cancelInstall(req, id) {
+  const { r, api } = installing(id);
+  await destroy(api, r.node, r.vmid);
+  set(id, { state: 'failed', step: STEP.failed, error: 'Cancelled', vmid: null, finished_at: nowIso() });
+  audit(req, null, 'admin_template_install_cancelled', { id, name: r.name });
+  return pubImport(rowOf(id));
 }
 
 async function destroy(api, node, vmid) {

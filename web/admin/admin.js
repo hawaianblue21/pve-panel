@@ -246,7 +246,7 @@ export function createAdmin({ root, nav = null, api, toast, fail, confirmAction,
   const backups = createBackups({ root, api, toast, fail, confirmAction, esc });
   // Importing images as OS templates (own module, on the templates tab)
   const imports = createImports({
-    root, api, toast, fail, esc,
+    root, api, toast, fail, esc, confirmAction,
     canEdit: () => !st.perms || st.perms.has('templates.write'),
     isOpen: () => st.tab === 'templates',
     reloadTemplates: async () => { if (st.tab !== 'templates') return; ({ templates: st.templates, storages: st.storages } = await api('/api/admin/templates')); renderTab(); },
