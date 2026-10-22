@@ -23,9 +23,15 @@ export const UPLOAD_DIR = process.env.UPLOAD_DIR || path.join(path.dirname(path.
 const MAX_BYTES = Math.max(1, Number(process.env.TEMPLATE_UPLOAD_MAX_GB || 200)) * 2 ** 30;
 export const CHUNK_MAX = 64 * 2 ** 20;
 const EXT = /\.(vmdk|qcow2|raw|img)$/i;
+const UPLOAD_ID_RE = /^[0-9a-f]{24}$/;
 const nowIso = () => new Date().toISOString();
-const fileOf = (id) => path.join(UPLOAD_DIR, `${id}.part`);
-const rowOf = (id) => db.prepare('SELECT * FROM template_uploads WHERE id = ?').get(String(id));
+const safeUploadId = (id) => {
+  const s = String(id);
+  if (!UPLOAD_ID_RE.test(s)) throw fail(400, 'Invalid upload id');
+  return s;
+};
+const fileOf = (id) => path.join(UPLOAD_DIR, `${safeUploadId(id)}.part`);
+const rowOf = (id) => db.prepare('SELECT * FROM template_uploads WHERE id = ?').get(safeUploadId(id));
 
 export const pubUpload = (r) => ({
   id: r.id, filename: r.filename, size: r.size, received: r.received, complete: !!r.completed_at, sha256: r.sha256, createdAt: r.created_at,
