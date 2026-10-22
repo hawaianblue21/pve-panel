@@ -180,7 +180,7 @@ PVE Panel was built with substantial help from an AI assistant (**Claude by Anth
 - Create and manage customer accounts
 - Assign existing Proxmox VMs or containers to users, one by one or **several at once** (Servers: filters by node, status, customer and type, grouping by node, bulk start / shut down / restart / force stop / assign / unassign)
 - Configure provisioning quotas and limits
-- Publish selected templates
+- Publish selected templates, and **import images as templates** (cloud images and OVA appliances from a URL, checksum, test boot, one copy per cluster)
 - Start, stop, restart and delete customer-owned servers
 - Review provisioning jobs and failures, and **retry** failed deletions, update runs, automatic snapshots and backups
 - **Backups**: connect Proxmox Backup Servers, policies per plan (add-ons per server), backup window, runs, coverage of every server, restores
@@ -233,6 +233,31 @@ PVE Panel supports automated provisioning for both Linux and Windows workloads.
 - DHCP cleanup and validation
 - Windows setup-state detection
 - Automatic reboot and readiness checks
+
+### Importing OS templates
+
+Under **OS templates → Import image** owners (or a role with *templates.write*) turn an image into a Proxmox template:
+
+| Format | Source | What the panel does |
+|---|---|---|
+| `.qcow2` / `.img` cloud image | URL | Proxmox downloads it into an import storage (`download-url`, SHA-256 checked when given); a VM is created with the disk imported (`import-from`), VirtIO SCSI, a cloud-init drive and the guest agent on |
+| `.ova` appliance | URL | as above; CPU, memory, OS type and disks come from the OVF (`import-metadata`), disks go on VirtIO SCSI and the network card becomes VirtIO |
+
+Then the VM becomes a **template** (VMIDs from 9000), the downloaded file is removed, and with **Test boot** a linked
+clone boots once: the panel waits for the guest agent, reads the OS name and the cloud-init result, and destroys the
+clone. The template itself never boots, so no machine-id or SSH host key ends up in it. New templates are listed but
+**not offered** until an administrator offers them (the OS name found is suggested as the name for customers).
+
+- **Placement**: a node, a storage for the disks (use shared storage such as Ceph or NFS so servers can be created on
+  every node) and an import storage (a storage with the content type *Import*, Proxmox VE 8.3 or later). Ticking
+  several clusters builds one copy in each.
+- Imports run in the background (two at a time, `TEMPLATE_IMPORTS_PARALLEL`), appear in **Jobs** and can be retried
+  there; a test boot waits up to `TEMPLATE_TEST_BOOT_SECONDS` (default 300) for the guest agent. Images without the
+  guest agent are marked *no guest agent*.
+- ISO installers (Windows, BSD) and VMDK uploads from the browser follow in the next steps.
+
+API: `GET /api/admin/templates/import-options`, `GET/POST /api/admin/templates/imports`,
+`POST /api/admin/templates/imports/:id/retry`, `DELETE /api/admin/templates/imports/:id`.
 
 ---
 

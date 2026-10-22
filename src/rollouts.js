@@ -29,6 +29,7 @@ import { can } from './rbac.js';
 import { clusterGuests, guestPath, pve } from './pve.js';
 import { startUpdates, checkPending, activeRun } from './winupdate.js';
 import { backupNow } from './backupjobs.js';
+import { retryImport } from './imports.js';
 import { runSchedule } from './snapschedule.js';
 import { deleteServer } from './provision.js';
 import { emailConfigured, sendMail, rolloutNoticeMessage } from './mail.js';
@@ -354,6 +355,14 @@ export async function jobs({ filter = 'all' } = {}) {
       ...(b.state === 'failed' && latestBackup.get(b.vmid) === b.id && ready.has(b.vmid) ? { retry: 'backup' } : {}),
     });
   }
+  // OS template imports in the last 7 days (failed ones can be retried)
+  for (const t of db.prepare("SELECT * FROM template_imports WHERE created_at >= ? ORDER BY id DESC LIMIT 100").all(new Date(Date.now() - 7 * 86_400_000).toISOString())) {
+    out.push({
+      id: `import-${t.id}`, kind: 'template', action: `Import template (${t.format})`, target: t.name, vmid: t.vmid, by: users.get(t.created_by) ?? null,
+      state: t.state === 'ready' ? 'done' : t.state === 'failed' ? 'failed' : 'running', detail: t.state === 'failed' ? t.error : t.step, at: t.created_at,
+      ...(t.state === 'failed' ? { retry: 'template' } : {}),
+    });
+  }
   // rollouts in progress
   for (const r of db.prepare("SELECT * FROM rollouts WHERE state IN ('running', 'paused')").all()) {
     const p = pubRollout(r);
@@ -378,7 +387,7 @@ export async function jobs({ filter = 'all' } = {}) {
   return { jobs: list, counts };
 }
 
-const RETRY_PERMISSION = { delete: 'servers.delete', updates: 'updates.write', snapshot: 'servers.manage', backup: 'backups.write' };
+const RETRY_PERMISSION = { delete: 'servers.delete', updates: 'updates.write', snapshot: 'servers.manage', backup: 'backups.write', template: 'templates.write' };
 
 /** Retries a failed job of the list (see jobs()); returns { retried, message }. */
 export async function retryJob(req, jobId) {
@@ -387,6 +396,10 @@ export async function retryJob(req, jobId) {
   if (!job.retry) throw fail(409, job.retryNote ?? 'This job can\'t be retried');
   const need = RETRY_PERMISSION[job.retry];
   if (!can(req.account, need)) throw fail(403, `Retrying this needs the permission ${need}`);
+  if (job.retry === 'template') {
+    const r = retryImport(req, Number(jobId.slice(7)));
+    return { retried: true, message: `Importing ${r.name} again` };
+  }
   const row = db.prepare('SELECT * FROM vms WHERE vmid = ?').get(job.vmid);
   if (!row) throw fail(404, 'The server is gone');
   if (job.retry === 'delete') {

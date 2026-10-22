@@ -31,6 +31,7 @@ import { startAutoRenew, refundFailedOrder } from './billing.js';
 import { startRolloutEngine } from './rollouts.js';
 import { startSnapshotSchedules } from './snapschedule.js';
 import { startBackupScheduler } from './backupjobs.js';
+import { startImportWorker } from './imports.js';
 import { onCreateFailed } from './provision.js';
 import { startZammadRetry } from './zammad.js';
 import { syncOnStartup } from './vpn.js';
@@ -192,6 +193,7 @@ startAutoRenew(admin.log);
 startRolloutEngine(admin.log);
 startSnapshotSchedules(admin.log);
 startBackupScheduler(admin.log);
+startImportWorker(admin.log);
 // a new server on a paid plan that could not be set up: money back to the wallet
 onCreateFailed(refundFailedOrder);
 

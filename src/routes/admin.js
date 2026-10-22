@@ -35,6 +35,8 @@ import { adminTokenRoutes } from './tokens.js';
 import adminJobRoutes from './admin-jobs.js';
 import adminClusterRoutes from './admin-clusters.js';
 import adminBackupRoutes from './admin-backups.js';
+import adminImportRoutes from './admin-imports.js';
+import { importOfTemplate } from '../imports.js';
 import adminPlanRoutes from './admin-plans.js';
 
 const PASSWORD = { type: 'string', minLength: 12, maxLength: 200 };
@@ -68,6 +70,7 @@ export default async function adminRoutes(app) {
   await app.register(adminJobRoutes);
   await app.register(adminClusterRoutes);
   await app.register(adminBackupRoutes);
+  await app.register(adminImportRoutes);
   await app.register(adminPlanRoutes);
 
   // ---- Users ------------------------------------------------------------
@@ -714,6 +717,7 @@ export default async function adminRoutes(app) {
         offered: !!row, label: row?.label ?? '', storage: row?.storage ?? '',
         ciUser: row?.ci_user ?? '', ipconfig: row?.ipconfig ?? 'ip=dhcp',
         setup: row?.setup ?? (/^win/.test(g.name ?? '') ? 'windows' : 'cloudinit'),
+        imported: importOfTemplate(Number(g.vmid)),
       };
     }).sort((a, b) => a.vmid - b.vmid);
     return { templates: list, storages };

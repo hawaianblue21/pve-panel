@@ -11,7 +11,7 @@ export default async function adminJobRoutes(app) {
   // the permission depends on the job (servers.delete, updates.write, servers.manage): checked inside
   app.post('/api/admin/jobs/retry', {
     config: { rateLimit: { max: 30, timeWindow: '10 minutes' } },
-    schema: { body: { type: 'object', required: ['id'], additionalProperties: false, properties: { id: { type: 'string', pattern: '^(vm|run|log|backup)-\\d{1,12}$' } } } },
+    schema: { body: { type: 'object', required: ['id'], additionalProperties: false, properties: { id: { type: 'string', pattern: '^(vm|run|log|backup|import)-\\d{1,12}$' } } } },
   }, async (req) => retryJob(req, req.body.id));
 
   app.get('/api/admin/updates/fleet', async () => fleet());

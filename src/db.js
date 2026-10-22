@@ -870,3 +870,34 @@ db.exec(`
     PRIMARY KEY (storage, vmid)
   );
 `);
+
+// OS template imports (imports.js): one row per target (a request for several clusters
+// shares a batch). The VM is created from the image, turned into a template and, when
+// asked, a linked clone of it boots once to check cloud-init and the guest agent.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS template_imports (
+    id             INTEGER PRIMARY KEY,
+    batch          TEXT NOT NULL,
+    name           TEXT NOT NULL,              -- name of the template in Proxmox
+    label          TEXT,                       -- suggested name for customers
+    format         TEXT NOT NULL,              -- qcow2 | ova | iso | vmdk
+    source         TEXT NOT NULL,              -- URL (or upload id)
+    checksum       TEXT,                       -- SHA-256, optional
+    cluster_id     INTEGER NOT NULL DEFAULT 0,
+    node           TEXT NOT NULL,
+    storage        TEXT NOT NULL,              -- for the VM disks
+    import_storage TEXT NOT NULL,              -- for the downloaded file (content import / iso)
+    setup          TEXT NOT NULL DEFAULT 'cloudinit',
+    options        TEXT NOT NULL DEFAULT '{}', -- { cloudinit, testBoot, cores, memoryMb, bridge }
+    vmid           INTEGER,
+    file_volid     TEXT,
+    state          TEXT NOT NULL,              -- queued | downloading | creating | testing | ready | failed
+    step           TEXT,
+    error          TEXT,
+    test           TEXT,                       -- JSON { agent, os, cloudInit, seconds, error }
+    created_by     INTEGER,
+    created_at     TEXT NOT NULL,
+    finished_at    TEXT
+  );
+  CREATE INDEX IF NOT EXISTS template_imports_state ON template_imports (state);
+`);
