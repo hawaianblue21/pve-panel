@@ -10,13 +10,16 @@ const FORMATS = [
   ['qcow2', '.qcow2 / .img', 'Cloud images (Ubuntu, Debian, Rocky, AlmaLinux)', 'https://cloud-images.ubuntu.com/noble/current/noble-server-cloudimg-amd64.img'],
   ['ova', '.ova', 'Appliances with their VM settings (OVF)', 'https://vendor.example.com/appliance-2.4.ova'],
   ['iso', '.iso', 'Installer media (Windows, BSD): you install in the Proxmox console, the panel builds the template afterwards', 'https://downloads.example.com/windows-server-2025-eval.iso'],
+  ['vmdk', '.vmdk upload', 'A disk from VMware ESXi / Workstation, or a qcow2 / raw disk on your computer, uploaded through the panel', ''],
 ];
+const CHUNK = 8 * 2 ** 20;
+const gb = (n) => `${(n / 2 ** 30).toFixed(n >= 10 * 2 ** 30 ? 0 : 1)} GB`;
 const STATE = { queued: ['Waiting', ''], downloading: ['Downloading', ''], creating: ['Creating', ''], installing: ['Install', 'warn'], testing: ['Test boot', ''], ready: ['Ready', 'ok'], failed: ['Failed', 'bad'] };
 const when = (iso) => (iso ? new Date(iso).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }) : '');
 
 export function createImports(ctx) {
   const { api, toast, fail, esc } = ctx;
-  const st = { list: [], open: false, options: null, format: 'qcow2', form: null, timer: null };
+  const st = { list: [], open: false, options: null, format: 'qcow2', form: null, timer: null, file: null, upload: null, uploading: false };
   const el = () => ctx.root.querySelector('#tpl-imports');
 
   async function load() {
@@ -81,9 +84,10 @@ export function createImports(ctx) {
         <div class="segmented" role="radiogroup" aria-label="Image format" style="justify-self:start">
           ${FORMATS.map(([id, ext, desc]) => `<button type="button" role="radio" aria-checked="${st.format === id}" data-imp-format="${id}" title="${esc(desc)}">${esc(ext)}</button>`).join('')}
         </div>
-        <p class="small muted" style="margin:0">${esc(fmt[2])}. Proxmox downloads the file itself (the node needs internet access); VMDK uploads follow.</p>
+        <p class="small muted" style="margin:0">${esc(fmt[2])}.${st.format === 'vmdk' ? ' The file is sent in pieces; an interrupted upload continues where it stopped.' : ' Proxmox downloads the file itself (the node needs internet access).'}</p>
         <div class="grid-2">
-          <label>Source address <input name="url" type="url" value="${esc(f.url)}" placeholder="${esc(fmt[3])}" spellcheck="false" required></label>
+          ${st.format === 'vmdk' ? `<label>Disk image <span class="hint">.vmdk, .qcow2, .raw or .img${st.file ? `: ${esc(st.file.name)}, ${gb(st.file.size)}` : ''}</span><input name="file" type="file" accept=".vmdk,.qcow2,.raw,.img" ${st.uploading ? 'disabled' : ''}></label>`
+            : `<label>Source address <input name="url" type="url" value="${esc(f.url)}" placeholder="${esc(fmt[3])}" spellcheck="false" required></label>`}
           <label>Checksum (SHA-256) <span class="hint">from the publisher's SHA256SUMS; empty: not checked</span><input name="checksum" value="${esc(f.checksum)}" spellcheck="false" class="mono" maxlength="64"></label>
           <label>Template name in Proxmox <input name="name" value="${esc(f.name)}" placeholder="ubuntu-2404" spellcheck="false" required></label>
           <label>Name for customers <span class="hint">empty: the OS name found in the test boot</span><input name="label" value="${esc(f.label)}" maxlength="80"></label>
@@ -106,9 +110,48 @@ export function createImports(ctx) {
             ${st.format === 'iso' ? `<label>Disk (GB) <input name="diskGb" type="number" min="4" max="4096" value="${f.diskGb}"></label>` : ''}
           </div>
         </fieldset>
-        <div class="row"><button class="btn primary">Import and build template</button>
+        ${st.format === 'vmdk' && st.upload ? `<div class="imp-upload"><progress max="${st.upload.size}" value="${st.upload.received}" aria-label="Upload"></progress>
+          <span class="small muted" data-imp-progress>${uploadText()}</span></div>` : ''}
+        <div class="row"><button class="btn primary" ${st.uploading ? 'disabled' : ''}>${st.format === 'vmdk' ? (st.upload && !st.upload.complete ? 'Continue upload and import' : 'Upload and build template') : 'Import and build template'}</button>
           <span class="small muted">Runs in the background; follow it below or under Jobs.</span></div>
       </form>`;
+  }
+
+  function uploadText() {
+    const u = st.upload;
+    if (!u) return '';
+    if (u.complete) return `Uploaded ${gb(u.size)} · SHA-256 ${u.sha256?.slice(0, 16)}…`;
+    return `${gb(u.received)} of ${gb(u.size)} (${Math.floor((u.received / u.size) * 100)}%)${st.uploading ? '' : ' · paused'}`;
+  }
+
+  /** Sends the chosen file in chunks from where the panel has it; retries a chunk three times. */
+  async function sendFile() {
+    const file = st.file;
+    if (!st.upload || st.upload.size !== file.size || st.upload.filename !== file.name.replace(/[^\w.-]/g, '_')) {
+      st.upload = await api('/api/admin/templates/uploads', { method: 'POST', body: { filename: file.name, size: file.size } });
+    }
+    st.uploading = true;
+    draw();
+    try {
+      let tries = 0;
+      while (!st.upload.complete) {
+        const off = st.upload.received;
+        const res = await fetch(`/api/admin/templates/uploads/${st.upload.id}?offset=${off}`, {
+          method: 'PUT', credentials: 'same-origin', headers: { 'Content-Type': 'application/octet-stream' }, body: file.slice(off, off + CHUNK),
+        }).catch(() => null);
+        const data = res ? await res.json().catch(() => null) : null;
+        if (res?.ok) { st.upload = data; tries = 0; }
+        else if (res?.status === 409 && data?.received !== undefined) { st.upload.received = data.received; }
+        else if (++tries > 3) throw new Error(data?.error || 'The upload was interrupted; press the button to continue');
+        else { await new Promise((r) => setTimeout(r, 2000 * tries)); st.upload = await api(`/api/admin/templates/uploads/${st.upload.id}`); }
+        const bar = ctx.root.querySelector('.imp-upload progress');
+        if (bar) bar.value = st.upload.received;
+        const txt = ctx.root.querySelector('[data-imp-progress]');
+        if (txt) txt.textContent = uploadText();
+      }
+    } finally {
+      st.uploading = false;
+    }
   }
 
   function listTable() {
@@ -155,8 +198,9 @@ export function createImports(ctx) {
       const q = (n) => tr.querySelector(`[name=${n}]`);
       targets[tr.dataset.impCluster] = { on: !!q('on')?.checked, node: q('node')?.value ?? '', storage: q('storage')?.value ?? '', importStorage: q('importStorage')?.value ?? '' };
     }
+    if (e.file?.files?.[0] && e.file.files[0] !== st.file) { st.file = e.file.files[0]; st.upload = null; }
     Object.assign(st.form, {
-      url: e.url.value.trim(), checksum: e.checksum.value.trim(), name: e.name.value.trim(), label: e.label.value.trim(),
+      url: e.url ? e.url.value.trim() : st.form.url, checksum: e.checksum.value.trim(), name: e.name.value.trim(), label: e.label.value.trim(),
       cloudinit: e.cloudinit ? e.cloudinit.checked : st.form.cloudinit, virtio: e.virtio ? e.virtio.checked : st.form.virtio, diskGb: Number(e.diskGb?.value) || st.form.diskGb, testBoot: e.testBoot.checked, setup: e.setup.value,
       cores: Number(e.cores.value) || 2, memoryMb: Number(e.memoryMb.value) || 2048, bridge: e.bridge.value.trim() || 'vmbr0', targets,
     });
@@ -206,6 +250,12 @@ export function createImports(ctx) {
 
   function onChange(e) {
     if (e.target.closest('#imp-form') && e.target.name === 'setup' && st.format === 'iso') { readForm(); draw(); return; }
+    if (e.target.closest('#imp-form') && e.target.name === 'file') {
+      readForm();
+      if (st.file && !st.form.name) st.form.name = st.file.name.replace(/\.[^.]+$/, '').toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^[^a-z]+/, '').slice(0, 40);
+      draw();
+      return;
+    }
     if (!e.target.closest('#imp-targets') || e.target.name !== 'node') return;
     readForm();
     const c = e.target.closest('[data-imp-cluster]').dataset.impCluster;
@@ -221,16 +271,22 @@ export function createImports(ctx) {
     const targets = Object.entries(f.targets).filter(([, x]) => x.on)
       .map(([clusterId, x]) => ({ clusterId: Number(clusterId), node: x.node, storage: x.storage, importStorage: x.importStorage }));
     try {
+      if (st.format === 'vmdk') {
+        if (!st.file) throw new Error('Choose the disk image');
+        if (!f.name) throw new Error('Give the template a name');
+        if (!st.upload?.complete) await sendFile();
+      }
       const r = await api('/api/admin/templates/imports', { method: 'POST', body: {
-        name: f.name, ...(f.label ? { label: f.label } : {}), format: st.format, url: f.url, checksum: f.checksum || null,
+        name: f.name, ...(f.label ? { label: f.label } : {}), format: st.format, checksum: f.checksum || null,
+        ...(st.format === 'vmdk' ? { uploadId: st.upload.id } : { url: f.url }),
         setup: f.setup, cloudinit: f.cloudinit, testBoot: f.testBoot, bridge: f.bridge, targets,
         ...(st.format !== 'ova' ? { cores: f.cores, memoryMb: f.memoryMb } : {}),
         ...(st.format === 'iso' ? { diskGb: f.diskGb, virtio: f.virtio } : {}),
       } });
       toast(`Importing ${f.name}${r.imports.length > 1 ? ` into ${r.imports.length} clusters` : ''}`);
-      st.open = false;
+      st.open = false; st.file = null; st.upload = null;
       await render();
-    } catch (err) { fail(err); }
+    } catch (err) { fail(err); draw(); }
     return true;
   }
 

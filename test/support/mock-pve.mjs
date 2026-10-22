@@ -63,7 +63,7 @@ export async function startMockPve({ port = 0, second = false } = {}) {
   // Backups: storage entries (type pbs) and the backups on them (volid → entry with a copy of the config)
   const storages = new Map(); const backups = new Map(); const vzdumpFail = new Map(); const vzdumps = [];
   // template import: files on node storages (import / iso content), downloads, VMs created from parameters
-  const files = new Map([['local', []]]); const downloads = []; const created = [];
+  const files = new Map([['local', []]]); const downloads = []; const created = []; const uploads = [];
   const NODE_STORAGES = [{ storage: 'VMStorage', content: 'images,rootdir', shared: 1 }, { storage: 'local-lvm', content: 'images,rootdir', shared: 0 },
     { storage: 'local', content: 'iso,vztmpl,import,snippets,backup', shared: 0 }];
   const pruneBackups = (store, vmid, spec) => {
@@ -316,6 +316,14 @@ export async function startMockPve({ port = 0, second = false } = {}) {
       if (/notfound/.test(b.url ?? '')) return send(res, task('download', 0, 400, () => {}, 'download failed: 404 Not Found'));
       if (b.checksum && /^0+$/.test(b.checksum)) return send(res, task('download', 0, 400, () => {}, `checksum mismatch: got 'abc', expected '${b.checksum}'`));
       return send(res, task('download', 0, 600, () => { files.get(dl[2]).push({ volid: `${dl[2]}:${b.content}/${b.filename}`, content: b.content, size: 2 * 2 ** 30, format: b.filename.split('.').pop(), ctime: Math.floor(Date.now() / 1000) }); })); } }
+    { const up = p.match(/^\/nodes\/([^/]+)\/storage\/([\w.-]+)\/upload$/); if (up && req.method === 'POST') {
+      const chunks = []; for await (const c of req) chunks.push(c); const raw = Buffer.concat(chunks).toString('latin1');
+      const content = /name="content"\r\n\r\n([^\r]+)/.exec(raw)?.[1];
+      const fm = /name="filename"; filename="([^"]+)"\r\n(?:[^\r]+\r\n)*\r\n/.exec(raw);
+      if (!files.has(up[2]) || content !== 'import' || !fm) return send(res, null, 400, 'bad upload');
+      const start = fm.index + fm[0].length; const end = raw.indexOf('\r\n--', start); const size = end - start;
+      uploads.push({ node: up[1], storage: up[2], content, filename: fm[1], size, head: raw.slice(start, start + 4) });
+      return send(res, task('imgcopy', 0, 400, () => { files.get(up[2]).push({ volid: `${up[2]}:import/${fm[1]}`, content: 'import', size, format: fm[1].split('.').pop(), ctime: Math.floor(Date.now() / 1000) }); })); } }
     { const fc = p.match(/^\/nodes\/([^/]+)\/storage\/([\w.-]+)\/content$/); if (fc && files.has(fc[2]) && req.method === 'GET') { const want = u.searchParams.get('content');
       return send(res, files.get(fc[2]).filter((f) => !want || f.content === want)); } }
     { const fd = p.match(/^\/nodes\/([^/]+)\/storage\/([\w.-]+)\/content\/(.+)$/); if (fd && files.has(fd[2]) && req.method === 'DELETE') { const volid = decodeURIComponent(fd[3]);
@@ -340,9 +348,12 @@ export async function startMockPve({ port = 0, second = false } = {}) {
       const n = vzdumpFail.get(vmid) ?? 0;
       if (n > 0) { vzdumpFail.set(vmid, n - 1); return send(res, task('vzdump', vmid, 600, () => {}, 'job errors')); }
       return send(res, task('vzdump', vmid, 700, () => {
-        const ctime = Math.floor(Date.now() / 1000) + (backups.size ? 0 : 0);
-        const volid = `${b.storage}:backup/vm/${vmid}/${new Date(ctime * 1000 + backups.size).toISOString().replace(/\.\d+Z$/, 'Z')}`;
-        backups.set(volid, { volid, storage: b.storage, vmid, ctime: ctime + backups.size, size: Number(v.maxdisk ?? 2 ** 30) / 2, notes: b['notes-template'] ?? '', protected: false,
+        // one backup per second, as in PBS (a second one in the same second gets the next second)
+        let ctime = Math.floor(Date.now() / 1000);
+        const idOf = (t) => `${b.storage}:backup/vm/${vmid}/${new Date(t * 1000).toISOString().replace(/\.\d+Z$/, 'Z')}`;
+        while (backups.has(idOf(ctime))) ctime += 1;
+        const volid = idOf(ctime);
+        backups.set(volid, { volid, storage: b.storage, vmid, ctime, size: Number(v.maxdisk ?? 2 ** 30) / 2, notes: b['notes-template'] ?? '', protected: false,
           verification: { state: 'ok' }, cfg: JSON.parse(JSON.stringify(v.cfg)), name: v.name, files: ['etc/hostname', 'var/www/html/index.php', 'var/www/html/wp-config.php'] });
         pruneBackups(b.storage, vmid, b['prune-backups']);
       }, v.agent === false ? 'WARNINGS: 1' : undefined)); } }
@@ -405,7 +416,7 @@ export async function startMockPve({ port = 0, second = false } = {}) {
     if (rest === '/clone' && req.method === 'POST') { const b = await body(req); log('CLONE', vmid, JSON.stringify(b));
       const id = Number(b.newid); if (vms.has(id)) return send(res,null,500,`VM ${id} already exists`);
       clones.push({ from: vmid, ...b });
-      vms.set(id, { origin: vmid, vmid:id, node:b.target || vm.node, type:'qemu', name:b.name, status:'stopped', lock:'clone', maxcpu:vm.maxcpu, maxmem:vm.maxmem, maxdisk:vm.maxdisk, cfg:{...vm.cfg, scsi0: vm.cfg.scsi0.replace(`base-${vmid}`, `vm-${id}`), net0: vm.cfg.net0 ? vm.cfg.net0.replace(/=[0-9A-Fa-f:]{17}/, '').replace(/^(\w+)/, `$1=${newMac()}`) : `virtio=${newMac()},bridge=vmbr0`} });
+      vms.set(id, { origin: vmid, vmid:id, node:b.target || vm.node, type:'qemu', name:b.name, status:'stopped', lock:'clone', maxcpu:vm.maxcpu, maxmem:vm.maxmem, maxdisk:vm.maxdisk, cfg:{...vm.cfg, ...(vm.cfg.scsi0 ? { scsi0: vm.cfg.scsi0.replace(`base-${vmid}`, `vm-${id}`) } : {}), net0: vm.cfg.net0 ? vm.cfg.net0.replace(/=[0-9A-Fa-f:]{17}/, '').replace(/^(\w+)/, `$1=${newMac()}`) : `virtio=${newMac()},bridge=vmbr0`} });
       if (vms.get(id).cfg.net0 && !/=/.test(vms.get(id).cfg.net0.split(',')[0])) vms.get(id).cfg.net0 = withMac(vms.get(id).cfg.net0);
       if (failClones > 0) { failClones -= 1; return send(res, task('qmclone', vmid, 800, () => { vms.delete(id); }, 'clone failed: storage full')); }
       return send(res, task('qmclone', vmid, 2500, () => { delete vms.get(id).lock; })); }
@@ -585,7 +596,7 @@ export async function startMockPve({ port = 0, second = false } = {}) {
   return {
     url: `http://127.0.0.1:${actualPort}`,
     port: actualPort,
-    vms, sdn, gwFiles, destroyed, clones, storages, backups, vzdumps, files, downloads, created,
+    vms, sdn, gwFiles, destroyed, clones, storages, backups, vzdumps, files, downloads, created, uploads,
     /** GET a control endpoint, e.g. control('/__lose/104/1') */
     control: (p) => fetch(`http://127.0.0.1:${actualPort}/api2/json${p}`, {
       headers: { authorization: 'PVEAPIToken=panel@pve!panel=x' },

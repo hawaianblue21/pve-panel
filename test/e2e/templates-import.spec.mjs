@@ -51,3 +51,23 @@ test('an ISO waits for the installation; it can be cancelled', async ({ page }) 
   await expect(page.locator('.toast').last()).toContainText('Installation cancelled');
   await expect(page.locator('#imp-list tr[data-imp]', { hasText: 'win2025' })).toContainText('Cancelled');
 });
+
+test('upload a VMDK from the browser and build a template from it', async ({ page }) => {
+  test.setTimeout(120_000);
+  await page.goto(process.env.E2E_ADMIN_URL);
+  await page.locator('#login-form [name=email]').fill('admin@example.com');
+  await page.locator('#login-form [name=password]').fill('correct-horse-battery');
+  await page.locator('#login-form button[type=submit]').click();
+  await page.locator('[data-admin-tab=templates]').click();
+  await page.locator('[data-imp-open]').click();
+  await page.locator('[data-imp-format=vmdk]').click();
+  const f = page.locator('#imp-form');
+  await f.locator('[name=file]').setInputFiles({ name: 'ERP Appliance-disk1.vmdk', mimeType: 'application/octet-stream', buffer: Buffer.concat([Buffer.from('KDMV'), Buffer.alloc(9 * 2 ** 20, 7)]) });
+  await expect(f.locator('[name=name]')).toHaveValue('erp-appliance-disk1');
+  await expect(f).toContainText('ERP Appliance-disk1.vmdk, 0.0 GB');
+  await f.locator('button.primary').click();
+  await expect(page.locator('.toast').last()).toContainText('Importing erp-appliance-disk1', { timeout: 30_000 });
+  const row = page.locator('#imp-list tr[data-imp]', { hasText: 'erp-appliance-disk1' });
+  await expect(row).toContainText('vmdk · checked');
+  await expect(row).toContainText('Ready', { timeout: 60_000 });
+});
