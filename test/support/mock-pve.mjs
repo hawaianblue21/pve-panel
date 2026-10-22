@@ -62,6 +62,10 @@ export async function startMockPve({ port = 0, second = false } = {}) {
   const sdn = { zones: [], vnets: [], subnets: new Map(), pending: 0 };
   // Backups: storage entries (type pbs) and the backups on them (volid → entry with a copy of the config)
   const storages = new Map(); const backups = new Map(); const vzdumpFail = new Map(); const vzdumps = [];
+  // template import: files on node storages (import / iso content), downloads, VMs created from parameters
+  const files = new Map([['local', []]]); const downloads = []; const created = [];
+  const NODE_STORAGES = [{ storage: 'VMStorage', content: 'images,rootdir', shared: 1 }, { storage: 'local-lvm', content: 'images,rootdir', shared: 0 },
+    { storage: 'local', content: 'iso,vztmpl,import,snippets,backup', shared: 0 }];
   const pruneBackups = (store, vmid, spec) => {
     const keep = Object.fromEntries(String(spec || '').split(',').filter(Boolean).map((x) => x.split('=')).map(([k, n]) => [k, Number(n)]));
     const list = [...backups.values()].filter((b) => b.storage === store && b.vmid === vmid).sort((a, b) => b.ctime - a.ctime);
@@ -273,7 +277,8 @@ export async function startMockPve({ port = 0, second = false } = {}) {
     if (p === '/nodes') return send(res, [...hosts.values()].map((h) => ({ node: h.node, status: h.status })));
     if (p === '/version') return send(res, { version: '9.0.10', release: '9.0', repoid: 'abcdef01' });
     if (p === '/cluster/nextid') { const want = u.searchParams.get('vmid'); if (want) return vms.has(Number(want)) ? send(res,null,400,`VM ${want} already exists`) : send(res, want); let id=100; while (vms.has(id)) id++; return send(res, String(id)); }
-    if (/^\/nodes\/[^/]+\/storage$/.test(p)) return send(res, [{storage:'VMStorage'},{storage:'local-lvm'}]);
+    if (/^\/nodes\/[^/]+\/storage$/.test(p)) { const want = u.searchParams.get('content');
+      return send(res, NODE_STORAGES.filter((x) => !want || x.content.split(',').includes(want)).map((x) => ({ ...x, active: 1, enabled: 1, type: x.storage === 'local' ? 'dir' : 'lvmthin' }))); }
     if (p === '/cluster/sdn/zones' && req.method==='GET') return send(res, sdn.zones);
     if (p === '/cluster/sdn/zones' && req.method==='POST') { const b = await body(req); log('SDN ZONE', JSON.stringify(b)); sdn.zones.push({zone:b.zone,type:b.type}); sdn.pending++; return send(res,null); }
     if (p === '/cluster/sdn/vnets' && req.method==='GET') return send(res, sdn.vnets);
@@ -303,6 +308,23 @@ export async function startMockPve({ port = 0, second = false } = {}) {
         { type: 'nvidia-661', name: 'NVIDIA A16-8Q', description: 'num_heads=4, frl_config=60, framebuffer=8192M', available: 2 },
       ]);
     }
+    // ---- template import: download-url, import/iso contents, OVA metadata ----
+    { const dl = p.match(/^\/nodes\/([^/]+)\/storage\/([\w.-]+)\/download-url$/); if (dl && req.method === 'POST') { const b = await body(req); downloads.push({ node: dl[1], storage: dl[2], ...b });
+      if (!files.has(dl[2])) return send(res, null, 500, `storage '${dl[2]}' does not support content '${b.content}'`);
+      const ext = { import: /\.(qcow2|raw|vmdk|ova)$/, iso: /\.iso$/ }[b.content];
+      if (!ext || !ext.test(b.filename ?? '')) return send(res, null, 400, `invalid filename or content '${b.content}'`);
+      if (/notfound/.test(b.url ?? '')) return send(res, task('download', 0, 400, () => {}, 'download failed: 404 Not Found'));
+      if (b.checksum && /^0+$/.test(b.checksum)) return send(res, task('download', 0, 400, () => {}, `checksum mismatch: got 'abc', expected '${b.checksum}'`));
+      return send(res, task('download', 0, 600, () => { files.get(dl[2]).push({ volid: `${dl[2]}:${b.content}/${b.filename}`, content: b.content, size: 2 * 2 ** 30, format: b.filename.split('.').pop(), ctime: Math.floor(Date.now() / 1000) }); })); } }
+    { const fc = p.match(/^\/nodes\/([^/]+)\/storage\/([\w.-]+)\/content$/); if (fc && files.has(fc[2]) && req.method === 'GET') { const want = u.searchParams.get('content');
+      return send(res, files.get(fc[2]).filter((f) => !want || f.content === want)); } }
+    { const fd = p.match(/^\/nodes\/([^/]+)\/storage\/([\w.-]+)\/content\/(.+)$/); if (fd && files.has(fd[2]) && req.method === 'DELETE') { const volid = decodeURIComponent(fd[3]);
+      const list = files.get(fd[2]); const i = list.findIndex((f) => f.volid === volid); if (i < 0) return send(res, null, 500, `volume '${volid}' does not exist`); list.splice(i, 1); return send(res, null); } }
+    { const im = p.match(/^\/nodes\/([^/]+)\/storage\/([\w.-]+)\/import-metadata$/); if (im) { const volid = u.searchParams.get('volume') ?? '';
+      if (!files.get(im[2])?.some((f) => f.volid === volid)) return send(res, null, 500, `volume '${volid}' does not exist`);
+      if (!/\.ova$/.test(volid)) return send(res, null, 500, 'not an OVA');
+      return send(res, { type: 'vm', source: 'ova', 'create-args': { name: 'erp-appliance', cores: 2, memory: 4096, ostype: 'l26', scsihw: 'lsi' },
+        disks: { sata0: `${volid}/erp-appliance-disk1.vmdk`, sata1: `${volid}/erp-appliance-disk2.vmdk` }, net: { net0: { model: 'e1000' } }, warnings: [{ type: 'nic-unsupported', key: 'net0' }] }); } }
     // ---- backups: storage entries, vzdump, contents, restore, file restore ----
     if (p === '/storage' && req.method === 'GET') return send(res, [...storages.values()].map(({ key, ...x }) => x));
     if (p === '/storage' && req.method === 'POST') { const b = await body(req); log('STORAGE ADD', b.storage, b.namespace);
@@ -343,7 +365,27 @@ export async function startMockPve({ port = 0, second = false } = {}) {
       for (const f of b.files) { if (!f.startsWith(prefix)) continue; const restp = f.slice(prefix.length); const [head, ...more] = restp.split('/');
         kids.set(head, { filepath: Buffer.from(`/${prefix}${head}`).toString('base64'), text: head, type: more.length ? 'd' : 'f', leaf: more.length ? 0 : 1, size: more.length ? undefined : 128 }); }
       return send(res, [...kids.values()]); } }
-    { const rq = p.match(/^\/nodes\/([^/]+)\/qemu$/); if (rq && req.method === 'POST') { const b = await body(req); const vmid = Number(b.vmid); const bk = backups.get(b.archive ?? '');
+    { const cq = p.match(/^\/nodes\/([^/]+)\/qemu$/); if (cq && req.method === 'POST') { const b = await body(req); req.parsedBody = b;
+      if (!b.archive) {                                           // create from parameters (template import)
+        const vmid = Number(b.vmid); if (vms.has(vmid)) return send(res, null, 500, `VM ${vmid} already exists`);
+        created.push({ node: cq[1], ...b }); log('CREATE', vmid, JSON.stringify(b));
+        const cfg = {}; let n = 0;
+        for (const [k, v] of Object.entries(b)) {
+          if (['vmid', 'pool'].includes(k)) continue;
+          const imp = /^([\w.-]+):0,import-from=([^,]+)(,.*)?$/.exec(String(v));
+          if (DISK.test(k) && imp) {
+            const src = imp[2]; const base = src.replace(/\.ova\/.*$/, '.ova');
+            if (![...files.values()].flat().some((f) => f.volid === base)) return send(res, null, 500, `import-from: volume '${src}' does not exist`);
+            cfg[k] = `${imp[1]}:vm-${vmid}-disk-${n++},size=10G${imp[3] ?? ''}`; continue;
+          }
+          if (DISK.test(k) && /^[\w.-]+:cloudinit$/.test(String(v))) { cfg[k] = `${String(v).split(':')[0]}:vm-${vmid}-cloudinit,media=cdrom`; continue; }
+          cfg[k] = String(v);
+        }
+        if (cfg.net0) cfg.net0 = withMac(cfg.net0);
+        return send(res, task('qmcreate', vmid, 700, () => vms.set(vmid, { vmid, node: cq[1], type: 'qemu', name: b.name, status: 'stopped', maxcpu: Number(b.cores ?? 1),
+          maxmem: Number(b.memory ?? 512) * 2 ** 20, maxdisk: 10 * 2 ** 30, cfg, noAgent: /noagent/.test(b.name ?? '') })));
+      } } }
+    { const rq = p.match(/^\/nodes\/([^/]+)\/qemu$/); if (rq && req.method === 'POST') { const b = req.parsedBody ?? await body(req); const vmid = Number(b.vmid); const bk = backups.get(b.archive ?? '');
       if (!bk) return send(res, null, 500, `archive '${b.archive}' does not exist`);
       if (vms.has(vmid) && String(b.force) !== '1') return send(res, null, 500, `unable to restore VM ${vmid} - VM ${vmid} already exists on node '${rq[1]}'`);
       if (vms.has(vmid) && vms.get(vmid).status !== 'stopped') return send(res, null, 500, `unable to restore VM ${vmid} - VM is running`);
@@ -428,7 +470,11 @@ export async function startMockPve({ port = 0, second = false } = {}) {
       if (rest === '/firewall/rules' && req.method === 'POST') vm.fwRules.splice(Number(b.pos ?? vm.fwRules.length), 0, b);
       if (rest === '/firewall/rules' && req.method === 'GET') return send(res, vm.fwRules.map((r, i) => ({ ...r, pos: i })));
       if (req.method !== 'GET') log('FW', vmid, req.method, rest, JSON.stringify(b)); return send(res, req.method==='GET' ? [] : null); }
-    if (rest === '/agent/ping') { if (vm.status==='running' && Date.now()-(started.get(vmid) ?? 0) > 2000) return send(res,{}); return send(res,null,500,'QEMU guest agent is not running'); }
+    if (rest === '/template' && req.method === 'POST') { log('TEMPLATE', vmid); if (vm.status !== 'stopped') return send(res, null, 500, 'VM is running'); return send(res, task('qmtemplate', vmid, 400, () => { vm.template = 1; })); }
+    if (rest === '/agent/ping') { if ((vm.noAgent || vms.get(vm.origin)?.noAgent)) return send(res,null,500,'QEMU guest agent is not running'); if (vm.status==='running' && Date.now()-(started.get(vmid) ?? 0) > 2000) return send(res,{}); return send(res,null,500,'QEMU guest agent is not running'); }
+    if (rest === '/agent/get-osinfo') { if (vm.status !== 'running') return send(res, null, 500, 'QEMU guest agent is not running');
+      const deb = /debian/i.test(vms.get(vm.origin)?.name ?? vm.name ?? '');
+      return send(res, { result: deb ? { id: 'debian', name: 'Debian GNU/Linux', 'pretty-name': 'Debian GNU/Linux 12 (bookworm)', 'version-id': '12' } : { id: 'ubuntu', name: 'Ubuntu', 'pretty-name': 'Ubuntu 24.04.1 LTS', 'version-id': '24.04' } }); }
     if (rest === '/agent/set-user-password') { await body(req); log('AGENT set-user-password (reports OK, changes nothing)', vmid); return send(res,{}); }
     if (rest === '/agent/exec') { const b = new URLSearchParams(await new Promise(r=>{let x='';req.on('data',c=>x+=c);req.on('end',()=>r(x));})); const cmd = b.getAll('command'); const stdin = b.get('input-data');
       log('AGENT EXEC', vmid, JSON.stringify(cmd)); const pid = ++pidSeq; const script = cmd.join(' ');
@@ -503,6 +549,7 @@ export async function startMockPve({ port = 0, second = false } = {}) {
       else if (decoded.includes('Get-NetIPAddress')) { const n = /bridge=cu0*(\d+)/.exec(vm.cfg.net0 ?? '')?.[1]; out = vm.dhcp && n ? `10.100.${n}.150\r\n` : '192.168.1.50\r\n'; }
       else if (script.includes('ImageState')) out = vm.origin === 9101 ? 'IMAGE_STATE_SPECIALIZE_RESEAL_TO_OOBE\r\n' : (Date.now()-(started.get(vmid) ?? 0) > 6000 ? 'IMAGE_STATE_COMPLETE\r\n' : 'IMAGE_STATE_SPECIALIZE_RESEAL_TO_OOBE\r\n');
       else if (script.includes('COMPUTERNAME')) out = 'WIN-8K2J4H1\r\n';
+      else if (script.includes('cloud-init status')) out = 'status: done\n';
       execs.set(String(pid), { out, at: Date.now(), code: typeof code === 'number' ? code : 0, err: typeof err === 'string' ? err : '' }); return send(res, { pid }); }
     if (rest === '/agent/exec-status') {
       const pid = u.searchParams.get('pid'); const e = execs.get(String(pid));
@@ -538,7 +585,7 @@ export async function startMockPve({ port = 0, second = false } = {}) {
   return {
     url: `http://127.0.0.1:${actualPort}`,
     port: actualPort,
-    vms, sdn, gwFiles, destroyed, clones, storages, backups, vzdumps,
+    vms, sdn, gwFiles, destroyed, clones, storages, backups, vzdumps, files, downloads, created,
     /** GET a control endpoint, e.g. control('/__lose/104/1') */
     control: (p) => fetch(`http://127.0.0.1:${actualPort}/api2/json${p}`, {
       headers: { authorization: 'PVEAPIToken=panel@pve!panel=x' },

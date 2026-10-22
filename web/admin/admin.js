@@ -15,6 +15,7 @@ import { createJobs } from '/jobs.js';
 import { createPlans } from '/plans.js';
 import { createLifecycle } from '/lifecycle.js';
 import { createBackups } from '/backups.js';
+import { createImports } from '/imports.js';
 
 // Administration area: assign servers, manage customers, read the activity log.
 // Receives the shared helpers from app.js so it behaves like the rest of the panel.
@@ -243,6 +244,13 @@ export function createAdmin({ root, nav = null, api, toast, fail, confirmAction,
   const lifecycle = createLifecycle({ root, api, toast, fail, confirmAction, esc });
   // Backups on Proxmox Backup Server (own module)
   const backups = createBackups({ root, api, toast, fail, confirmAction, esc });
+  // Importing images as OS templates (own module, on the templates tab)
+  const imports = createImports({
+    root, api, toast, fail, esc,
+    canEdit: () => !st.perms || st.perms.has('templates.write'),
+    isOpen: () => st.tab === 'templates',
+    reloadTemplates: async () => { if (st.tab !== 'templates') return; ({ templates: st.templates, storages: st.storages } = await api('/api/admin/templates')); renderTab(); },
+  });
   // Which permission a tab needs (the server checks every request as well)
   const TAB_PERMISSION = {
     servers: 'servers.read', users: 'customers.read', templates: 'servers.read', vpn: 'network.read',
@@ -962,15 +970,19 @@ export function createAdmin({ root, nav = null, api, toast, fail, confirmAction,
     const body = root.querySelector('#admin-body');
     if (!st.templates.length) {
       body.innerHTML = `
+        <div id="tpl-imports"></div>
         <div class="empty">
           <h2>No templates in the cluster</h2>
-          <p class="muted">Customers create servers by cloning a Proxmox template. Prepare a VM with cloud-init,
-          convert it to a template in Proxmox and add it to the panel's pool; it then appears here.</p>
+          <p class="muted">Customers create servers by cloning a Proxmox template. Import a cloud image above, or prepare a VM
+          with cloud-init, convert it to a template in Proxmox and add it to the panel's pool; it then appears here.</p>
         </div>`;
+      imports.render();
       return;
     }
     const canEdit = !st.perms || st.perms.has('templates.write');
     body.innerHTML = `
+      <div id="tpl-imports"></div>
+      <h2 class="h2">Templates</h2>
       <p class="muted" style="margin-top:0">Customers who may create servers can choose from the templates offered here.
         Linux templates are set up with cloud-init, Windows templates through the QEMU guest agent.</p>
       ${canEdit ? '' : '<p class="notice"><span>Read-only: only owners (or a role with “Offer, set up and withdraw OS templates”) can change templates.</span></p>'}
@@ -985,9 +997,9 @@ export function createAdmin({ root, nav = null, api, toast, fail, confirmAction,
             ${st.templates.map((t) => `
               <tr data-template="${t.vmid}">
                 <td class="mono">${t.vmid}</td>
-                <td>${esc(t.name)} <span class="muted small">${esc(t.node)}</span></td>
+                <td>${esc(t.name)} <span class="muted small">${esc(t.node)}</span>${t.imported ? `<br><span class="small muted">imported ${esc(t.imported.format)}${t.imported.test ? (t.imported.test.agent ? ' · agent OK' : ' · no guest agent') : ''}</span>` : ''}</td>
                 <td><input type="checkbox" data-f="offered" ${t.offered ? 'checked' : ''} aria-label="Offer template ${t.vmid}"></td>
-                <td><input data-f="label" value="${esc(t.label)}" placeholder="e.g. Debian 12" maxlength="80"></td>
+                <td><input data-f="label" value="${esc(t.label || (!t.offered && t.imported?.label) || '')}" placeholder="e.g. Debian 12" maxlength="80"></td>
                 <td>
                   <select data-f="setup" aria-label="Setup method for template ${t.vmid}">
                     <option value="cloudinit" ${t.setup !== 'windows' ? 'selected' : ''}>Cloud-init (Linux)</option>
@@ -1014,6 +1026,7 @@ export function createAdmin({ root, nav = null, api, toast, fail, confirmAction,
         <strong>Guest agent (Windows):</strong> the template must be sysprep'd with the QEMU guest agent installed and enabled;
         the panel sets the password of User (default Administrator) and the computer name.</p>
       </fieldset>`;
+    imports.render();
   }
 
   async function saveTemplate(row) {
@@ -1808,6 +1821,7 @@ export function createAdmin({ root, nav = null, api, toast, fail, confirmAction,
   root.addEventListener('click', async (e) => {
     const t = e.target.closest('button');
     if (!t) return;
+    if (st.tab === 'templates' && await imports.onClick(e)) return;
     if (infra.handles(st.tab) && !t.dataset.adminTab && await infra.onClick(e, st.tab)) return;
     if (desk.handles(st.tab) && !t.dataset.adminTab && await desk.onClick(e, st.tab)) return;
     if (billing.handles(st.tab) && !t.dataset.adminTab && await billing.onClick(e, st.tab)) return;
@@ -2161,9 +2175,11 @@ export function createAdmin({ root, nav = null, api, toast, fail, confirmAction,
     if (plans.handles(st.tab)) plans.onChange(e, st.tab);
     if (jobs.handles(st.tab)) jobs.onChange(e, st.tab);
     if (backups.handles(st.tab)) backups.onChange(e, st.tab);
+    if (st.tab === 'templates') imports.onChange(e);
   });
 
   root.addEventListener('submit', (e) => {
+    if (st.tab === 'templates' && e.target.id === 'imp-form') { imports.onSubmit(e); return; }
     if (infra.handles(st.tab)) {
       e.preventDefault();
       infra.onSubmit(e, st.tab);

@@ -94,6 +94,11 @@ const ROUTES = {
   'GET /api/admin/templates': 'servers.read',
   'PUT /api/admin/templates/:vmid': 'templates.write',
   'DELETE /api/admin/templates/:vmid': 'templates.write',
+  'GET /api/admin/templates/imports': 'servers.read',
+  'GET /api/admin/templates/import-options': 'templates.write',
+  'POST /api/admin/templates/imports': 'templates.write',
+  'POST /api/admin/templates/imports/:id/retry': 'templates.write',
+  'DELETE /api/admin/templates/imports/:id': 'templates.write',
 
   'GET /api/admin/vpn': 'network.read',
   'DELETE /api/admin/vpn/devices/:id': 'network.write',
